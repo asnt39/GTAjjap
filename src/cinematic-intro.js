@@ -10,11 +10,6 @@ const canvas = game.querySelector('#world')
 const mediaEvents = new AbortController()
 const inputEvents = new AbortController()
 const motion = matchMedia('(prefers-reduced-motion: reduce)')
-// Defer Three.js and asset decoding on touch, data-saving and unclassified devices.
-const canPrepareDuringPlayback = matchMedia('(pointer: fine)').matches &&
-  navigator.hardwareConcurrency >= 8 && navigator.deviceMemory >= 8 &&
-  !navigator.connection?.saveData
-
 const previewSource = window.harborPreviewAssets?.[video.getAttribute('src')]
 if (previewSource) video.src = previewSource
 
@@ -37,6 +32,9 @@ function showGameFailure(text) {
   status.querySelector('b').textContent = text
   status.hidden = false
   game.inert = true
+  if (!status.querySelector("button")) {
+    const retryGame=document.createElement("button");retryGame.textContent="다시 불러오기";retryGame.onclick=()=>location.reload();status.append(retryGame)
+  }
 }
 
 function prepareGame() {
@@ -131,6 +129,7 @@ async function finish() {
 }
 
 window.addEventListener('keydown', event => {
+  if(event.target instanceof HTMLButtonElement && ['Tab','Enter',' '].includes(event.key))return
   event.stopImmediatePropagation()
 }, {capture: true, signal: inputEvents.signal})
 
@@ -139,12 +138,9 @@ play.addEventListener('click', () => {
   if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : video.muted)
 }, media)
 audio.addEventListener('click', () => {
-  if (phase !== 'playing' || !video.muted) return
-  video.pause()
-  video.currentTime = 0
-  audio.hidden = true
-  intro.focus({preventScroll: true})
-  startPlayback(false)
+  video.muted=false
+  audio.hidden=true
+  if(video.paused)startPlayback(false)
 }, media)
 video.addEventListener('playing', () => {
   if (!isPlayingOrStarting()) return
@@ -158,10 +154,17 @@ video.addEventListener('playing', () => {
 video.addEventListener('waiting', () => {
   if (isPlayingOrStarting()) watchForPlayback()
 }, media)
-video.addEventListener('timeupdate', () => {
-  if (!launch && phase === 'playing' && canPrepareDuringPlayback &&
-      video.currentTime > .25 && video.readyState >= video.HAVE_ENOUGH_DATA) prepareGame()
-}, media)
+const frame=document.querySelector('#intro-frame')
+function positionLogo(){frame.classList.toggle('corner',video.currentTime>=7.45)}
+video.addEventListener('timeupdate',positionLogo,media)
+if(video.requestVideoFrameCallback){
+ const follow=()=>{positionLogo();if(phase!=='exiting')video.requestVideoFrameCallback(follow)}
+ video.requestVideoFrameCallback(follow)
+}
+intro.addEventListener('click',event=>{
+ if(event.target.closest('#intro-audio,#intro-retry'))return
+ if(phase==='playing'||event.target.closest('#intro-skip'))finish()
+},media)
 video.addEventListener('ended', finish, media)
 video.addEventListener('error', failPlayback, media)
 document.addEventListener('visibilitychange', () => {
@@ -175,3 +178,6 @@ document.addEventListener('visibilitychange', () => {
 intro.focus({preventScroll: true})
 
 if (!document.hidden) startPlayback(false, true)
+
+// Start after the browser can paint the video. Distant district detail loads on approach.
+requestAnimationFrame(()=>setTimeout(prepareGame,0))
