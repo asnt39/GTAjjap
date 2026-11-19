@@ -20,7 +20,7 @@ export function nearBody(car,x,z,r=.32){
 export function clearPose(car,boxes){
  const cs=Math.cos(car.heading),sn=Math.sin(car.heading),c=Math.abs(cs),s=Math.abs(sn)
  const w=car.width/2,l=car.length/2,rx=c*w+s*l,rz=s*w+c*l
- if(car.x-rx < -36||car.x+rx>25.3||car.z-rz< -101||car.z+rz>58)return false
+ if(car.x-rx < -97||car.x+rx>25.3||car.z-rz< -101||car.z+rz>58)return false
  const overlaps=([x1,x2,z1,z2])=>{
   if(car.x+rx<=x1||car.x-rx>=x2||car.z+rz<=z1||car.z-rz>=z2)return false
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z

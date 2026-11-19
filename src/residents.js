@@ -56,7 +56,7 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
  }
  function lane(n){return n.x<0?[-10,-6.65]:n.x>10.8?[11.2,15.6]:[6.7,10.25]}
  function wander(n){
-  if(n.station){plan(n,{x:n.x,z:n.z},null);n.state=n.path.length?"walk":"idle";n.wait=5;return}
+  if(n.station){plan(n,{x:n.x+(Math.random()-.5)*2,z:n.z+(Math.random()-.5)*2},null);n.state=n.path.length?"walk":"idle";n.wait=5;return}
   const band=lane(n),range=n.role==='배송 기사'?11:9
   plan(n,{x:band[0]+Math.random()*(band[1]-band[0]),z:n.z+(Math.random()-.5)*range*2},n.pos.x>=band[0]&&n.pos.x<=band[1]?band:null)
   n.state='walk';n.wait=0

@@ -49,6 +49,7 @@ export function createUI(game){
   panel='';overlay.hidden=true;game.setPaused(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
+  if(game.crowd.talking)return
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
   const journal=game.episode.snapshot()
   const menu={
@@ -60,6 +61,10 @@ export function createUI(game){
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
   if(name==='sight'&&near){const result=game.episode.interact({sight:near.tag});if(result)toast(result.message);menu.sight=['PORT AUTHORITY  /  '+near.tag,near.title,'<p>'+near.body+'</p>'];visited.add(near.tag);try{localStorage.setItem('harborline.visits.v1',JSON.stringify([...visited]))}catch{}}
+  if(name==='sight'&&near?.tag==='05'){
+   menu.sight[2]+=row('잔액','₩'+journal.money.toLocaleString())+journal.items.map(i=>button('order-'+i.id,i.name,'₩'+i.price.toLocaleString())).join('')
+  }
+  if(name==='sight'&&near?.tag==='06')menu.sight[2]+=button('lamp-test','작업대 시험등 점등')
   const content=menu[name];
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
@@ -107,6 +112,8 @@ export function createUI(game){
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
  overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
+  if(action==='lamp-test'&&panel==='sight'&&near?.tag==='06'){close();game.testSignal();toast('시험등 점등 · 6초 뒤 자동 소등');return}
+  if(action.startsWith('order-')&&panel==='sight'&&near?.tag==='05'){toast(game.episode.buy(action.slice(6)).message);show('sight');return}
   if(action==='roomCreate'||action==='roomJoin'||action==='roomLeave'){
    e.preventDefault();if(action==='roomLeave')game.room.leave();else joinRoom(action==='roomCreate');return
   }
@@ -116,6 +123,9 @@ export function createUI(game){
  window.addEventListener('keydown',e=>{
   if(e.repeat)return
   if(e.target instanceof HTMLInputElement&&!['Escape','Tab'].includes(e.code))return
+  if(game.crowd.talking && (e.code==='Escape'||e.code==='KeyE')){
+   e.preventDefault();game.crowd.endTalk();return
+  }
   if(e.code==='Escape'){e.preventDefault();panel?close():show('pause')}
   if(e.code==='KeyM'){e.preventDefault();panel==='map'?close():show('map')}
   if(e.code==='Slash'&&e.shiftKey){panel==='controls'?close():show('controls')}
@@ -139,10 +149,17 @@ export function createUI(game){
   $('#jump').disabled=!game.canAct()||!!game.crowd.talking
   $('#punch').disabled=game.mode()!=='walk'||game.foot.air||['down','hit'].includes(game.player.f.action)
   const dialogue=game.crowd.dialogue,box=$('#conversation')
-  box.hidden=!dialogue||panel
-  if(dialogue){box.querySelector('strong').textContent=dialogue.name;box.querySelector('small').textContent=dialogue.role;box.querySelector('.spoken').textContent=dialogue.text}
+  if(dialogue&&!panel){
+   box.hidden=false;box.inert=false;box.classList.remove('leaving')
+  }else if(!box.hidden&&!box.inert){
+   box.inert=true;box.classList.add('leaving')
+   setTimeout(()=>{if(box.inert)box.hidden=true},140)
+  }
+  if(dialogue&&box.querySelector('strong').textContent!==dialogue.name){
+   box.querySelector('strong').textContent=dialogue.name;box.querySelector('small').textContent=dialogue.role
+  }
   document.body.classList.toggle('speaking',!!dialogue&&!panel)
-  story.dialogue()
+  story.dialogue(dialogue?.text)
   const target=game.feedback(),health=$('#vitals')
   health.hidden=panel||driving||(!target&&game.player.f.hp===100)
   if(!health.hidden){
@@ -155,7 +172,7 @@ export function createUI(game){
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

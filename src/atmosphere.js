@@ -19,7 +19,7 @@ export function illumination(scene){
 }
 export function beacons(scene,addCollider){
  const group=new T.Group(),postMat=new T.MeshStandardMaterial({color:0x35444a,metalness:.58,roughness:.56}),faceMat=new T.MeshStandardMaterial({color:0x2b393a,metalness:.3,roughness:.55})
- for(const s of sights){
+ for(const s of sights.filter(s=>Number(s.tag)<4)){
   const sign=new T.Group();sign.position.set(s.x,0,s.z);sign.rotation.y=s.x>0?-1.22:1.2
   const box=(w,h,d,y,mat,z=0)=>{const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat);m.position.set(0,y,z);m.castShadow=true;sign.add(m)}
   box(.14,.97,.12,.53,postMat);box(.68,.8,.075,1.32,faceMat)
@@ -42,7 +42,7 @@ export function districtGates(scene,addCollider){
  const paint=new T.MeshStandardMaterial({color:0xea813f,roughness:.58,emissive:0x56321c,emissiveIntensity:.12})
  const reflector=new T.BoxGeometry(.3,.12,.35),points=[]
  for(const z of [-99.5,57])for(const x of [-4.2,0,4.2])points.push([x,z,Math.PI/2])
- for(const z of [-40.1,-35.7,-31.3])points.push([-35,z,0])
+ for(const z of [-40.1,-35.7,-31.3])points.push([-96,z,0])
  const blocks=new T.InstancedMesh(geometry,concrete,points.length),markers=new T.InstancedMesh(reflector,paint,points.length*2)
  const m=new T.Object3D()
  points.forEach(([x,z,r],i)=>{

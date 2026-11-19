@@ -9,6 +9,8 @@ import {MAX_PLAYERS,TICK_MS,MESSAGE_BYTES,ROOM_PATH,ROOM_CODE,packPlayer,packVeh
 const newToken=bytes=>randomBytes(bytes).toString('hex')
 const freshPlayer=(x=spawn.x,z=spawn.z)=>({x,z,y:0,face:Math.PI,speed:0,jump:null,land:0,visible:true,crouch:0,reach:0,side:0})
 const between=(value,min,max)=>typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max
+// Extend the existing coarse validation only where the new street joins Portside.
+const validMapPoint=(x,z)=>between(x,-97,26)&&between(z,-102,59)&&(x>=-36||inDistrict(x,z))
 const isSide=value=>value===1||value===-1
 const isOriginAllowed=(origin,allowed)=>{
  if(allowed.length)return allowed.includes(origin)
@@ -92,7 +94,7 @@ export function createRoomServer({origins=[],graceMs=25000}={}){
  function updatePlayer(player,room,data){
   if(!Array.isArray(data)||data.length!==11)return
   const p=unpackPlayer(data)
-  if(!between(p.x,-36,26)||!between(p.z,-102,59)||!between(p.y,-.5,2)||!between(p.face,-Math.PI,Math.PI)||
+  if(!validMapPoint(p.x,p.z)||!between(p.y,-.5,2)||!between(p.face,-Math.PI,Math.PI)||
    !between(p.speed,0,16)||(p.jump!==null&&!between(p.jump,0,1))||!between(p.land,0,1)||
    typeof p.visible!=='boolean'||!between(p.crouch,0,1)||!between(p.reach,0,1)||(p.side!==0&&!isSide(p.side)))return
   if(player.car){
@@ -109,7 +111,7 @@ export function createRoomServer({origins=[],graceMs=25000}={}){
   if(!car||car.owner!==player.id||!Array.isArray(data)||data.length!==8)return
   const v=unpackVehicle(data)
   const elapsed=Math.min(1,Math.max(.02,(now-car.lastMove)/1000))
-  const valid=between(v.x,-36,26)&&between(v.z,-102,59)&&between(v.heading,-Math.PI,Math.PI)&&
+  const valid=validMapPoint(v.x,v.z)&&between(v.heading,-Math.PI,Math.PI)&&
    between(v.speed,-car.reverse-.2,car.top+.2)&&between(v.steer,-.75,.75)&&between(v.accel,-15,15)&&
    typeof v.braking==='boolean'&&between(v.door,-1,1)
   if(!valid)return
