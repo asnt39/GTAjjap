@@ -129,7 +129,7 @@ async function finish() {
 }
 
 window.addEventListener('keydown', event => {
-  if(event.target instanceof HTMLButtonElement && ['Tab','Enter',' '].includes(event.key))return
+  if((event.key==='Tab'||event.target instanceof HTMLButtonElement&&['Enter',' '].includes(event.key)) && (!intro.isConnected || intro.contains(event.target) || status.contains(event.target)))return
   event.stopImmediatePropagation()
 }, {capture: true, signal: inputEvents.signal})
 
