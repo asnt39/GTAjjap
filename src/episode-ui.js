@@ -41,7 +41,7 @@ export function episodeUI(game, toast) {
  function goal(driving) {
   const state=episode.snapshot(), goal=state.goal
   if(!goal)return game.mission.goal(driving)
-  const point=goal.vehicle?game.car:game.crowd.all.find(n=>n.name===goal.resident)?.pos
+  const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):game.crowd.all.find(n=>n.name===goal.resident)?.pos
   return {...goal,x:point?.x??goal.x,z:point?.z??goal.z,label:state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')}
  }
  return {dialogue,goal}
