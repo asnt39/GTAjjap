@@ -3,19 +3,33 @@ import {sights} from './navigation.js'
 const $=q=>document.querySelector(q)
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
 function audioBed(){
- let ctx,output,on=false
- return async()=>{if(!ctx){
+ let ctx,output,motor,motorGain,roadGain,on=false
+ const toggle=async()=>{if(!ctx){
   ctx=new AudioContext();const n=ctx.sampleRate*3,buffer=ctx.createBuffer(1,n,ctx.sampleRate),a=buffer.getChannelData(0);let last=0
   for(let i=0;i<n;i++){last=(last+.035*(Math.random()*2-1))/1.02;a[i]=last*3}
   const wind=ctx.createBufferSource(),filter=ctx.createBiquadFilter();wind.buffer=buffer;wind.loop=true;filter.type='lowpass';filter.frequency.value=620
   output=ctx.createGain();output.gain.value=0;wind.connect(filter).connect(output).connect(ctx.destination);wind.start()
+  motor=ctx.createOscillator();motor.type='sawtooth';motorGain=ctx.createGain();motorGain.gain.value=0
+  const engineFilter=ctx.createBiquadFilter();engineFilter.type='lowpass';engineFilter.frequency.value=290
+  motor.connect(engineFilter).connect(motorGain).connect(output);motor.start()
+  roadGain=ctx.createGain();roadGain.gain.value=0;wind.connect(roadGain).connect(output)
   for(const freq of [49,73.5]){const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=freq;gain.gain.value=.015;osc.connect(gain).connect(output);osc.start()}
  }
  await ctx.resume();on=!on;output.gain.setTargetAtTime(on?.28:0,ctx.currentTime,.14);return on}
+ toggle.engine=(active,car)=>{
+  if(!ctx||!on)return
+  const now=ctx.currentTime,speed=Math.abs(car.speed)
+  motor.frequency.setTargetAtTime(34+speed*3.8+Math.max(0,car.accel)*2,now,.08)
+  motorGain.gain.setTargetAtTime(active?.09+Math.min(.04,speed*.003):0,now,.07)
+  roadGain.gain.setTargetAtTime(active?Math.min(1,speed*.056):0,now,.12)
+ }
+ return toggle
 }
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
  const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=0,priorFocus=null
+ let timer
+ const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
  const row=(left,right)=>'<div class="control-row"><span>'+left+'</span><span>'+right+'</span></div>'
@@ -24,10 +38,10 @@ export function createUI(game){
   panel='';overlay.hidden=true;game.setPaused(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
-  if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);overlay.hidden=false;interact.hidden=true
+  if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
   const menu={
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+button('map','구역 지도','M')+button('controls','조작법','?')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기','<kbd>Shift</kbd> + 이동')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('안내판 읽기','<kbd>E</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 화살표 버튼을 누른 채 이동하면 달려.</p>'],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('map','구역 지도','M')+button('controls','조작법','?')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기','<kbd>Shift</kbd> + 이동')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('안내판 · 탑승 · 하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 화살표 버튼을 누른 채 이동하면 달려.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -35,20 +49,21 @@ export function createUI(game){
   const content=menu[name];
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
-  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true)
+  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.car,game.mission.goal(game.driving()))
   if(name==='credits'){for(const [label,path] of [['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Barlow 글꼴','fonts/OFL-Barlow.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
- overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
- interact.onclick=()=>{if(near)show('sight')}
+ overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
+ function activate(){if(game.interactCar())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
+ interact.onclick=activate
  window.addEventListener('keydown',e=>{
   if(e.repeat)return
   if(e.code==='Escape'){e.preventDefault();panel?close():show('pause')}
   if(e.code==='KeyM'){e.preventDefault();panel==='map'?close():show('map')}
   if(e.code==='Slash'&&e.shiftKey){panel==='controls'?close():show('controls')}
-  if(e.code==='KeyE'&&!panel&&near)show('sight')
+  if(e.code==='KeyE'&&!panel){e.preventDefault();activate()}
   if(e.code==='Enter'&&panel==='pause'&&document.activeElement===$('#close')){e.preventDefault();close()}
   if(e.code==='Tab'&&panel){const f=[...$('#panel').querySelectorAll('button,a')];if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f.at(-1).focus()}else if(!e.shiftKey&&document.activeElement===f.at(-1)){e.preventDefault();f[0].focus()}}
  })
@@ -57,11 +72,21 @@ export function createUI(game){
  function update(t){
   if(t-lastUi<.08)return;lastUi=t
   const p=game.pos,y=game.yaw(),degrees=(y*180/Math.PI)%360
-  if(!panel){near=sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6);interact.hidden=!near;if(near)interact.querySelector('span').textContent=near.name}
+  const driving=game.driving(),goal=game.mission.goal(driving)
+  document.body.classList.toggle('driving',driving)
+  $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)
+  $('#speed small').textContent=game.car.speed<-.08?'R':'D'
+  $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
+  toggleAudio.engine(driving&&!panel,game.car)
+  if(!panel){
+   near=game.mode()==='walk'?sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6):null
+   const label=game.prompt()||near?.name;interact.hidden=!label
+   if(label)interact.querySelector('span').textContent=label
+  }
   $('#loc-name').textContent=p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
-  drawMap($('#mini'),p,y)
+  drawMap($('#mini'),p,y,false,game.car,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
  }
- return {update,show,close,isOpen:()=>!!panel}
+ return {update,show,close,toast,isOpen:()=>!!panel}
 }

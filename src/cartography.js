@@ -1,5 +1,5 @@
 import {sights} from './navigation.js'
-export function drawMap(canvas,player,yaw,overview=false){
+export function drawMap(canvas,player,yaw,overview=false,car=null,goal=null){
  const d=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth,h=canvas.clientHeight
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
@@ -15,6 +15,13 @@ export function drawMap(canvas,player,yaw,overview=false){
  road([[-1,-150],[0,-93],[0,58],[-8,97]],9);road([[-120,-37],[23,-37]],7);road([[-27,-130],[-27,-40],[-42,33],[-40,90]],3);road([[-104,50],[-8,50],[0,58]],4)
  c.setLineDash([2.5,4]);c.lineWidth=.5;c.strokeStyle='#abb19a';c.beginPath();c.moveTo(0,-105);c.lineTo(0,67);c.stroke();c.setLineDash([])
  for(const s of sights){c.save();c.translate(s.x,s.z);c.rotate(Math.PI/4);c.strokeStyle='#f4af77';c.fillStyle='#283937';c.lineWidth=1/scale;c.fillRect(-2.2,-2.2,4.4,4.4);c.strokeRect(-2.2,-2.2,4.4,4.4);c.restore();if(overview){c.fillStyle='#f9d2ad';c.font='5px Barlow';c.fillText(s.tag,s.x+3,s.z-2)}}
+ if(car&&Math.hypot(car.x-player.x,car.z-player.z)>1.5){
+  c.save();c.translate(car.x,car.z);c.rotate(car.heading);c.fillStyle='#dbe2cf';c.fillRect(-1.6,-3.3,3.2,6.6);c.fillStyle='#566963';c.fillRect(-1.2,-1.45,2.4,2.5);c.restore()
+ }
+ if(goal){
+  const gx=Math.max(cx-w/(2*scale)+6,Math.min(cx+w/(2*scale)-6,goal.x)),gz=Math.max(cz-h/(2*scale)+6,Math.min(cz+h/(2*scale)-6,goal.z))
+  c.beginPath();c.arc(gx,gz,4,0,Math.PI*2);c.lineWidth=1.2;c.strokeStyle='#ffc067';c.stroke();c.fillStyle='#ffc067';c.fillRect(gx-1,gz-1,2,2)
+ }
  c.translate(player.x,player.z);c.rotate(yaw);c.scale(1/scale,1/scale)
  c.fillStyle='#ecaf7730';c.beginPath();c.moveTo(0,0);c.arc(0,0,27,-Math.PI*.66,-Math.PI*.34);c.fill()
  c.beginPath();c.moveTo(0,-8);c.lineTo(5.6,6);c.lineTo(0,3.8);c.lineTo(-5.6,6);c.closePath();c.strokeStyle='#452e23';c.lineWidth=2.5;c.stroke();c.fillStyle='#ff9b5d';c.fill()

@@ -17,11 +17,11 @@ export function canWalk(x,z,boxes,r=.32) {
   return dx*dx+dz*dz < r*r
  })
 }
-export function movePlayer(pos,dx,dz,boxes){
+export function movePlayer(pos,dx,dz,boxes,occupied){
  const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.19))
  for(let i=0;i<n;i++){
-  if(canWalk(pos.x+dx/n,pos.z,boxes))pos.x+=dx/n
-  if(canWalk(pos.x,pos.z+dz/n,boxes))pos.z+=dz/n
+  if(canWalk(pos.x+dx/n,pos.z,boxes)&&!occupied?.(pos.x+dx/n,pos.z))pos.x+=dx/n
+  if(canWalk(pos.x,pos.z+dz/n,boxes)&&!occupied?.(pos.x,pos.z+dz/n))pos.z+=dz/n
  }
 }
 export function cameraFraction(from,to,boxes){

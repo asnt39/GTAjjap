@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#122129"><title>HARBORLINE — Portside District</title><meta name="description" content="해 질 무렵의 항구도시 포트사이드를 걸어서 탐험하는 3인칭 3D 게임."><link rel="icon" href="/harbor.svg"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#122129"><title>HARBORLINE — First Drive</title><meta name="description" content="해 질 무렵의 항구도시 포트사이드를 걸어서 탐험하는 3인칭 3D 게임."><link rel="icon" href="/harbor.svg"></head>
 <body>
 <main id="game" aria-label="HARBORLINE 항구 탐험">
 <canvas id="world" tabindex="0" aria-label="3D 게임 화면. WASD로 이동하고 드래그로 시점을 돌려."></canvas>
@@ -13,8 +13,8 @@
 <div class="mode"><i></i> FREE ROAM</div>
 <section class="location"><button id="mini-button" title="구역 지도 열기 (M)" aria-label="구역 지도 열기"><canvas id="mini"></canvas><span class="map-north">N</span><span class="map-expand">⛶</span></button>
 <div class="location-type"><b></b> HARBOR DISTRICT</div><div id="loc-name">Breakwater Ave.</div></section>
-<div class="shortcuts"><div><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><strong>이동</strong></div><div><kbd>SHIFT</kbd><strong>달리기</strong></div><button id="controls"><span class="keysym">?</span> 조작법</button></div>
-<div id="touch"><div id="stick" aria-label="이동 조이스틱"><i></i></div><button id="run" aria-label="달리기">⇧</button></div>
+<div id="speed" hidden><small>D</small><b>0</b><span>KM/H</span></div><div id="objective" hidden></div><div class="shortcuts"><div><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><strong class="walking-label">이동</strong><strong class="driving-label">가속 · 조향</strong></div><div><kbd class="walking-label">SHIFT</kbd><strong class="walking-label">달리기</strong><kbd class="driving-label">SPACE</kbd><strong class="driving-label">핸드브레이크</strong></div><button id="controls"><span class="keysym">?</span> 조작법</button></div>
+<div id="touch"><div id="stick" aria-label="이동 조이스틱"><i></i></div><div id="pedals"><button data-pedal="hold">주차<br>브레이크</button><button data-pedal="brake">제동<br>후진</button><button data-pedal="gas">가속</button></div><button id="run" aria-label="달리기">⇧</button></div>
 <button id="interact" hidden><kbd>E</kbd><span></span></button><div id="toast" aria-live="polite"></div>
 <div id="status" role="status"><span class="spinner"></span><b>부두를 불러오는 중</b></div>
 <div id="overlay" hidden><section id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title"><div class="panel-heading"><small id="eyebrow">HARBORLINE</small><button id="close" class="icon-button" aria-label="닫기">×</button></div><h1 id="panel-title"></h1><div id="panel-body"></div></section></div>
