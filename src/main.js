@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import './style.css'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint} from './driving.js'
 import {createEpisode} from './episode.js'
 import {createResidents} from './residents.js'
@@ -17,7 +16,7 @@ import {spawn,canWalk,movePlayer,cameraFraction} from './navigation.js'
 // The downloadable preview resolves the same site assets from its embedded manifest.
 if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>window.harborPreviewAssets[url]||url)
 
-const canvas=document.querySelector('#world'),status=document.querySelector('#status')
+const canvas=document.querySelector('#world')
 const pos=new THREE.Vector3(spawn.x,0,spawn.z),velocity=new THREE.Vector2()
 const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
 let yaw=.05,pitch=.13,distance=4.65,isPaused=false
@@ -27,8 +26,12 @@ const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.
 const coarse=matchMedia('(pointer:coarse)').matches
 let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
 const resolution=()=>quality==='low'?.8:quality==='high'?Math.min(devicePixelRatio,1.75):autoDpr
-async function start(){
+export async function start(onContextLost){
  const renderer=new THREE.WebGLRenderer({canvas,antialias:!coarse,powerPreference:'high-performance',alpha:false})
+ let contextLost=false
+ canvas.addEventListener('webglcontextlost',e=>{
+  e.preventDefault();contextLost=true;onContextLost()
+ })
  renderer.setPixelRatio(resolution());renderer.setSize(innerWidth,innerHeight,false);renderer.outputColorSpace=THREE.SRGBColorSpace
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12
  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
@@ -177,6 +180,7 @@ async function start(){
  }
  positionCamera(0,true)
  const draw=now=>{
+  if(contextLost)return
   const realDt=(now-last)/1000;last=now;const dt=Math.min(realDt,.07)
   if(!document.hidden&&!isPaused){
    elapsed+=dt
@@ -237,7 +241,9 @@ async function start(){
   }
   requestAnimationFrame(draw)
  }
- renderer.render(scene,camera);ui.update(0);status.hidden=true;requestAnimationFrame(draw)
- canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();status.hidden=false;status.textContent='그래픽 연결이 중단됐어. 페이지를 새로고침해.'})
+ if(contextLost)return
+ renderer.render(scene,camera);ui.update(0)
+ return ()=>{
+  last=performance.now();requestAnimationFrame(draw)
+ }
 }
-start().catch(err=>{console.error(err);status.hidden=false;status.textContent='게임을 열 수 없어. WebGL 2를 지원하는 브라우저에서 새로고침해.'})
