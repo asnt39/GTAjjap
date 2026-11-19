@@ -1,3 +1,4 @@
+import {archiveAccess} from './chart-room.js'
 export const spawn = { x:-3.4, z:25 }
 export const sights = [
  {x:8.1,z:18.5,tag:'01',title:'Harbor Gate',name:'부두 출입 안내',body:'브레이크워터 대로와 하역장 사이에 있는 정문이야. 북쪽으로 걸으면 갠트리 크레인 아래로 컨테이너 야드가 이어져.'},
@@ -6,7 +7,7 @@ export const sights = [
 ]
 export function inDistrict(x,z,r=0){
  if(z < -101+r || z>58-r || x>25.3-r) return false
- if(x < -10.5+r && (z < -42.7+r || z > -31.3-r || x < -36+r))return false
+ if(x < -10.5+r && !archiveAccess(x,z,r) && (z < -42.7+r || z > -31.3-r || x < -36+r))return false
  if(x>10.7-r && (z< -63+r || z>35-r))return false
  return true
 }
@@ -26,15 +27,25 @@ export function movePlayer(pos,dx,dz,boxes,occupied){
 }
 export function cameraFraction(from,to,boxes){
  let nearest=1
- for(const [x1,x2,z1,z2,h] of boxes){
-  let lo=0,hi=nearest, intersects=true
-  for(const [a,d,min,max] of [[from.x,to.x-from.x,x1-.13,x2+.13],[from.y,to.y-from.y,-.3,h+.12],[from.z,to.z-from.z,z1-.13,z2+.13]]){
-   if(Math.abs(d)<1e-7){if(a<min||a>max){intersects=false;break}}else{
-    const q=(min-a)/d,w=(max-a)/d;lo=Math.max(lo,Math.min(q,w));hi=Math.min(hi,Math.max(q,w))
-    if(lo>hi){intersects=false;break}
+ const dx=to.x-from.x,dy=to.y-from.y,dz=to.z-from.z
+ const left=Math.min(from.x,to.x)-.13,right=Math.max(from.x,to.x)+.13
+ const north=Math.min(from.z,to.z)-.13,south=Math.max(from.z,to.z)+.13
+ for(const b of boxes){
+  if(b[1]<left||b[0]>right||b[3]<north||b[2]>south)continue
+  let lo=0,hi=nearest
+  for(let axis=0;axis<3;axis++){
+   const a=axis===0?from.x:axis===1?from.y:from.z
+   const d=axis===0?dx:axis===1?dy:dz
+   const min=axis===0?b[0]-.13:axis===1?-.3:b[2]-.13
+   const max=axis===0?b[1]+.13:axis===1?b[4]+.12:b[3]+.13
+   if(Math.abs(d)<1e-7){if(a<min||a>max){hi=-1;break}}
+   else{
+    const q=(min-a)/d,w=(max-a)/d
+    lo=Math.max(lo,Math.min(q,w));hi=Math.min(hi,Math.max(q,w))
+    if(lo>hi)break
    }
   }
-  if(intersects && hi>=0 && lo<=1)nearest=Math.min(nearest,Math.max(.02,lo-.025))
+  if(lo<=hi)nearest=Math.min(nearest,Math.max(.02,lo-.025))
  }
  return nearest
 }

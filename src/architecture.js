@@ -1,3 +1,4 @@
+import {archive,buildArchive,archivePrint} from './chart-room.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 
@@ -13,13 +14,15 @@ export async function buildArchitecture(scene,addCollider){
  const lit=new T.MeshStandardMaterial({map:maps[4],emissiveMap:maps[4],emissive:0xffecd6,emissiveIntensity:.7,roughness:.34,metalness:.12})
  const tinted=mat(0x3e565c,.24,.35)
  const awnings=[0x2f6564,0xa25239,0x506d70,0xad9070].map(v=>mat(v))
- const batches=new Map(),boxGeo=new T.BoxGeometry(),v=(x,y,z)=>new T.Vector3(x,y,z)
+ const batches=new Map(),archiveBatches=new Map()
+ let activeBatch=batches
+ const boxGeo=new T.BoxGeometry(),v=(x,y,z)=>new T.Vector3(x,y,z)
  const cube=(x,y,z,w,h,d,material,rot=0)=>{
   const g=boxGeo.clone();const uv=g.attributes.uv
   if(walls.includes(material)){for(let i=0;i<24;i++){const face=Math.floor(i/4);const sx=face<2?d:w,sy=face===2||face===3?d:h;uv.setXY(i,uv.getX(i)*sx/3.3,uv.getY(i)*sy/3.3)}}
   g.scale(w,h,d).rotateZ(rot).translate(x,y,z);add(g,material)
  }
- function add(g,m){const arr=batches.get(m)||[];arr.push(g.index?g.toNonIndexed():g);batches.set(m,arr)}
+ function add(g,m){const arr=activeBatch.get(m)||[];arr.push(g.index?g.toNonIndexed():g);activeBatch.set(m,arr)}
  function panel(x,y,z,w,h,tile,dir,material=sign,front=false){
   const g=new T.PlaneGeometry(w,h),uv=g.attributes.uv
   for(let i=0;i<uv.count;i++)uv.setXY(i,((tile%4)+.007+.986*uv.getX(i))/4,(7-Math.floor(tile/4)+.012+.976*uv.getY(i))/8)
@@ -33,8 +36,19 @@ export async function buildArchitecture(scene,addCollider){
   [11.1,48,18.5,10.8,0,4],[11.4,-72.7,16.7,9,3,3],[11,-90.2,17.6,15,1,9],[11.5,-104,9,11.4,0,11]]
  for(const [idx,[x,z,w,h,skin,shop]] of buildings.entries()){
   const dir=x<0?1:-1,depth=10+idx%4,tx=(offset)=>x+dir*offset
-  cube(tx(-depth/2),h/2,z,depth,h,w,walls[skin])
-  addCollider(Math.min(x,tx(-depth)),Math.max(x,tx(-depth)),z-w/2,z+w/2,h)
+  if(x===archive.front && z===26.2){
+   activeBatch=archiveBatches
+   const chart=new T.CanvasTexture(archivePrint());chart.colorSpace=T.SRGBColorSpace
+   const paper=new T.MeshStandardMaterial({map:chart,roughness:.86,emissiveMap:chart,emissive:0xffffff,emissiveIntensity:.18})
+   const lamp=new T.MeshBasicMaterial({color:0xffe2a0})
+   add(new T.PlaneGeometry(2.10,1.05).rotateX(-Math.PI/2).translate((x+archive.back)/2,1.125,25.5),paper)
+   add(new T.PlaneGeometry(2.1,1.05).rotateY(Math.PI/2).translate(x+.3,1.62,archive.door-2.43),paper)
+   buildArchive({cube,rail,panel,addCollider,walls:walls[skin],iron,trim,ledge,lit,lamp,roof},h)
+   activeBatch=batches
+  }else{
+   cube(tx(-depth/2),h/2,z,depth,h,w,walls[skin])
+   addCollider(Math.min(x,tx(-depth)),Math.max(x,tx(-depth)),z-w/2,z+w/2,h)
+  }
   // Masonry piers, roof cornices and a recessed parapet.
   for(const e of [-1,1])cube(tx(.065),h/2,z+e*(w/2-.21),.21,h,.44,skin===0?brick:trim)
   cube(tx(-depth/2),h+.08,z,depth+.28,.20,w+.35,ledge)
@@ -44,6 +58,7 @@ export async function buildArchitecture(scene,addCollider){
   const bays=Math.max(2,Math.floor(w/3.0)),span=(w-.9)/bays
   for(let j=0;j<bays;j++){
    const zz=z-w/2+.45+span*(j+.5),door=j===bays-1
+   if(x===archive.front && door)continue
    cube(tx(.13),1.48,zz,.18,2.77,span-.12,iron)
    panel(tx(.23),1.52,zz,span-.34,2.53,door&&idx%3===0?25:16+(idx+j)%4,dir,lit)
    cube(tx(.255),1.46,zz,.07,.08,span-.26,iron)
@@ -93,6 +108,7 @@ export async function buildArchitecture(scene,addCollider){
   cube(x,height/2,z,w,height,d,highrise);cube(x,height+.65,z,w*.77,1.3,d*.79,trim)
  }
  const group=new T.Group();group.name='Portside architecture'
- for(const [m,parts] of batches){const mesh=new T.Mesh(mergeGeometries(parts),m);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);for(const g of parts)g.dispose()}
- scene.add(group)
+ const room=new T.Group();room.name=archive.id
+ for(const [collection,target] of [[batches,group],[archiveBatches,room]])for(const [m,parts] of collection){const mesh=new T.Mesh(mergeGeometries(parts),m);mesh.castShadow=mesh.receiveShadow=true;target.add(mesh);for(const g of parts)g.dispose()}
+ group.add(room);scene.add(group)
 }
