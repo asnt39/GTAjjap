@@ -17,7 +17,7 @@ const scene=new Scene(),camera=new PerspectiveCamera(65,1,.1,200)
 camera.position.set(-7,2,30);camera.lookAt(-7,1,21);camera.updateMatrixWorld()
 const car={x:4.92,z:12,width:2.02,length:4.15,heading:0,speed:0}
 const rig=await createCharacter(),crowd=await createResidents(scene,[],car)
-assert.equal(requests,1);assert.equal(crowd.all.length,5)
+assert.equal(requests,1);assert.equal(crowd.all.filter(n=>!n.officer).length,5);assert.equal(crowd.officers.length,2)
 scene.add(rig.root)
 const player={pos:rig.root.position,f:fighter(100),height:1.8,available:true}
 function tick(n){

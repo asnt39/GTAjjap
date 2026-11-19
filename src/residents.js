@@ -1,4 +1,5 @@
 import {Vector3,Frustum,Matrix4,Sphere,MathUtils} from 'three'
+import {createWanted} from './wanted.js'
 import {createCharacter} from './character.js'
 import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
@@ -11,6 +12,7 @@ const people=[
  {name:'미라',role:'설비 담당',x:12.1,z:-13,pace:1.02,temper:'defend',lines:['바람이 세지면 크레인부터 점검해야 해.','교차로 지나 안쪽이 하역장이야.']},
  {name:'선우',role:'부두 단골',x:-8.3,z:-47,pace:.78,temper:'flee',lines:['예전엔 저 창고 앞까지 배가 들어왔지.','이 시간에는 바다색이 금방 바뀌어.']}
 ]
+for(const [name,x,z] of [['한 순경',8,24],['박 경장',-8,-30]])people.push({name,x,z,role:'항만 경찰',officer:true,pace:1.1,temper:'defend',lines:['정문은 비워 둬. 교대 차량이 곧 들어와.','야간 순찰 중이야.']})
 const cell=.92,clamp=MathUtils.clamp
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]
@@ -27,6 +29,8 @@ export async function createResidents(scene,boxes,car){
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
   return n
  }))
+ const officers=all.filter(n=>n.officer),wanted=createWanted()
+ let response=officers[0],sensing=0,observed=false
  const playerList=[],visibleSphere=new Sphere(new Vector3(),1.3),frustum=new Frustum(),viewProjection=new Matrix4()
  let talking=null,lastTalk='',shadowDirty=false
  const free=(p)=>canWalk(p.x,p.z,boxes,.31)&&!nearBody(car,p.x,p.z,.32)
@@ -84,23 +88,44 @@ export async function createResidents(scene,boxes,car){
  }
  function candidate(p){
   let best=null,range=2.1
-  for(const n of all){const d=distance(p,n.pos);if(n.alert<=0&&!n.f.action&&n.f.hp&&d<range&&lineClear(p,n.pos)){best=n;range=d}}
+  for(const n of all){const d=distance(p,n.pos);if(!(n.officer&&wanted.level)&&n.alert<=0&&!n.f.action&&n.f.hp&&d<range&&lineClear(p,n.pos)){best=n;range=d}}
   return best
  }
  function endTalk(){if(talking){talking.talk=0;talking.state='idle';talking.wait=1;talking=null}lastTalk=''}
  function beginTalk(n){
-  endTalk();talking=n;n.state='talk';n.talk=5.5;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
+  endTalk();talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
  }
  function receive(n,source,zone,point){
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
   if(!injure(n.f,24,side,zone))return false
-  if(talking===n)endTalk()
+  endTalk()
+  if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
+   wanted.report(source,n.officer||!n.f.hp?2:1)
+   response=officers.filter(o=>o.f.hp>0).sort((a,b)=>distance(a.pos,source)-distance(b.pos,source))[0]||officers[0];sensing=0
+  }
   n.state='react';n.stunX=-Math.sin(angle);n.stunZ=-Math.cos(angle);n.alert=n.temper==='defend'?7:5;n.path=[];n.replan=0
   for(const other of all)if(other!==n&&distance(other.pos,n.pos)<5&&!other.f.action){other.alert=Math.max(other.alert,2);other.state='watch'}
   return true
  }
- function update(dt,camera,player,hitPlayer){
+ function update(dt,camera,player,hitPlayer,onOutcome){
+  const responding=n=>n.officer&&(wanted.level===3||response===n)&&n.f.hp>0
+  if(wanted.level){
+   sensing-=dt
+   if(sensing<=0){
+    sensing=.2
+    observed=officers.some(n=>{
+     const d=distance(n.pos,player.pos),angle=Math.atan2(player.pos.x-n.pos.x,player.pos.z-n.pos.z)
+     if(!responding(n)||d>20||(d>3&&Math.cos(n.face-angle)<-.15))return false
+     // The occupied vehicle itself must not occlude its driver's position.
+     const end=player.inVehicle?worldPoint(car,0,car.length/2+.5):player.pos
+     return lineClear(n.pos,end)
+    })
+   }
+   const near=player.available&&officers.some(n=>responding(n)&&!n.f.action&&distance(n.pos,player.pos)<1.65&&lineClear(n.pos,player.pos))
+   const outcome=wanted.tick(dt,player.pos,observed,near)
+   if(outcome)onOutcome?.(outcome)
+  }
   viewProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(viewProjection)
   shadowDirty=false
   for(const n of all){
@@ -125,8 +150,18 @@ export async function createResidents(scene,boxes,car){
    }else if(n.f.action==='hit'){
     movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>nearBody(car,x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
-   else if(talking===n){
-    n.talk-=tick;turn(n,toward,tick);if(n.talk<=0||d>2.8||!player.available)endTalk()
+   else if(wanted.level&&responding(n)){
+    if(talking===n)endTalk()
+    n.state='guard'
+    if(n.replan<=0){
+     const goal=wanted.lastKnown
+     if(distance(p,goal)>1.1)plan(n,goal,null)
+     else {n.path=[];turn(n,n.face+.7,tick)}
+     n.replan=.75
+    }
+    walkPath(n,tick,[0,1.55,4.4,5.2][wanted.level],player.pos)
+   }else if(talking===n){
+    n.talk-=tick;turn(n,toward,tick);if(n.alert>0||n.talk<=0||d>2.8||!player.available||!lineClear(n.pos,player.pos))endTalk()
    }else if(n.alert>0&&player.available){
     if(n.temper==='defend'&&n.state!=='watch'){
      n.state='guard'
@@ -156,6 +191,6 @@ export async function createResidents(scene,boxes,car){
    }
   }
  }
- return {all,candidate,beginTalk,endTalk,receive,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,candidate,beginTalk,endTalk,receive,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

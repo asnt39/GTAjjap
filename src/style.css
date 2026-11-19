@@ -13,3 +13,9 @@
 #conversation,#vitals{position:absolute;z-index:3;background:#142126ec;border-left:2px solid var(--orange);padding:9px 14px;pointer-events:none;text-shadow:0 1px 2px #1118}#conversation{bottom:117px;left:50%;transform:translateX(-50%);width:max-content;max-width:min(430px,84vw);line-height:1.6}#conversation strong{font-size:12px;color:#ffb489}#conversation span,#vitals span{display:block;font-size:13px}#vitals{right:28px;top:88px;font-size:14px}#vitals span{font-size:11px;color:#ffd3b5;margin-top:2px}
 @media(pointer:coarse){#touch #punch{right:max(82px,calc(env(safe-area-inset-right) + 76px));border-color:#e4ae8e}#conversation{bottom:90px}#vitals{top:62px;right:16px}#interact{min-width:85px}}
 #touch .foot-action:disabled{opacity:.55}
+#conversation{pointer-events:auto;max-height:45dvh;overflow:auto}
+.episode-choices{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.episode-choices button{background:#253239;color:#fff;border:1px solid #6d7473;padding:6px 10px;text-align:left;font:inherit}
+@media(pointer:coarse){.episode-choices button{min-height:40px}#conversation{max-width:min(420px,63vw)}}
+
+#wanted{position:absolute;top:96px;right:16px;color:#ffd0a3;background:#17242ced;padding:5px 10px;font-weight:600;pointer-events:none}

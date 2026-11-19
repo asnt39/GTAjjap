@@ -2,12 +2,13 @@ import {BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshStandardMateria
 
 // Garments use the original Rocketbox fabric colour/normal maps. The body atlas
 // packs jeans in its top corners and has separate lower islands for hands/shoes.
+const uniform={jacket:0x293954,shirt:0xb6c2cb,denim:0x253246,scale:[1,1.02,1],hat:'cap'}
 const residents = [
   { jacket:0xc16a35, shirt:0x445754, denim:0x3c454c, scale:[1.06,1.035,1.08], hat:'hardhat' },
   { jacket:0x77515e, shirt:0xc9bfa7, denim:0x61634b, scale:[.96,.955,1.01] },
   { jacket:0x297274, shirt:0xbac5bd, denim:0x887553, scale:[.92,1.012,.95], hat:'cap' },
   { jacket:0x62768b, shirt:0xb58f56, denim:0x393e43, scale:[1.13,.986,1.08], hat:'knit' },
-  { jacket:0xb1a17e, shirt:0x854f51, denim:0x697a87, scale:[.93,.975,.98] }
+  { jacket:0xb1a17e, shirt:0x854f51, denim:0x697a87, scale:[.93,.975,.98] },uniform,uniform
 ]
 const dyedMaterials = new WeakMap()
 const hatGeometries = new Map()

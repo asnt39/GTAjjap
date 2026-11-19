@@ -1,3 +1,4 @@
+import {episodeUI} from './episode-ui.js'
 import {drawMap} from './cartography.js'
 import {sights} from './navigation.js'
 const $=q=>document.querySelector(q)
@@ -36,6 +37,8 @@ export function createUI(game){
  const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=-Infinity,priorFocus=null
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
+ const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
+ const story=episodeUI(game,toast)
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
  const row=(left,right)=>'<div class="control-row"><span>'+left+'</span><span>'+right+'</span></div>'
@@ -45,23 +48,25 @@ export function createUI(game){
  }
  function show(name){
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
+  const journal=game.episode.snapshot()
   const menu={
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
+   bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
    controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('주먹 공격','<kbd>F</kbd>')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 오른쪽 버튼으로 점프하거나 공격해. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
-  if(name==='sight'&&near){menu.sight=['PORT AUTHORITY  /  '+near.tag,near.title,'<p>'+near.body+'</p>'];visited.add(near.tag);try{localStorage.setItem('harborline.visits.v1',JSON.stringify([...visited]))}catch{}}
+  if(name==='sight'&&near){const result=game.episode.interact({sight:near.tag});if(result)toast(result.message);menu.sight=['PORT AUTHORITY  /  '+near.tag,near.title,'<p>'+near.body+'</p>'];visited.add(near.tag);try{localStorage.setItem('harborline.visits.v1',JSON.stringify([...visited]))}catch{}}
   const content=menu[name];
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
-  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.car,game.mission.goal(game.driving()))
+  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.car,story.goal(game.driving()))
   if(name==='credits'){for(const [label,path] of [['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Barlow 글꼴','fonts/OFL-Barlow.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
- overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
+ overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='retry'||action==='abandon'||action.startsWith('use-')){const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4));toast(result.message);show('bag');return}if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
  function activate(){if(game.interactCar()||game.converse())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
  interact.onclick=activate
  window.addEventListener('keydown',e=>{
@@ -78,17 +83,20 @@ export function createUI(game){
  function update(t){
   if(t-lastUi<.08)return;lastUi=t
   const p=game.pos,y=game.yaw(),degrees=(y*180/Math.PI)%360
-  const driving=game.driving(),goal=game.mission.goal(driving)
+  const law=game.crowd.wanted;wanted.hidden=!law.level
+  if(law.level)wanted.textContent='수배 '+law.level+' · '+({investigate:'조사',pursuit:'추격',search:'수색'}[law.phase])
+  const driving=game.driving(),goal=story.goal(driving)
   document.body.classList.toggle('driving',driving)
   $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)
   $('#speed small').textContent=game.car.speed<-.08?'R':'D'
   $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
   toggleAudio.engine(driving&&!panel,game.car)
   $('#jump').disabled=!game.canAct()||!!game.crowd.talking
-  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||!!game.crowd.talking||['down','hit'].includes(game.player.f.action)
+  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||['down','hit'].includes(game.player.f.action)
   const dialogue=game.crowd.dialogue,box=$('#conversation')
   box.hidden=!dialogue||panel
   if(dialogue){box.querySelector('strong').textContent=dialogue.name+' · '+dialogue.role;box.querySelector('span').textContent=dialogue.text}
+  story.dialogue()
   const target=game.feedback(),health=$('#vitals')
   health.hidden=panel||driving||(!target&&game.player.f.hp===100)
   if(!health.hidden){
