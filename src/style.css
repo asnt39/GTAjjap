@@ -19,3 +19,7 @@
 @media(pointer:coarse){.episode-choices button{min-height:40px}#conversation{max-width:min(420px,63vw)}}
 
 #wanted{position:absolute;top:96px;right:16px;color:#ffd0a3;background:#17242ced;padding:5px 10px;font-weight:600;pointer-events:none}
+#room-form label{display:block;margin-top:12px;color:#d4ddd9;font-size:13px}
+#room-form input{display:block;width:100%;margin-top:5px;padding:9px;background:#111b20;color:#f5f2e9;border:1px solid #ffffff40;font:inherit}
+#room-form input:focus{border-color:var(--orange)}
+#room-invite{user-select:all;letter-spacing:.09em;color:var(--orange)}

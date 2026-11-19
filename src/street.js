@@ -2,6 +2,8 @@ import * as T from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
+import { createVehicleRig } from './vehicle-rig.js'
+import { touringSetup } from './vehicles.js'
 
 const ROOT = '/assets/street/'
 const PI = Math.PI
@@ -288,9 +290,10 @@ export async function buildStreet(scene, addCollider) {
     pivot.traverse(mesh=>{if(mesh.isMesh){const geo=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);batch(geo,mesh.material);geo.dispose()}})
     return {width:Math.min(size.x,size.z)*scale,height:size.y*scale}
   }
-  const touring=createTouring(models[1],4.92,12,4.15)
-  group.add(touring.root)
-  for(const [model,x,z,length,turn] of [[3,-4.86,6,4.3,0],[2,4.93,-5,4.35,PI],[4,-4.86,-18,4.5,0],[1,-4.85,-57,4.22,0],[4,4.86,-75,4.5,PI],[2,-4.83,46,4.3,0],[3,4.9,51,4.4,PI]]){
+  const touring=createTouring(models[1],touringSetup.x,touringSetup.z,touringSetup.length)
+  const vehicles={touring,sport:createVehicleRig('sport'),van:createVehicleRig('van')}
+  for(const rig of Object.values(vehicles))group.add(rig.root)
+  for(const [model,x,z,length,turn] of [[2,4.93,-5,4.35,PI],[1,-4.85,-57,4.22,0],[4,4.86,-75,4.5,PI],[2,-4.83,46,4.3,0],[3,4.9,51,4.4,PI]]){
     const {width,height}=pasteModel(models[model],x,z,length,turn)
     addCollider(x-width/2,x+width/2,z-length/2,z+length/2,height)
   }
@@ -310,5 +313,5 @@ export async function buildStreet(scene, addCollider) {
     for(const g of geometries)g.dispose()
   }
   scene.add(group)
-  return touring
+  return vehicles
 }

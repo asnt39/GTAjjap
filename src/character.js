@@ -18,7 +18,7 @@ export async function createCharacter({variant}={}){
  mixer.update(0)
  let guard=0
  const layer=characterPose(scene)
- return {root,handPosition:layer.handPosition,update(dt,speed,pose={}){
+ return {root,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
   const phase=pose.jump==null?null:MathUtils.clamp(pose.jump,0,1)
   const landing=MathUtils.clamp(pose.land||0,0,1)
@@ -35,6 +35,7 @@ export async function createCharacter({variant}={}){
   guard=MathUtils.damp(guard,pose.action==='guard'?1:0,9,dt)
   if(pose.action==='guard'||(!pose.action&&guard>.015))layer.gesture('guard',guard*.2,side)
   else layer.gesture(pose.action,progress,side,pose.zone)
+  if(pose.vehicle)layer.vehicle(pose.vehicle)
   if(pose.look)layer.offset('Neck','y',MathUtils.clamp(pose.look,-.53,.53))
  }}
 }
