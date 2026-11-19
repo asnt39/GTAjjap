@@ -37,6 +37,7 @@ export function createUI(game){
  const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=-Infinity,priorFocus=null
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
+ const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
  const story=episodeUI(game,toast)
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
@@ -82,6 +83,8 @@ export function createUI(game){
  function update(t){
   if(t-lastUi<.08)return;lastUi=t
   const p=game.pos,y=game.yaw(),degrees=(y*180/Math.PI)%360
+  const law=game.crowd.wanted;wanted.hidden=!law.level
+  if(law.level)wanted.textContent='수배 '+law.level+' · '+({investigate:'조사',pursuit:'추격',search:'수색'}[law.phase])
   const driving=game.driving(),goal=story.goal(driving)
   document.body.classList.toggle('driving',driving)
   $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)

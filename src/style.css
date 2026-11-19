@@ -17,3 +17,5 @@
 .episode-choices{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
 .episode-choices button{background:#253239;color:#fff;border:1px solid #6d7473;padding:6px 10px;text-align:left;font:inherit}
 @media(pointer:coarse){.episode-choices button{min-height:40px}#conversation{max-width:min(420px,63vw)}}
+
+#wanted{position:absolute;top:96px;right:16px;color:#ffd0a3;background:#17242ced;padding:5px 10px;font-weight:600;pointer-events:none}

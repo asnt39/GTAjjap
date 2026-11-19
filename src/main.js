@@ -74,10 +74,10 @@ async function start(){
   if(!injure(player.f,16,side,zone))return false
   crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
- function respawn(){
+ function respawn(arrested=false){
   for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
    const x=spawn.x+r*Math.cos(i*Math.PI/4),z=spawn.z+r*Math.sin(i*Math.PI/4)
-   if(canWalk(x,z,boxes)&&!occupied(x,z)){pos.set(x,0,z);revive(player.f);clearControls();focus=null;ui.toast('부두 정문에서 정신을 차렸어');return}
+   if(canWalk(x,z,boxes)&&!occupied(x,z)){pos.set(x,0,z);revive(player.f);clearControls();crowd.endTalk();crowd.wanted.clear();const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단');focus=null;ui.toast((arrested?'체포 · 부두 정문에서 석방':'부두 정문에서 정신을 차렸어')+(failed?' · 수첩에서 재시도':''));return}
   }
  }
  function talkCandidate(){return canAct()?crowd.candidate(pos):null}
@@ -217,7 +217,11 @@ async function start(){
    player.available=mode==='walk'&&player.f.hp>0&&!foot.air
    const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()})
    if(progress)ui.toast(progress.message)
-   crowd.update(dt,camera,player,hitPlayer)
+   player.inVehicle=driving()
+   crowd.update(dt,camera,player,hitPlayer,outcome=>{
+    if(outcome==='arrest')respawn(true)
+    else ui.toast(outcome==='warning'?'항만 경찰 · 경고 후 조사 종료':'수배 해제')
+   })
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
    const playerShadow=speed>.06||foot.air||foot.land>0||!!player.f.action
