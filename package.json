@@ -1,1 +1,1 @@
-{"name":"harborline","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build"},"dependencies":{"three":"0.180.0"},"devDependencies":{"vite":"6.4.6"}}
+{"name":"harborline","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build","rooms":"node server/index.js"},"dependencies":{"three":"0.180.0","ws":"^8.23.0"},"devDependencies":{"vite":"6.4.6"}}
