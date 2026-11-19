@@ -70,7 +70,7 @@ export function createEpisode(options={}) {
     return result(false,state.reason)
   }
   function retry() {
-    if (state.status!=='failed') return wrong('다시 시도할 의뢰가 없어.')
+    if (state.status!=='failed' && !(state.status==='available' && state.index>0)) return wrong('다시 시도할 의뢰가 없어.')
     state.status='available'
     return start()
   }
