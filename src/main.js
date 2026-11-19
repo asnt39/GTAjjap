@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import './style.css'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint} from './driving.js'
+import {createFootwork} from './footwork.js'
 import {firstDrive} from './first-drive.js'
 import {createCharacter} from './character.js'
 import {buildStreet} from './street.js'
@@ -16,10 +17,10 @@ if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>wi
 const canvas=document.querySelector('#world'),status=document.querySelector('#status')
 const pos=new THREE.Vector3(spawn.x,0,spawn.z),velocity=new THREE.Vector2()
 const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
-let yaw=.05,pitch=.13,distance=4.65,isPaused=false,runTouch=false
+let yaw=.05,pitch=.13,distance=4.65,isPaused=false
 const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
 const addCollider=(a,b,c,d,h=3)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h])}
-const resetInput=()=>{keys.clear();joystick.set(0,0);runTouch=false;velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
+const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
 const coarse=matchMedia('(pointer:coarse)').matches
 let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
 const resolution=()=>quality==='low'?.8:quality==='high'?Math.min(devicePixelRatio,1.75):autoDpr
@@ -36,15 +37,19 @@ async function start(){
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
  const car=newDrive(rig),mission=firstDrive(car),pedals=new Set()
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
+ const foot=createFootwork()
  const driving=()=>mode==='drive'
- const clearControls=()=>{resetInput();pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
+ const canAct=()=>mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25
+ function jump(){if(canAct())foot.jump()}
+ const clearControls=()=>{resetInput();foot.sprint=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
   if(driving())return Math.abs(car.speed)>.45?'정차 후 하차':'하차'
-  return mode==='walk'&&availableDoor(car,pos,boxes)?'Touring 탑승':''
+  return canAct()&&availableDoor(car,pos,boxes)?'Touring 탑승':''
  }
  function interactCar(){
   let destination
   if(mode==='walk'){
+   if(!canAct())return true
    destination=availableDoor(car,pos,boxes);if(!destination)return false
    mode='enter'
   }else if(driving()){
@@ -74,9 +79,13 @@ async function start(){
   if(joining){mode='drive';mission.board()}else{mode='walk';actor.visible=true;actor.position.set(pos.x,.035,pos.z);if(mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')}
   transition=null;clearControls();renderer.shadowMap.needsUpdate=true
  }
- const ui=createUI({car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({foot,canAct,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
- window.addEventListener('keydown',e=>{if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)}})
+ window.addEventListener('keydown',e=>{if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
+  if(mode==='walk'&&!e.repeat){
+   if(e.code.startsWith('Shift'))foot.shift()
+   if(e.code==='Space')jump()
+  }}})
  window.addEventListener('keyup',e=>keys.delete(e.code))
  window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{clearControls();last=performance.now()})
  let drag=null
@@ -84,7 +93,7 @@ async function start(){
  canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
- const stick=document.querySelector('#stick'),knob=stick.firstElementChild,run=document.querySelector('#run')
+ const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
  const adjust=e=>{const b=stick.getBoundingClientRect();joystick.set((e.clientX-b.left-b.width/2)/30,(e.clientY-b.top-b.height/2)/30).clampLength(0,1);knob.style.transform='translate('+joystick.x*24+'px,'+joystick.y*24+'px)'}
  for(const b of document.querySelectorAll('[data-pedal]')){
   const ids=new Set();b.onpointerdown=e=>{if(!driving()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
@@ -92,7 +101,7 @@ async function start(){
  }
  let stickId=null
  stick.onpointerdown=e=>{if(stickId!==null)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
- run.onpointerdown=e=>{run.setPointerCapture(e.pointerId);runTouch=true};run.onlostpointercapture=()=>runTouch=false
+ jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
  let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedZ=spawn.z,shadowTick=0
@@ -132,18 +141,20 @@ async function start(){
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
-   const rate=pressed('ShiftLeft')||pressed('ShiftRight')||runTouch?4.8:1.85
-   velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,10,dt)
-   velocity.y=damp(velocity.y,(ax*sn-az*cs)*rate/length,10,dt)
+   const rate=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())
+   const response=foot.air?1.15:(ax||az?9:16)
+   foot.advance(dt)
+   velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,response,dt)
+   velocity.y=damp(velocity.y,(ax*sn-az*cs)*rate/length,response,dt)
    const ox=pos.x,oz=pos.z;movePlayer(pos,velocity.x*dt,velocity.y*dt,boxes,(x,z)=>nearBody(car,x,z))
    const dx=pos.x-ox,dz=pos.z-oz;speed=Math.hypot(dx,dz)/Math.max(.001,dt)
-   if(speed>.07){const desired=Math.atan2(dx,dz);face+=Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt))}
-   actor.rotation.y=face;actor.position.set(pos.x,damp(actor.position.y,Math.abs(pos.x)>6.1&&Math.abs(pos.x)<10.9?.09:.008,18,dt),pos.z)
-   char.update(dt,speed)
+   if(speed>.07){const desired=Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
+   actor.rotation.y=face;actor.position.set(pos.x,Math.abs(pos.x)>6.1&&Math.abs(pos.x)<10.9?.09:.008,pos.z);char.root.position.y=foot.height
+   char.update(dt,speed,{jump:foot.phase,land:foot.land})
    }
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
-   if(speed>.06&&elapsed-shadowTick>.09){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed}
+   if((speed>.06||foot.air||foot.land>0)&&elapsed-shadowTick>.09){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed}
    positionCamera(dt);ui.update(elapsed);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++

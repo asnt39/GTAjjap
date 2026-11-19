@@ -40,8 +40,8 @@ export function createUI(game){
  function show(name){
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
   const menu={
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('map','구역 지도','M')+button('controls','조작법','?')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기','<kbd>Shift</kbd> + 이동')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('안내판 · 탑승 · 하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 화살표 버튼을 누른 채 이동하면 달려.</p>'],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('안내판 · 탑승 · 하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달리고 점프 버튼으로 뛰어.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -55,7 +55,7 @@ export function createUI(game){
  }
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
- overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
+ overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
  function activate(){if(game.interactCar())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
  interact.onclick=activate
  window.addEventListener('keydown',e=>{
@@ -79,7 +79,7 @@ export function createUI(game){
   $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
   toggleAudio.engine(driving&&!panel,game.car)
   if(!panel){
-   near=game.mode()==='walk'?sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6):null
+   near=game.canAct()?sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6):null
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
