@@ -29,3 +29,33 @@ console.log('Passed mission stop detection, final exit, and isolated completion 
 const parked=newDrive({...rig,x:4.92,z:12})
 advance(parked,1.25,control(1,0,-1));assert(parked.speed>4&&parked.x<4&&parked.z<10)
 console.log('Passed full-lock pull-out from the actual close-curb parking position.')
+
+const {vehicles}=await import('../src/vehicles.js')
+const {entryPose,entryTime}=await import('../src/vehicle-entry.js')
+const fleet=Object.entries(vehicles).map(([id,setup])=>({id,...newDrive({...setup,x:0,z:48},setup)}))
+for(const vehicle of fleet){
+ advance(vehicle,2,control(1))
+ assert(clearPose(vehicle,[]))
+ assert(vehicle.speed>0)
+ const stopped={...vehicle,speed:0},door=doorPoint(stopped,-1)
+ const access=availableDoor(stopped,door,[])
+ assert.equal(access.side,-1)
+ const transition={...access,from:door,time:.71}
+ const mid=entryPose(stopped,transition,true)
+ assert(mid.opening<-.95)
+ assert(mid.crouch>0)
+ const seated=entryPose(stopped,{...transition,time:entryTime},true)
+ assert.equal(seated.opening,0)
+ assert.equal(seated.visible,false)
+ const exit=entryPose(stopped,{...transition,time:entryTime},false)
+ assert.equal(exit.visible,true)
+ assert(Math.abs(exit.x-door.x)<1e-9&&Math.abs(exit.z-door.z)<1e-9)
+}
+assert(fleet[1].speed>fleet[0].speed&&fleet[0].speed>fleet[2].speed)
+const vanSetup=vehicles.van,van=newDrive({...vanSetup,x:0,z:23},vanSetup)
+const blocker={...vehicles.sport,x:0,z:16}
+for(let i=0;i<240;i++)stepDrive(van,control(1),[],1/60,[blocker])
+assert(van.z>=blocker.z+(van.length+blocker.length)/2)
+assert.equal(van.speed,0)
+assert.equal(safeExit(van,[],-1,()=>true),null)
+console.log('Passed three distinct acceleration profiles, fleet collision, blocked exit and staged boarding/exit poses.')

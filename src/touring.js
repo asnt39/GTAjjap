@@ -1,4 +1,5 @@
 import * as T from 'three'
+import {cutTouringPanels,touringHingeZ} from './touring-panels.js'
 
 // Measurements in the Touring GLB's mesh coordinates. Its nose points along +Y
 // and its roof along -Z. The front and rear hubs have slightly different tracks.
@@ -90,7 +91,24 @@ export function createTouring(model, x, z, length) {
   const lights = painted.material.clone()
   lights.emissive.setHex(0xff2713)
   lights.emissiveIntensity = 0
-  addPart(chassis, bodyGeometry, painted.material, parts.shell)
+  const split = cutTouringPanels(bodyGeometry, parts.shell)
+  const shell = new T.Mesh(split.shell, painted.material)
+  shell.castShadow = shell.receiveShadow = true
+  shell.position.y = -chassis.position.y
+  chassis.add(shell)
+  const panelMaterial = painted.material.clone()
+  panelMaterial.side = T.DoubleSide
+  const doors = split.panels.map((geometry, i) => {
+    const hinge = new T.Group()
+    hinge.position.set((i ? 1 : -1) * .78, -chassis.position.y, touringHingeZ)
+    const panel = new T.Mesh(geometry, panelMaterial)
+    panel.position.copy(hinge.position).negate()
+    panel.position.y -= chassis.position.y
+    panel.castShadow = panel.receiveShadow = true
+    hinge.add(panel)
+    chassis.add(hinge)
+    return hinge
+  })
   addPart(chassis, glassGeometry, glass.material, glassGeometry.index)
   addPart(chassis, bodyGeometry, lights, parts.lenses)
   const wheels = parts.wheels.map((indices, i) => {
@@ -106,8 +124,8 @@ export function createTouring(model, x, z, length) {
   let spin = 0
   let impactPitch = 0
   const vehicle = {
-    root, x, z, heading: 0, width: size.x * scale, length, height: size.z * scale,
-    updatePose({ x, z, heading, speed = 0, steer = 0, accel = 0, braking = 0, dt = 0, travel = speed * dt, impact = 0 }) {
+    root, x, z, hinged: true, heading: 0, width: size.x * scale, length, height: size.z * scale,
+    updatePose({ x, z, heading, speed = 0, steer = 0, accel = 0, braking = 0, dt = 0, travel = speed * dt, impact = 0, door = 0 }) {
       vehicle.x = x
       vehicle.z = z
       vehicle.heading = heading
@@ -118,6 +136,8 @@ export function createTouring(model, x, z, length) {
         wheels[i].rotation.x = spin
         wheels[i].rotation.y = i < 2 ? -steer : 0
       }
+      doors[0].rotation.y = Math.min(0, door) * 1.11
+      doors[1].rotation.y = Math.max(0, door) * 1.11
       lights.emissiveIntensity = 1.8 * T.MathUtils.clamp(Number(braking), 0, 1)
       impactPitch = Math.max(impactPitch * Math.exp(-dt * 10), T.MathUtils.clamp(impact / 7, 0, 1))
       const lateralAccel = Math.tan(steer) * speed * speed / ((axles[0].y - axles[1].y) * scale)

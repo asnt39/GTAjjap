@@ -88,6 +88,18 @@ export function characterPose(scene){
   }
  }
  function handPosition(side,out){return arms[side>0?1:0].knuckle.bone.getWorldPosition(out)}
+ function vehicle({side,crouch,reach}){
+  offset('Spine','x',.38*crouch)
+  offset('Spine1','x',.22*crouch)
+  offset('Spine1','z',side*.19*crouch)
+  offset('Neck','x',-.24*crouch)
+  for(const [leg,amount] of [['L',side===1?1:.67],['R',side===-1?1:.67]]){
+   offset(leg+' Thigh','x',-.91*crouch*amount)
+   offset(leg+' Calf','x',1.53*crouch*amount)
+   offset(leg+' Foot','x',-.38*crouch*amount)
+  }
+  if(reach>.001){placeArm(side,side*.20,.98,.61,reach);curl(side,reach*.7)}
+ }
  function gesture(action,p,side,zone){
   if(!action)return
   if(action==='hit'){
@@ -125,5 +137,5 @@ export function characterPose(scene){
    curl(sign,guard)
   }
  }
- return {reset,jump,offset,gesture,handPosition}
+ return {reset,jump,offset,gesture,vehicle,handPosition}
 }
