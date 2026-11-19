@@ -89,7 +89,7 @@ export async function createResidents(scene,boxes,car){
  }
  function endTalk(){if(talking){talking.talk=0;talking.state='idle';talking.wait=1;talking=null}lastTalk=''}
  function beginTalk(n){
-  endTalk();talking=n;n.state='talk';n.talk=5.5;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
+  endTalk();talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
  }
  function receive(n,source,zone,point){
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
@@ -126,7 +126,7 @@ export async function createResidents(scene,boxes,car){
     movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>nearBody(car,x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
    else if(talking===n){
-    n.talk-=tick;turn(n,toward,tick);if(n.talk<=0||d>2.8||!player.available)endTalk()
+    n.talk-=tick;turn(n,toward,tick);if(n.alert>0||n.talk<=0||d>2.8||!player.available||!lineClear(n.pos,player.pos))endTalk()
    }else if(n.alert>0&&player.available){
     if(n.temper==='defend'&&n.state!=='watch'){
      n.state='guard'

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import './style.css'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint} from './driving.js'
+import {createEpisode} from './episode.js'
 import {createResidents} from './residents.js'
 import {fighter,swing,advance,contact,injure,revive,combatPose} from './melee.js'
 import {createFootwork} from './footwork.js'
@@ -41,6 +42,14 @@ async function start(){
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork(),crowd=await createResidents(scene,boxes,car)
  const player={pos,f:fighter(100),height:1.8,available:true}
+ const episode=createEpisode()
+ let coffee=0
+ function useItem(id){
+  const result=episode.use(id,player.f)
+  if(result.effect?.heal)player.f.hp+=result.effect.heal
+  if(result.effect?.sprintSeconds)coffee=result.effect.sprintSeconds
+  return result
+ }
  let focus=null,feedbackTime=0,knockX=0,knockZ=0
  const occupied=(x,z)=>nearBody(car,x,z)||crowd.blockedBy(null,x,z)
  function closestTarget(){
@@ -55,14 +64,15 @@ async function start(){
   return nearest
  }
  function attack(){
-  if(mode!=='walk'||isPaused||foot.air||foot.land>.25||crowd.talking)return
+  if(mode!=='walk'||isPaused||foot.air||foot.land>.25||player.f.hp<=0)return
+  crowd.endTalk()
   if(swing(player.f)){focus=closestTarget();foot.sprint=false}
  }
  function hitPlayer(n,zone,point){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
   if(!injure(player.f,16,side,zone))return false
-  knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
+  crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(){
   for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
@@ -120,7 +130,7 @@ async function start(){
   if(joining){mode='drive';mission.board()}else{mode='walk';actor.visible=true;actor.position.set(pos.x,.035,pos.z);if(mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')}
   transition=null;clearControls();renderer.shadowMap.needsUpdate=true
  }
- const ui=createUI({foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
@@ -172,6 +182,7 @@ async function start(){
    elapsed+=dt
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
+   coffee=Math.max(0,coffee-dt)
    advance(player.f,dt);feedbackTime=Math.max(0,feedbackTime-dt)
    if(player.f.action==='down'&&player.f.downTime>3.2)respawn()
    let speed=0
@@ -185,7 +196,8 @@ async function start(){
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
-   const rate=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
+   const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
+   const rate=pace*(coffee>0&&pace>1.85?1.15:1)
    const response=foot.air?1.15:(ax||az?9:16)
    foot.advance(dt)
    velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,response,dt)
@@ -203,6 +215,8 @@ async function start(){
    })
    }
    player.available=mode==='walk'&&player.f.hp>0&&!foot.air
+   const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()})
+   if(progress)ui.toast(progress.message)
    crowd.update(dt,camera,player,hitPlayer)
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
