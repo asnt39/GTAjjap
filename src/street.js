@@ -250,7 +250,7 @@ export async function buildStreet(scene, addCollider) {
   function signFace(x,y,z,w,h,angle,mat){batch(new T.PlaneGeometry(w,h),mat,V(x,y,z),new T.Quaternion().setFromAxisAngle(up,angle))}
   for(const [s,z] of [[-1,7],[1,15],[-1,-55],[1,-17],[1,53]]){
     const x=s*6.54
-    rod(V(x,.084,z),V(x,2.7,z),.04,.035,pole,6);signFace(x,2.4,z+.036,.32,.48,s*.20,noPark);pillarCollider(x,z,.07,2.68)
+    rod(V(x,.084,z),V(x,2.7,z),.04,.035,pole,6);signFace(x,2.4,z+.036,.32,.48,s*.20,noPark);pillarCollider(x,z,.04,2.7)
   }
   for(const s of [-1,1]){
     const x=s*6.59,z=-37+s*6.62

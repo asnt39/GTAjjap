@@ -1,5 +1,8 @@
 import * as THREE from 'three'
 import './style.css'
+import './world-intro.css'
+import {archiveVisibility} from './archive-visibility.js'
+import {archive,archiveAccess} from './chart-room.js'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint} from './driving.js'
 import {createResidents} from './residents.js'
 import {fighter,swing,advance,contact,injure,revive,combatPose} from './melee.js'
@@ -26,6 +29,9 @@ const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.
 const coarse=matchMedia('(pointer:coarse)').matches
 let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
 const resolution=()=>quality==='low'?.8:quality==='high'?Math.min(devicePixelRatio,1.75):autoDpr
+const blockLoadingKey=e=>{if(!status.hidden && e.code!=='Tab')e.stopImmediatePropagation()}
+window.addEventListener('keydown',blockLoadingKey,true)
+for(const el of status.parentElement.children)if(el!==status)el.inert=true
 async function start(){
  const renderer=new THREE.WebGLRenderer({canvas,antialias:!coarse,powerPreference:'high-performance',alpha:false})
  renderer.setPixelRatio(resolution());renderer.setSize(innerWidth,innerHeight,false);renderer.outputColorSpace=THREE.SRGBColorSpace
@@ -34,9 +40,25 @@ async function start(){
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
  const sunlight=illumination(scene);beacons(scene,addCollider);districtGates(scene,addCollider)
  const [char,portUpdate,rig]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider),buildArchitecture(scene,addCollider),sky(scene,renderer)])
+ status.querySelector('b').textContent='주민과 거리를 준비하는 중'
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
+  const lines=[],point=(x,y,z)=>new THREE.Vector3(x,y,z)
+  for(const [l,r,n,s,h] of boxes){
+   const corners=[[l,n],[r,n],[r,s],[l,s]]
+   corners.forEach(([x,z],i)=>{
+    const [nx,nz]=corners[(i+1)%4]
+    lines.push(point(x,0,z),point(x,h,z),point(x,h,z),point(nx,h,nz),point(x,0,z),point(nx,0,nz))
+   })
+  }
+  scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
+ }
+ const updateVisibility=archiveVisibility(scene,camera)
  const actor=new THREE.Group();actor.add(char.root);scene.add(actor);footShadow(actor)
  if(!canWalk(pos.x,pos.z,boxes))for(let x=-3;x<=3;x+=.5){if(canWalk(x,spawn.z,boxes)){pos.x=x;break}}
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
+ // The contact decal follows every footstep. Reserve moving sun shadows for High.
+ const playerMeshes=[]
+ char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=false}})
  const car=newDrive(rig),mission=firstDrive(car),pedals=new Set()
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork(),crowd=await createResidents(scene,boxes,car)
@@ -120,7 +142,7 @@ async function start(){
   if(joining){mode='drive';mission.board()}else{mode='walk';actor.visible=true;actor.position.set(pos.x,.035,pos.z);if(mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')}
   transition=null;clearControls();renderer.shadowMap.needsUpdate=true
  }
- const ui=createUI({foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
@@ -158,6 +180,9 @@ async function start(){
    const a=localPoint(car,anchor.x,anchor.z),b=localPoint(car,eye.x,eye.z)
    fraction=Math.min(fraction,cameraFraction({...a,y:anchor.y},{...b,y:eye.y},[[-car.width/2,car.width/2,-car.length/2,car.length/2,car.height]]))
   }
+  if(anchor.x<archive.front && archiveAccess(pos.x,pos.z,0) && eye.y>archive.ceiling-.16){
+   fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
+  }
   const room=arm*fraction
   actualArm=initial?room:room<actualArm?room:damp(actualArm,room,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
@@ -166,6 +191,12 @@ async function start(){
   camera.lookAt(aim)
  }
  positionCamera(0,true)
+ function groundHeight(x,z){
+  if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
+  const lane=Math.abs(x)
+  const edge=Math.min(lane-6,10.9-lane,Math.max(-43-z,z+31))
+  return .008+.083*clamp(edge/.18,0,1)
+ }
  const draw=now=>{
   const realDt=(now-last)/1000;last=now;const dt=Math.min(realDt,.07)
   if(!document.hidden&&!isPaused){
@@ -196,7 +227,7 @@ async function start(){
    const dx=pos.x-ox,dz=pos.z-oz;speed=Math.hypot(dx,dz)/Math.max(.001,dt)
    const facing=player.f.action==='punch'?focus:crowd.talking
    if(facing||speed>.07){const desired=facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
-   actor.rotation.y=face;actor.position.set(pos.x,Math.abs(pos.x)>6.1&&Math.abs(pos.x)<10.9?.09:.008,pos.z);char.root.position.y=foot.height
+   actor.rotation.y=face;actor.position.set(pos.x,groundHeight(pos.x,pos.z),pos.z);char.root.position.y=foot.height
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land})
    if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
@@ -205,10 +236,11 @@ async function start(){
    player.available=mode==='walk'&&player.f.hp>0&&!foot.air
    crowd.update(dt,camera,player,hitPlayer)
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
-   if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
-   const playerShadow=speed>.06||foot.air||foot.land>0||!!player.f.action
+   if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
+   const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if((playerShadow&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed}
-   positionCamera(dt);ui.update(elapsed);renderer.render(scene,camera)
+   positionCamera(dt);if(updateVisibility())renderer.shadowMap.needsUpdate=true
+   ui.update(elapsed);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++
     if(frameCount>=30||frameSum>3){const mean=frameSum/frameCount;recentFrameMs=mean*1000
@@ -219,7 +251,14 @@ async function start(){
   }
   requestAnimationFrame(draw)
  }
- renderer.render(scene,camera);ui.update(0);status.hidden=true;requestAnimationFrame(draw)
+ renderer.render(scene,camera);ui.update(0);status.classList.add('leaving')
+ const finishIntro=()=>{
+  status.hidden=true;status.classList.remove('leaving')
+  for(const el of status.parentElement.children)el.inert=false
+  window.removeEventListener('keydown',blockLoadingKey,true)
+  last=performance.now();requestAnimationFrame(draw)
+ }
+ setTimeout(finishIntro,matchMedia('(prefers-reduced-motion:reduce)').matches?0:350)
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();status.hidden=false;status.textContent='그래픽 연결이 중단됐어. 페이지를 새로고침해.'})
 }
 start().catch(err=>{console.error(err);status.hidden=false;status.textContent='게임을 열 수 없어. WebGL 2를 지원하는 브라우저에서 새로고침해.'})

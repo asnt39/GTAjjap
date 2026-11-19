@@ -73,22 +73,28 @@ function waterSurface() {
       void main() {
         vec2 p=world.xz;
         float t=time*.45;
+        float detail=1.-smoothstep(.06,.55,max(fwidth(p.x),fwidth(p.y)));
+        float swell=sin(dot(p,vec2(.19,.24))+t*.51+sin(p.y*.067-t*.11));
+        float shore=1.-smoothstep(.0,5.5,length(vec2(p.x-26.05,max(max(-71.-p.y,p.y-43.),0.))));
+        p.y+=.48*swell;
         float a=sin(p.y*2.5+p.x*.5+noise(p*.16)*4.+t*1.4);
         float b=sin(p.x*1.1-p.y*3.4+sin(p.x*.53-t)+t);
         float c=noise(vec2(p.x*1.2+t*.21,p.y*4.-t*.27));
-        vec3 n=normalize(vec3(.084*a+.054*b,1.,.105*b+(c-.5)*.4));
+        vec3 n=normalize(vec3(.042*swell+detail*(.084*a+.054*b),1.,detail*(.105*b+(c-.5)*.4)));
         vec3 view=normalize(cameraPosition-world);
         vec3 reflected=reflect(-view,n);
         float fres=pow(1.-max(dot(n,view),0.),3.);
         float peach=pow(max(dot(normalize(vec3(-.42,.05,-.91)),reflected),0.),5.);
         vec3 sky=mix(vec3(.20,.35,.43),vec3(.78,.41,.25),peach);
-        vec3 col=mix(vec3(.037,.113,.132),sky,.22+.57*fres);
-        float ripple=smoothstep(.60,.88,c)*smoothstep(-.45,.8,b);
+        vec3 col=mix(mix(vec3(.030,.095,.125),vec3(.066,.19,.17),shore),sky,.22+.57*fres);
+        float ripple=detail*smoothstep(.60,.88,c)*smoothstep(-.45,.8,b);
         col+=vec3(.12,.16,.16)*ripple*(.27+.73*fres);
         // Fragmented reflections beneath lamps on the opposite wharf.
         float lights=exp(-abs(sin((p.y+p.x*.13)*.19))*(8.+p.x*.032))*
                      smoothstep(.48,.77,c)*smoothstep(40.,79.,p.x);
-        col+=vec3(.53,.28,.11)*lights;
+        col+=vec3(.53,.28,.11)*lights*detail;
+        float wash=1.-smoothstep(.06,.45,abs(p.x-26.1-.18*swell));
+        col+=vec3(.16,.21,.19)*shore*wash*detail*smoothstep(.34,.72,c);
         gl_FragColor=vec4(col,1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
