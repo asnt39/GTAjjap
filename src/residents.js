@@ -19,7 +19,8 @@ function turn(n,angle,dt){
  n.face+=clamp(d*(1-Math.exp(-8*dt)),-4.8*dt,4.8*dt)
 }
 function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37)>6?.087:.008}
-export async function createResidents(scene,boxes,car){
+export async function createResidents(scene,boxes,car,fleet=[car]){
+ const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
   const rig=await createCharacter({variant:i}),pos=new Vector3(profile.x,0,profile.z)
   const n={...profile,rig,pos,height:1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
@@ -29,7 +30,7 @@ export async function createResidents(scene,boxes,car){
  }))
  const playerList=[],visibleSphere=new Sphere(new Vector3(),1.3),frustum=new Frustum(),viewProjection=new Matrix4()
  let talking=null,lastTalk='',shadowDirty=false
- const free=(p)=>canWalk(p.x,p.z,boxes,.31)&&!nearBody(car,p.x,p.z,.32)
+ const free=(p)=>canWalk(p.x,p.z,boxes,.31)&&!carAt(p.x,p.z,.32)
  function lineClear(a,b){
   const count=Math.ceil(distance(a,b)/.25)
   for(let k=1;k<count;k++){const t=k/count;if(!free({x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t}))return false}
@@ -75,7 +76,7 @@ export async function createResidents(scene,boxes,car){
   turn(n,angle,dt)
   n.speed=MathUtils.damp(n.speed,pace*Math.max(.18,Math.cos(n.face-angle)),7,dt)
   const step=Math.min(d,n.speed*dt),oldX=p.x,oldZ=p.z
-  const occupied=(x,z)=>nearBody(car,x,z,.32)||blockedBy(n,x,z)||Math.hypot(x-player.x,z-player.z)<.64
+  const occupied=(x,z)=>carAt(x,z,.32)||blockedBy(n,x,z)||Math.hypot(x-player.x,z-player.z)<.64
   movePlayer(p,Math.sin(n.face)*step,Math.cos(n.face)*step,boxes,occupied)
   const actual=Math.hypot(oldX-p.x,oldZ-p.z)
   n.stepping=actual/dt
@@ -112,7 +113,10 @@ export async function createResidents(scene,boxes,car){
    if(n.accum<interval)continue
    const tick=Math.min(n.accum,.45);n.accum=0;n.age+=tick;n.replan-=tick;n.stepping=0;n.alert=Math.max(0,n.alert-tick)
    advance(n.f,tick)
-   if(nearBody(car,p.x,p.z,.30)){
+   const traffic=fleet.find(vehicle=>Math.abs(vehicle.speed)>1&&distance(p,vehicle)<5)
+   const blockingCar=carAt(p.x,p.z,.30)
+   if(blockingCar){
+    const car=blockingCar
     const local=localPoint(car,p.x,p.z)
     const exits=[worldPoint(car,-car.width/2-.4,local.z),worldPoint(car,car.width/2+.4,local.z),
      worldPoint(car,local.x,-car.length/2-.4),worldPoint(car,local.x,car.length/2+.4)]
@@ -123,7 +127,7 @@ export async function createResidents(scene,boxes,car){
    if(n.f.action==='down'){
     if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
-    movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>nearBody(car,x,z)||blockedBy(n,x,z));turn(n,toward,tick)
+    movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
    else if(talking===n){
     n.talk-=tick;turn(n,toward,tick);if(n.talk<=0||d>2.8||!player.available)endTalk()
@@ -135,8 +139,8 @@ export async function createResidents(scene,boxes,car){
      else turn(n,toward,tick)
     }else if(n.temper==='flee'||d<1.9||n.state==='flee'){if(!n.path.length||n.replan<=0)escape(n,player.pos);walkPath(n,tick,3.7,player.pos)}
     else{n.state='watch';turn(n,toward,tick)}
-   }else if(Math.abs(car.speed)>1&&distance(p,car)<5){
-    if(n.replan<=0||!n.path.length)escape(n,car);walkPath(n,tick,3.9,player.pos)
+   }else if(traffic){
+    if(n.replan<=0||!n.path.length)escape(n,traffic);walkPath(n,tick,3.9,player.pos)
    }else if(d<2.25&&player.available){
     n.state='look';turn(n,toward,tick);n.wait=1
    }else{

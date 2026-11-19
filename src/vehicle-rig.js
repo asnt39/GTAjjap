@@ -1,5 +1,24 @@
 import * as T from 'three'
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {vehicles} from './vehicles.js'
+
+function batchPanels(parent){
+ const batches=new Map()
+ for(const mesh of [...parent.children]){
+  if(!mesh.isMesh)continue
+  mesh.updateMatrix()
+  const batch=batches.get(mesh.material)??[]
+  batch.push(mesh.geometry.applyMatrix4(mesh.matrix))
+  batches.set(mesh.material,batch)
+  parent.remove(mesh)
+ }
+ for(const [material,parts] of batches){
+  const mesh=new T.Mesh(mergeGeometries(parts),material)
+  mesh.castShadow=mesh.receiveShadow=true
+  parent.add(mesh)
+  for(const part of parts)part.dispose()
+ }
+}
 
 // Original cars with open sides, seats and hinged doors. All parts share the
 // same coordinate convention as Touring: the front faces negative Z.
@@ -58,6 +77,8 @@ export function createVehicleRig(id) {
   box(hinge,trim,-side*.01,h-.126,span*.5,.05,.04,span)
   for(const z of [.027,span-.027])box(hinge,trim,-side*.014,(h+belt-.12)*.5,z,.055,h-belt-.12,.042)
  }
+ batchPanels(body)
+ for(const hinge of doors)batchPanels(hinge)
  let spin=0
  return {root,...config, hinged:true,
   updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0}){
