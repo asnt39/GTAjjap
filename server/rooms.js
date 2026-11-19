@@ -17,7 +17,11 @@ const isOriginAllowed=(origin,allowed)=>{
 
 export function createRoomServer({origins=[],graceMs=25000}={}){
  const rooms=new Map(),clients=new Map(),sources=new Map()
- const server=createServer((req,res)=>{res.writeHead(404).end()})
+ const server=createServer((req,res)=>{
+  if(req.url!=='/healthz'||!['GET','HEAD'].includes(req.method)){res.writeHead(404).end();return}
+  res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'})
+  res.end('ok\n')
+ })
  const wss=new WebSocketServer({noServer:true,maxPayload:MESSAGE_BYTES,perMessageDeflate:false})
  let serial=0
  const send=(ws,payload)=>{
