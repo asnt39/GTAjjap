@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import './style.css'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint} from './driving.js'
+import {createResidents} from './residents.js'
+import {fighter,swing,advance,contact,injure,revive,combatPose} from './melee.js'
 import {createFootwork} from './footwork.js'
 import {firstDrive} from './first-drive.js'
 import {createCharacter} from './character.js'
@@ -37,24 +39,63 @@ async function start(){
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
  const car=newDrive(rig),mission=firstDrive(car),pedals=new Set()
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
- const foot=createFootwork()
+ const foot=createFootwork(),crowd=await createResidents(scene,boxes,car)
+ const player={pos,f:fighter(100),height:1.8,available:true}
+ let focus=null,feedbackTime=0,knockX=0,knockZ=0
+ const occupied=(x,z)=>nearBody(car,x,z)||crowd.blockedBy(null,x,z)
+ function closestTarget(){
+  let nearest=null,score=2.05
+  for(const n of crowd.all){
+   const dx=n.pos.x-pos.x,dz=n.pos.z-pos.z,d=Math.hypot(dx,dz)
+   if(!n.f.hp||d>1.85||!crowd.lineClear(pos,n.pos))continue
+   const front=(Math.sin(face)*dx+Math.cos(face)*dz)/Math.max(d,.01)
+   const cost=d+.32*(1-front)
+   if(front>-.25&&cost<score){nearest=n;score=cost}
+  }
+  return nearest
+ }
+ function attack(){
+  if(mode!=='walk'||isPaused||foot.air||foot.land>.25||crowd.talking)return
+  if(swing(player.f)){focus=closestTarget();foot.sprint=false}
+ }
+ function hitPlayer(n,zone,point){
+  const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
+  const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
+  if(!injure(player.f,16,side,zone))return false
+  knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
+ }
+ function respawn(){
+  for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
+   const x=spawn.x+r*Math.cos(i*Math.PI/4),z=spawn.z+r*Math.sin(i*Math.PI/4)
+   if(canWalk(x,z,boxes)&&!occupied(x,z)){pos.set(x,0,z);revive(player.f);clearControls();focus=null;ui.toast('부두 정문에서 정신을 차렸어');return}
+  }
+ }
+ function talkCandidate(){return canAct()?crowd.candidate(pos):null}
+ function converse(){
+  if(crowd.talking){crowd.endTalk();return true}
+  const n=talkCandidate();if(!n)return false
+  crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
+ }
  const driving=()=>mode==='drive'
- const canAct=()=>mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25
- function jump(){if(canAct())foot.jump()}
- const clearControls=()=>{resetInput();foot.sprint=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
+ const canAct=()=>mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
+ function jump(){if(canAct()&&!crowd.talking)foot.jump()}
+ const clearControls=()=>{resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
   if(driving())return Math.abs(car.speed)>.45?'정차 후 하차':'하차'
-  return canAct()&&availableDoor(car,pos,boxes)?'Touring 탑승':''
+  if(crowd.talking)return '대화 마치기'
+  if(canAct()&&availableDoor(car,pos,boxes))return 'Touring 탑승'
+  const resident=talkCandidate();return resident?resident.name+' · 대화':''
  }
  function interactCar(){
   let destination
   if(mode==='walk'){
+   if(crowd.talking){crowd.endTalk();return true}
    if(!canAct())return true
    destination=availableDoor(car,pos,boxes);if(!destination)return false
    mode='enter'
   }else if(driving()){
    if(Math.abs(car.speed)>.45){ui.toast('브레이크로 정차한 뒤 하차해');return true}
-   destination=safeExit(car,boxes,lastSide)
+   destination=safeExit(car,boxes.concat(crowd.all.map(n=>[n.pos.x-.33,n.pos.x+.33,n.pos.z-.33,n.pos.z+.33,1.8])),lastSide)
    if(!destination){ui.toast('차 양옆에 공간이 없어. 조금 옮겨서 정차해');return true}
    mode='exit';car.speed=0
   }else return true
@@ -79,9 +120,9 @@ async function start(){
   if(joining){mode='drive';mission.board()}else{mode='walk';actor.visible=true;actor.position.set(pos.x,.035,pos.z);if(mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')}
   transition=null;clearControls();renderer.shadowMap.needsUpdate=true
  }
- const ui=createUI({foot,canAct,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,car,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
- window.addEventListener('keydown',e=>{if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
+ window.addEventListener('keydown',e=>{if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
    if(e.code.startsWith('Shift'))foot.shift()
    if(e.code==='Space')jump()
@@ -101,6 +142,7 @@ async function start(){
  }
  let stickId=null
  stick.onpointerdown=e=>{if(stickId!==null)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
+ const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
@@ -130,6 +172,8 @@ async function start(){
    elapsed+=dt
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
+   advance(player.f,dt);feedbackTime=Math.max(0,feedbackTime-dt)
+   if(player.f.action==='down'&&player.f.downTime>3.2)respawn()
    let speed=0
    if(transition){updateTransition(dt)}
    else if(driving()){
@@ -141,20 +185,29 @@ async function start(){
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
-   const rate=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())
+   const rate=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
    const response=foot.air?1.15:(ax||az?9:16)
    foot.advance(dt)
    velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,response,dt)
    velocity.y=damp(velocity.y,(ax*sn-az*cs)*rate/length,response,dt)
-   const ox=pos.x,oz=pos.z;movePlayer(pos,velocity.x*dt,velocity.y*dt,boxes,(x,z)=>nearBody(car,x,z))
+   const ox=pos.x,oz=pos.z
+   const stagger=player.f.action==='hit'?.55:0
+   movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied)
    const dx=pos.x-ox,dz=pos.z-oz;speed=Math.hypot(dx,dz)/Math.max(.001,dt)
-   if(speed>.07){const desired=Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
+   const facing=player.f.action==='punch'?focus:crowd.talking
+   if(facing||speed>.07){const desired=facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.set(pos.x,Math.abs(pos.x)>6.1&&Math.abs(pos.x)<10.9?.09:.008,pos.z);char.root.position.y=foot.height
-   char.update(dt,speed,{jump:foot.phase,land:foot.land})
+   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land})
+   if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
+    if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
+   })
    }
+   player.available=mode==='walk'&&player.f.hp>0&&!foot.air
+   crowd.update(dt,camera,player,hitPlayer)
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.z-trackedZ)>10){trackedZ=pos.z;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
-   if((speed>.06||foot.air||foot.land>0)&&elapsed-shadowTick>.09){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed}
+   const playerShadow=speed>.06||foot.air||foot.land>0||!!player.f.action
+   if((playerShadow&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed}
    positionCamera(dt);ui.update(elapsed);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++
@@ -166,7 +219,7 @@ async function start(){
   }
   requestAnimationFrame(draw)
  }
- renderer.render(scene,camera);ui.update(1);status.hidden=true;requestAnimationFrame(draw)
+ renderer.render(scene,camera);ui.update(0);status.hidden=true;requestAnimationFrame(draw)
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();status.hidden=false;status.textContent='그래픽 연결이 중단됐어. 페이지를 새로고침해.'})
 }
 start().catch(err=>{console.error(err);status.hidden=false;status.textContent='게임을 열 수 없어. WebGL 2를 지원하는 브라우저에서 새로고침해.'})

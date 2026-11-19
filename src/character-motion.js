@@ -15,10 +15,13 @@ export function characterPose(scene){
    z:new Vector3(0,0,1).applyQuaternion(inverse)
   })
  })
+ function remember(joint){
+  if(!joint.active){joint.base.copy(joint.bone.quaternion);joint.active=true;touched.push(joint)}
+ }
  function offset(name,axis,angle){
   const joint=byName.get(name)
   if(!joint||Math.abs(angle)<1e-6)return
-  if(!joint.active){joint.base.copy(joint.bone.quaternion);joint.active=true;touched.push(joint)}
+  remember(joint)
   joint.bone.quaternion.multiply(rotation.setFromAxisAngle(joint[axis],angle))
  }
  function reset(){
@@ -39,5 +42,88 @@ export function characterPose(scene){
    offset(side+' Forearm','x',-.42*lift)
   }
  }
- return {reset,jump,offset}
+ // Aim two linked bones at a game-space wrist target. Each quaternion is
+ // solved against the current mixer pose; the next update restores that pose.
+ const from=new Vector3(),to=new Vector3(),start=new Vector3(),middle=new Vector3()
+ const end=new Vector3(),direction=new Vector3(),pole=new Vector3(),bend=new Vector3()
+ const target=new Vector3(),hint=new Vector3(),delta=new Quaternion(),parentQ=new Quaternion(),inverseParent=new Quaternion()
+ const arms=['R','L'].map(short=>({
+  upper:byName.get(short+' UpperArm'), lower:byName.get(short+' Forearm'),
+  hand:byName.get(short+' Hand'), knuckle:byName.get(short+' Finger2')
+ }))
+ function aim(joint,child,destination,weight){
+  joint.bone.getWorldPosition(start)
+  child.bone.getWorldPosition(from).sub(start).normalize()
+  to.copy(destination).sub(start).normalize()
+  delta.setFromUnitVectors(from,to)
+  joint.bone.parent.getWorldQuaternion(parentQ)
+  delta.premultiply(inverseParent.copy(parentQ).invert()).multiply(parentQ).multiply(joint.bone.quaternion)
+  remember(joint)
+  joint.bone.quaternion.slerp(delta,weight)
+ }
+ function placeArm(sign,x,y,z,weight){
+  const arm=arms[sign>0?1:0]
+  arm.upper.bone.getWorldPosition(start)
+  arm.lower.bone.getWorldPosition(middle)
+  arm.hand.bone.getWorldPosition(end)
+  const a=start.distanceTo(middle),b=middle.distanceTo(end)
+  scene.localToWorld(target.set(x,y,z))
+  scene.localToWorld(hint.set(sign*.60,1.04,-.14))
+  direction.subVectors(target,start)
+  const d=Math.max(Math.abs(a-b)+.001,Math.min(a+b-.003,direction.length()))
+  direction.normalize()
+  pole.subVectors(hint,start).addScaledVector(direction,-pole.dot(direction)).normalize()
+  const along=(a*a-b*b+d*d)/(2*d)
+  bend.copy(start).addScaledVector(direction,along).addScaledVector(pole,Math.sqrt(Math.max(0,a*a-along*along)))
+  target.copy(start).addScaledVector(direction,d)
+  aim(arm.upper,arm.lower,bend,weight)
+  aim(arm.lower,arm.hand,target,weight)
+ }
+ function curl(sign,weight){
+  const prefix=sign>0?'L Finger':'R Finger'
+  for(let digit=1;digit<=4;digit++){
+   offset(prefix+digit,'z',-sign*.70*weight)
+   offset(prefix+digit+'1','z',-sign*.86*weight)
+   offset(prefix+digit+'2','z',-sign*.52*weight)
+  }
+ }
+ function handPosition(side,out){return arms[side>0?1:0].knuckle.bone.getWorldPosition(out)}
+ function gesture(action,p,side,zone){
+  if(!action)return
+  if(action==='hit'){
+   const recoil=Math.sin(Math.PI*Math.pow(p,.66))
+   offset('Spine','z',-side*.20*recoil);offset('Spine1','x',-.33*recoil)
+   offset('Neck','y',side*.25*recoil);offset('Head','x',(zone==='upper'?-.34:-.11)*recoil)
+   for(const [limb,s] of [['L',1],['R',-1]]){
+    offset(limb+' UpperArm','z',s*.39*recoil);offset(limb+' Forearm','x',-.48*recoil)
+   }
+   return
+  }
+  if(action==='down'){
+   const fall=Math.min(1,p*1.35)
+   offset('Spine1','x',.30*fall);offset('Neck','x',.18*fall)
+   offset('L Thigh','x',-.47*fall);offset('L Calf','x',1.05*fall)
+   offset('R Calf','x',.26*fall);offset('L UpperArm','z',.74*fall)
+   offset('R UpperArm','z',-.39*fall);offset('R Forearm','x',-.54*fall)
+   return
+  }
+  if(action!=='guard'&&action!=='punch')return
+  const punch=action==='punch'
+  const ramp=(a,b,value)=>{const f=Math.max(0,Math.min(1,(value-a)/(b-a)));return f*f*(3-2*f)}
+  const guard=punch?ramp(0,.19,p)*(1-ramp(.76,1,p)):ramp(0,.20,p)
+  const reach=punch?ramp(.17,.48,p)*(1-ramp(.51,.81,p)):0
+  const draw=punch?Math.sin(Math.PI*Math.min(1,p/.30)):0
+  offset('Spine','y',side*(.17*draw-.36*reach))
+  offset('Spine1','y',-side*.16*reach);offset('Spine2','x',.17*reach+.06*guard)
+  offset('Neck','y',side*.21*reach)
+  offset('L Thigh','x',-.11*guard);offset('L Calf','x',.22*guard)
+  offset('R Thigh','x',-.09*guard);offset('R Calf','x',.18*guard)
+  for(const sign of [-1,1]){
+   const thrust=sign===side?reach:0,windup=sign===side?draw:0
+   const x=sign*(.19-.09*thrust+.06*windup)
+   placeArm(sign,x,1.36+.075*thrust+.035*windup,.24+.72*thrust-.11*windup,guard)
+   curl(sign,guard)
+  }
+ }
+ return {reset,jump,offset,gesture,handPosition}
 }

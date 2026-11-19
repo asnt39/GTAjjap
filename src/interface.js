@@ -16,6 +16,12 @@ function audioBed(){
   for(const freq of [49,73.5]){const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=freq;gain.gain.value=.015;osc.connect(gain).connect(output);osc.start()}
  }
  await ctx.resume();on=!on;output.gain.setTargetAtTime(on?.28:0,ctx.currentTime,.14);return on}
+ toggle.hit=()=>{if(!on||!ctx)return
+  const now=ctx.currentTime,tone=ctx.createOscillator(),gain=ctx.createGain()
+  tone.frequency.setValueAtTime(124,now);tone.frequency.exponentialRampToValueAtTime(48,now+.10)
+  gain.gain.setValueAtTime(.34,now);gain.gain.exponentialRampToValueAtTime(.001,now+.13)
+  tone.connect(gain).connect(output);tone.start(now);tone.stop(now+.14);tone.onended=()=>{tone.disconnect();gain.disconnect()}
+ }
  toggle.engine=(active,car)=>{
   if(!ctx||!on)return
   const now=ctx.currentTime,speed=Math.abs(car.speed)
@@ -27,7 +33,7 @@ function audioBed(){
 }
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
- const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=0,priorFocus=null
+ const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=-Infinity,priorFocus=null
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  let visited=new Set()
@@ -41,7 +47,7 @@ export function createUI(game){
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
   const menu={
    pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('안내판 · 탑승 · 하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달리고 점프 버튼으로 뛰어.</p>'],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('주먹 공격','<kbd>F</kbd>')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 오른쪽 버튼으로 점프하거나 공격해. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -56,7 +62,7 @@ export function createUI(game){
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
  overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='mission'){game.mission.start(game.driving());close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
- function activate(){if(game.interactCar())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
+ function activate(){if(game.interactCar()||game.converse())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
  interact.onclick=activate
  window.addEventListener('keydown',e=>{
   if(e.repeat)return
@@ -78,6 +84,18 @@ export function createUI(game){
   $('#speed small').textContent=game.car.speed<-.08?'R':'D'
   $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
   toggleAudio.engine(driving&&!panel,game.car)
+  $('#jump').disabled=!game.canAct()||!!game.crowd.talking
+  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||!!game.crowd.talking||['down','hit'].includes(game.player.f.action)
+  const dialogue=game.crowd.dialogue,box=$('#conversation')
+  box.hidden=!dialogue||panel
+  if(dialogue){box.querySelector('strong').textContent=dialogue.name+' · '+dialogue.role;box.querySelector('span').textContent=dialogue.text}
+  const target=game.feedback(),health=$('#vitals')
+  health.hidden=panel||driving||(!target&&game.player.f.hp===100)
+  if(!health.hidden){
+   health.querySelector('b').textContent=game.player.f.hp===0?'다운':'체력 '+game.player.f.hp
+   const opponent=health.querySelector('span')
+   opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
+  }
   if(!panel){
    near=game.canAct()?sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6):null
    const label=game.prompt()||near?.name;interact.hidden=!label
@@ -88,5 +106,9 @@ export function createUI(game){
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
  }
- return {update,show,close,toast,isOpen:()=>!!panel}
+ function impact(received){
+  toggleAudio.hit()
+  const el=$('#vitals');el.animate?.([{opacity:.55,color:received?'#ff9b77':'#ffd3a1'},{opacity:1,color:'#f5f2e9'}],{duration:240})
+ }
+ return {update,show,close,toast,impact,isOpen:()=>!!panel}
 }
