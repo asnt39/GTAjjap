@@ -1,0 +1,11 @@
+Harborline port environment
+
+Poly Haven, Concrete Floor 02
+https://polyhaven.com/a/concrete_floor_02
+CC0 1.0. The 1K base-color and OpenGL normal scans were converted to WebP for the concrete quay.
+
+Poly Haven, Rusty Metal 02
+https://polyhaven.com/a/rusty_metal_02
+CC0 1.0. The 1K base-color scan supplies weathering for the crane paint and cargo container atlas.
+
+The terminal, vessels, cranes, quay furniture, signs, cargo liveries and rib patterns were modeled or drawn for Harborline. The water shader is original.
