@@ -15,10 +15,10 @@ export const missions = [
     id:'delivery', title:'물때표 배달', reward:3500,
     steps:[
       {goal:dock, objective:'배송 기사 도현에게 봉인된 물때표를 받아.', choices:[
-        {id:'collect', label:'물때표 받기', reply:'도현이 건넨 봉투에는 시장 사무실 도장이 찍혀 있다.', advance:true}
+        {id:'collect', label:'물때표 받기', reply:'시장 도장 찍힌 거 보이지? 윤서한테 그대로 줘.', advance:true}
       ]},
       {goal:shop, objective:'시장 점원 윤서에게 물때표를 전해.', choices:[
-        {id:'deliver', label:'물때표 건네기', reply:'윤서가 도착 시간을 확인하고 강 반장을 찾아보라고 했다.', advance:true}
+        {id:'deliver', label:'물때표 건네기', reply:'시간 맞춰 오셨네요. 다음 교대 연락은 강 반장님께 부탁드려요.', advance:true}
       ]}
     ]
   },
@@ -26,11 +26,11 @@ export const missions = [
     id:'radio', title:'교대 무전', reward:4500,
     steps:[
       {goal:supervisor, objective:'강 반장에게 교대 무전 채널을 물어봐.', choices:[
-        {id:'ask-channel', label:'오늘 교대 무전은 몇 번이에요?', reply:'강 반장: 오늘은 7번 채널이야. 서부 부두의 미라에게 전해 줘.', advance:true}
+        {id:'ask-channel', label:'오늘 교대 무전은 몇 번이에요?', reply:'오늘 교대는 7번 채널입니다. 서부 부두 미라 씨에게도 전달해 주시죠.', advance:true}
       ]},
       {goal:engineer, objective:'미라에게 오늘 교대 무전 채널을 알려 줘.', choices:[
-        {id:'channel-3', label:'3번 채널이라고 들었어요.', reply:'미라: 3번은 어시장 무전이야. 강 반장이 말한 건 7번 아니었어?'},
-        {id:'channel-7', label:'7번 채널로 맞춰 주세요.', reply:'미라가 7번 채널에서 시험 신호를 받았다. 이제 두 안내판에서 야간 진입로를 확인할 차례다.', advance:true}
+        {id:'channel-3', label:'3번 채널이라고 들었어요.', reply:'3번은 어시장 주파수인데요. 반장님이 7번이라고 하지 않으셨어요?'},
+        {id:'channel-7', label:'7번 채널로 맞춰 주세요.', reply:'신호 잡혔어요. 서부 부두랑 시장 출구, 두 곳 안내판에서 진입로를 확인해 주세요.', advance:true}
       ]}
     ]
   },

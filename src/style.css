@@ -23,3 +23,15 @@
 #room-form input{display:block;width:100%;margin-top:5px;padding:9px;background:#111b20;color:#f5f2e9;border:1px solid #ffffff40;font:inherit}
 #room-form input:focus{border-color:var(--orange)}
 #room-invite{user-select:all;letter-spacing:.09em;color:var(--orange)}
+#conversation{bottom:max(20px,env(safe-area-inset-bottom));width:min(620px,88vw);max-width:none;padding:14px 20px;background:#171b1eee;border:1px solid #ffffff25;border-left:3px solid #ca9b68;box-sizing:border-box;line-height:1.55;animation:radio-in .16s ease-out}
+#conversation header{display:flex;align-items:baseline;gap:10px}
+#conversation strong{font-size:1rem;color:#f1e9de}
+#conversation small{font-size:.8rem;color:#c2b7a9}
+#conversation .spoken{font-size:1rem;margin:5px 0 11px;color:#f7f3ed}
+#conversation .episode-choices{border-top:1px solid #ffffff26;padding-top:8px}
+#conversation button{border:0;border-bottom:1px solid #898780;padding:6px 12px;background:#303436;color:#eee}
+#conversation button:focus-visible,#conversation button:active{outline:2px solid #efb579;background:#534331}
+.speaking #touch,.speaking #interact,.speaking .shortcuts{display:none!important}
+@keyframes radio-in{from{opacity:0;translate:0 5px}to{opacity:1;translate:0 0}}
+@media(pointer:coarse){#conversation{width:min(590px,94vw);max-height:52dvh}#conversation button{min-height:44px}}
+@media(prefers-reduced-motion:reduce){#conversation{animation:none}}

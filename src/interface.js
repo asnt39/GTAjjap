@@ -140,7 +140,8 @@ export function createUI(game){
   $('#punch').disabled=game.mode()!=='walk'||game.foot.air||['down','hit'].includes(game.player.f.action)
   const dialogue=game.crowd.dialogue,box=$('#conversation')
   box.hidden=!dialogue||panel
-  if(dialogue){box.querySelector('strong').textContent=dialogue.name+' · '+dialogue.role;box.querySelector('span').textContent=dialogue.text}
+  if(dialogue){box.querySelector('strong').textContent=dialogue.name;box.querySelector('small').textContent=dialogue.role;box.querySelector('.spoken').textContent=dialogue.text}
+  document.body.classList.toggle('speaking',!!dialogue&&!panel)
   story.dialogue()
   const target=game.feedback(),health=$('#vitals')
   health.hidden=panel||driving||(!target&&game.player.f.hp===100)
