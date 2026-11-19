@@ -1,14 +1,19 @@
 import {sights} from './navigation.js'
 
-const person = (resident, x, z) => ({resident, label:resident, x, z, radius:2})
+import {people} from './resident-profiles.js'
+
+const person = id => {
+  const {name, x, z} = people.find(n => n.id === id)
+  return {residentId:id, resident:name, label:name, x, z, radius:2}
+}
 const sign = tag => {
   const {x,z,name} = sights.find(sight => sight.tag === tag)
   return {sight:tag, label:name, x, z, radius:3}
 }
-const dock = person('도현', 7.6, 16.2)
-const shop = person('윤서', -8.9, 5.4)
-const supervisor = person('강 반장', -7.4, 21.4)
-const engineer = person('미라', 12.1, -13)
+const dock = person('courier')
+const shop = person('merchant')
+const supervisor = person('foreman')
+const engineer = person('engineer')
 
 export const missions = [
   {

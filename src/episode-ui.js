@@ -16,24 +16,26 @@ export function episodeUI(game, toast) {
   }
   choices.append(button)
  }
- function dialogue() {
+ function dialogue(defaultLine) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
   if(!npc)return
-  const state=episode.snapshot(), options=episode.choices(npc.name)
+  const state=episode.snapshot(), options=episode.choices(npc)
   const line=conversation.querySelector('.spoken')
-  if(reply)line.textContent=reply
-  else if(npc.id==='courier'&&state.status==='available')line.textContent='출항표에서 마지막 교대가 빠졌어. 시장에 봉투 하나 전해 줄래?'
-  else if(state.status==='complete'&&npc.id==='merchant')line.textContent='교대 배는 제시간에 떠났어요. 그런데 이 도장 좀 보세요. 우리 사무실 것이 아니에요.'
+  let text=defaultLine
+  if(reply)text=reply
+  else if(npc.opening&&state.stage===1&&state.status==='available')text=npc.opening
+  else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
+  if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
+  if(line.textContent!==text)line.textContent=text
   if(key===previous)return
   previous=key;choices.replaceChildren()
-  for(const item of options)option(item.label,()=>episode.interact({resident:npc.name,choice:item.id}))
+  for(const item of options)option(item.label,()=>episode.interact({resident:npc,choice:item.id}))
   if(npc.id==='merchant'){
-   option(shopping?'물건 접기':'상품 보기',()=>{shopping=!shopping})
+   option(shopping?'물건 접기':'상품 보기',()=>{shopping=!shopping;reply=''})
    if(shopping){
-    line.textContent='소지금 ₩'+state.money.toLocaleString()
-    for(const item of state.items)option(item.name+' · ₩'+item.price+' · '+item.description,()=>{const sale=episode.buy(item.id);return {...sale,message:sale.ok?item.name+' 여기 있어요. 조심히 다녀오세요.':'잔액이 조금 모자라세요.'}})
+    for(const item of state.items)option(item.name+' · ₩'+item.price+' · '+item.description,()=>{const sale=episode.buy(item.id);return {...sale,message:sale.ok?item.name+' '+npc.purchase:npc.insufficient}})
    }
   }
   option('대화 마치기',()=>game.crowd.endTalk())
@@ -41,7 +43,7 @@ export function episodeUI(game, toast) {
  function goal(driving) {
   const state=episode.snapshot(), goal=state.goal
   if(!goal)return game.mission.goal(driving)
-  const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):game.crowd.all.find(n=>n.name===goal.resident)?.pos
+  const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):game.crowd.all.find(n=>n.id===goal.residentId)?.pos
   return {...goal,x:point?.x??goal.x,z:point?.z??goal.z,label:state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')}
  }
  return {dialogue,goal}

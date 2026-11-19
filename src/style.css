@@ -35,3 +35,5 @@
 @keyframes radio-in{from{opacity:0;translate:0 5px}to{opacity:1;translate:0 0}}
 @media(pointer:coarse){#conversation{width:min(590px,94vw);max-height:52dvh}#conversation button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){#conversation{animation:none}}
+#conversation.leaving{opacity:0;transition:opacity .14s ease-out;pointer-events:none}
+@media(prefers-reduced-motion:reduce){#conversation.leaving{transition:none}}
