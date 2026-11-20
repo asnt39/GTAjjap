@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import {policeChase} from './police-chase.js'
 import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
@@ -78,12 +79,13 @@ export async function start(onContextLost){
  const playerMeshes=[]
  char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=false}})
  const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,vehicles[id]),id,door:0}]))
- const fleet=Object.values(cars),mission=firstDrive(cars.touring),pedals=new Set()
+ const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
- const crowd=await createResidents(scene,boxes,cars.touring,fleet,p=>groundHeight(p.x,p.z))
+ const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
+ const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode()
@@ -124,7 +126,7 @@ export async function start(onContextLost){
   return result
  }
  let focus=null,feedbackTime=0,knockX=0,knockZ=0
- const occupied=(x,z)=>fleet.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
+ const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
   for(const n of crowd.all){
@@ -171,7 +173,7 @@ export async function start(onContextLost){
   if(candidate)return candidate.car.setup.name+' 탑승'
   const resident=talkCandidate();return resident?resident.name+' · 대화':''
  }
- const blockedByCar=(vehicle,x,z)=>fleet.some(other=>vehicle!==other&&nearBody(other,x,z))
+ const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function nearestDoor(){
   if(pos.y-groundHeight(pos.x,pos.z)>.16)return null
@@ -330,7 +332,7 @@ export async function start(onContextLost){
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked)return;if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
@@ -365,7 +367,7 @@ export async function start(onContextLost){
   anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
-  for(const vehicle of fleet){
+  for(const vehicle of traffic){
    if(vehicle===car&&mode!=='walk')continue
    const a=localPoint(vehicle,anchor.x,anchor.z),b=localPoint(vehicle,eye.x,eye.z)
    fraction=Math.min(fraction,cameraFraction({...a,y:anchor.y},{...b,y:eye.y},[[-vehicle.width/2,vehicle.width/2,-vehicle.length/2,vehicle.length/2,vehicle.height]]))
@@ -423,7 +425,7 @@ export async function start(onContextLost){
    else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
-    stepDrive(car,input,boxes,realDt,fleet);speed=Math.abs(car.speed)
+    stepDrive(car,input,boxes,realDt,traffic);speed=Math.abs(car.speed)
     pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
@@ -477,6 +479,9 @@ export async function start(onContextLost){
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.legacyArrest=room.phase!=='offline'
+   const police=squads.update(dt,pos,player.inVehicle,crowd.wanted,!player.legacyArrest)
+   player.squadObserver=police.observed
+   remoteShadow ||= police.moving
    crowd.update(dt,camera,player,hitPlayer,(outcome,officer)=>{
     if(outcome==='arrest')beginCustody(officer)
     else ui.toast(outcome==='warning'?'항만 경찰 · 경고 후 조사 종료':'수배 해제')

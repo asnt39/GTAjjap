@@ -20,3 +20,11 @@ Elena Reed는 구급팩, 부두 커피, 추가 운행권을 판다. 일시 정�
 - 의뢰·지갑·소지품은 `harborline.episode.v1`에 저장한다. 수배는 현재 플레이 세션에서만 유지된다. 멀티플레이 상태 동기화는 후속 작업이다.
 
 도메인 검사는 `node tests/episode.mjs`, 주민 및 기존 기능 검사는 `tests/living-city.mjs`, `tests/driving.mjs`, `tests/footwork.mjs`로 실행한다.
+
+## 경찰서와 추격
+
+타이드 마켓 항로등 정비소 서쪽에 경찰서가 있다. 일반 탐험 중에는 정문을 통해 접수 공간에 들어갈 수 있고, 철창 뒤 감방은 체포 연출 후에 입실한다. 수감 시간은 게임 플레이 시간으로 14초다. 석방하면 경찰서 앞에서 조작을 되찾는다. 진행 중인 의뢰는 기존 수첩에서 재시도할 수 있다.
+
+싱글플레이에서는 수배 2단계부터 경찰차 한 대가 출동하고 3단계에서는 두 대까지 합류한다. 경찰은 도로 경로를 따라 주행하고 플레이어가 내리면 안전한 쪽으로 하차해 도보 추격에 합류한다. 귀환로가 계속 막히면 가까운 위치에서 정차하고 추격 상태를 종료한다. 비공개 방은 기존 체포·복귀 동작을 사용한다.
+
+체포·수감은 `src/custody.js`, 연출과 시설은 `src/custody-presentation.js`와 `src/police-station.js`, 순찰차의 경로와 상태 전환은 `src/police-road.js`와 `src/police-chase.js`에서 관리한다. `node --test tests/custody.mjs tests/police-chase.mjs`로 두 흐름을 검증할 수 있다.

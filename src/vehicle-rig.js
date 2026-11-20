@@ -22,14 +22,14 @@ function batchPanels(parent){
 
 // Original cars with open sides, seats and hinged doors. All parts share the
 // same coordinate convention as Touring: the front faces negative Z.
-export function createVehicleRig(id) {
+export function createVehicleRig(id,{police=false}={}) {
  const config=vehicles[id],van=id==='van'
  const {width:w,length:l,height:h}=config
  const root=new T.Group(),body=new T.Group()
- root.name=config.name
+ root.name=police?'Harbor Patrol':config.name
  root.add(body)
  const material=(color,roughness=.56)=>new T.MeshStandardMaterial({color,roughness})
- const paint=material(van?0x70876e:0xb96443,.36),rubber=material(0x222629,.88)
+ const paint=material(police?0x304455:van?0x70876e:0xb96443,.36),rubber=material(0x222629,.88)
  const trim=material(0x363c3a),glass=material(van?0x52696b:0x48626b,.24)
  const metal=material(0x9b9b8d,.4),headlights=material(0xeee3ae)
  const brake=material(0x952b20)
@@ -77,11 +77,27 @@ export function createVehicleRig(id) {
   box(hinge,trim,-side*.01,h-.126,span*.5,.05,.04,span)
   for(const z of [.027,span-.027])box(hinge,trim,-side*.014,(h+belt-.12)*.5,z,.055,h-belt-.12,.042)
  }
+ if(police){
+  const cream=material(0xd0c7b1,.44)
+  for(const side of [-1,1]){
+   box(body,cream,side*w*.503,.77,-l*.31,.012,.083,.49)
+   box(body,cream,side*w*.503,.77,l*.32,.012,.083,.55)
+   box(doors[side===-1?0:1],cream,side*.052,.765,(rear-front-.07)*.42,.013,.082,.74)
+  }
+  box(body,trim,0,h+.035,0,.83,.076,.24)
+ }
  batchPanels(body)
  for(const hinge of doors)batchPanels(hinge)
+ const beacons=[]
+ if(police)for(const [side,color] of [[-1,0xd83421],[1,0x4183d3]]){
+  const beacon=material(color,.36);beacon.emissive.setHex(color)
+  const mesh=box(body,beacon,side*.19,h+.104,0,.355,.072,.202)
+  mesh.castShadow=false
+  beacons.push(beacon)
+ }
  let spin=0
  return {root,...config, hinged:true,
-  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0}){
+  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0}){
    root.position.set(x,0,z);root.rotation.y=-heading
    spin=(spin-travel/tireRadius)%(Math.PI*2)
    for(const {pivot,axle,front} of wheels){pivot.rotation.y=front?-steer:0;axle.rotation.x=spin}
@@ -90,6 +106,7 @@ export function createVehicleRig(id) {
    doors[0].rotation.y=Math.min(0,door)*1.18
    doors[1].rotation.y=Math.max(0,door)*1.18
    brake.emissiveIntensity=braking?1.8:0
+   beacons.forEach((light,i)=>{light.emissiveIntensity=signal===i+1?2.4:.10})
   }
  }
 }
