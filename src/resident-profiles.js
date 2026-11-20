@@ -14,9 +14,9 @@ for(const person of people.slice(5))Object.assign(person,{pace:1.1,temper:person
 
 const districtPolice=[
  {id:'quay-patrol',name:'Nora Finch',role:'서부 부두 순찰',x:12.1,z:-24,patrol:[{x:12.2,z:-19}]},
- {id:'north-patrol',name:'Hugo Clarke',role:'북부 하역장 순찰',x:7.7,z:-82,patrol:[{x:8.4,z:-91}]},
+ {id:'north-patrol',model:'patrol',name:'Hugo Clarke',role:'북부 하역장 순찰',x:7.7,z:-82,patrol:[{x:8.4,z:-91}]},
  {id:'south-patrol',name:'Leah Morgan',role:'대로 남쪽 순찰',x:7.6,z:41.5,patrol:[{x:8.4,z:47}]},
- {id:'crossing-post',name:'Miles Ford',role:'시장 교차로 경비',x:-29,z:-32,station:true},
+ {id:'crossing-post',model:'patrol',name:'Miles Ford',role:'시장 교차로 경비',x:-29,z:-32,station:true},
  {id:'market-patrol',name:'Avery Brooks',role:'선용품 거리 순찰',x:-57,z:-44.4,patrol:[{x:-69,z:-44.4}]},
  {id:'signal-post',name:'Inez Ward',role:'항로등 정비소 경비',x:-83,z:-29,station:true}
 ]

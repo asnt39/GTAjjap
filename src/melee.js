@@ -11,8 +11,8 @@ export function swing(f,side=-f.side,{bufferHit=false}={}){
  Object.assign(f,{action:'punch',side,elapsed:0,duration:side===1?.54:.48,connected:false,handReady:false})
  return true
 }
-export function injure(f,amount,side,zone,{responseWindow=0}={}){
- if(f.action==='hit'||f.immune>0||f.hp===0)return false
+export function injure(f,amount,side,zone,{responseWindow=0,weaponHit=false}={}){
+ if(f.hp===0||(!weaponHit&&(f.action==='hit'||f.immune>0)))return false
  f.hp=Math.max(0,f.hp-amount)
  Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,responseWindow,recovery:0,
   queued:false,handReady:false,connected:false,downTime:0})

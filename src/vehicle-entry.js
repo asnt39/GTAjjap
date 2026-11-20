@@ -1,4 +1,4 @@
-import {doorPoint,worldPoint} from './driving.js'
+import {cabinPoint,worldPoint} from './driving.js'
 
 const ramp=(value,start,end)=>{
  const t=Math.max(0,Math.min(1,(value-start)/(end-start)))
@@ -18,8 +18,8 @@ export function entryPose(car,transition,entering) {
  const crouch=entering?ramp(time,.54,.94):1-ramp(time,.49,.96)
  const reach=entering?ramp(time,.26,.44)*(1-ramp(time,.65,.88)):
   ramp(time,.51,.72)*(1-ramp(time,1.10,1.26))
- const sill=doorPoint(car,side,.26)
- const seat=worldPoint(car,side*car.width*.23,car.setup?.doorZ??-.16)
+ const sill=cabinPoint(car,side,.26)
+ const seat=worldPoint(car,side*car.width*.23,car.setup?.cabinZ??car.setup?.doorZ??-.16)
  const x=mix(mix(from.x,sill.x,approach),mix(sill.x,seat.x,passage),approach)
  const z=mix(mix(from.z,sill.z,approach),mix(sill.z,seat.z,passage),approach)
  const toward=-car.heading-side*Math.PI/2,forward=Math.PI-car.heading

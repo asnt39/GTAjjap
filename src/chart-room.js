@@ -8,7 +8,7 @@ export function archiveAccess(x,z,r){
  return x>=a.back+r && x<=-9 && z>=a.north+r && z<=a.south-r &&
   (x<a.front || Math.abs(z-a.door)<=a.opening/2-r)
 }
-export function buildArchive({cube,rail,panel,addCollider,walls,iron,trim,ledge,lit,lamp,roof},height){
+export function buildArchive({cube,rail,panel,addCollider,walls,iron,trim,ledge,lit,lamp,roof,benchModel},height){
  const a=archive, mid=(a.front+a.back)/2, z=(a.north+a.south)/2,depth=a.front-a.back,width=a.south-a.north
  const wall=(x,zz,w,d)=>{
   cube(x,a.ceiling/2,zz,w,a.ceiling,d,walls)
@@ -51,11 +51,13 @@ export function buildArchive({cube,rail,panel,addCollider,walls,iron,trim,ledge,
  }
  // Surveyor's bench along the south wall.
  const benchZ=a.south-.57
- cube(mid,.56,benchZ,3.4,.12,.66,ledge)
- cube(mid,.98,benchZ+.24,3.4,.34,.10,trim)
- for(const offset of [-1.36,1.36]){
-  cube(mid+offset,.32,benchZ,.14,.48,.54,iron)
-  cube(mid+offset,.74,benchZ+.25,.10,.68,.08,iron)
+ if(!benchModel){
+  cube(mid,.56,benchZ,3.4,.12,.66,ledge)
+  cube(mid,.98,benchZ+.24,3.4,.34,.10,trim)
+  for(const offset of [-1.36,1.36]){
+   cube(mid+offset,.32,benchZ,.14,.48,.54,iron)
+   cube(mid+offset,.74,benchZ+.25,.10,.68,.08,iron)
+  }
  }
  addCollider(mid-1.7,mid+1.7,benchZ-.33,benchZ+.33,1.15)
  for(const zz of [21.4,26,30.6]){

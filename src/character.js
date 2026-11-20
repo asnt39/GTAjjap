@@ -4,7 +4,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {characterPose} from './character-motion.js'
 import {applyWardrobe} from './resident-wardrobe.js'
 
-const modelFiles = {resident:'harbor-resident.glb',crew:'harbor-crew.glb',mariner:'harbor-mariner.glb'}
+const modelFiles = {resident:'harbor-resident.glb',crew:'harbor-crew.glb',mariner:'harbor-mariner.glb',patrol:'harbor-patrol.glb'}
 const models = new Map()
 
 function loadModel(model) {
@@ -12,7 +12,15 @@ function loadModel(model) {
  return models.get(model)
 }
 export async function createCharacter({variant,model='resident'}={}){
- const {scene:source,animations}=await loadModel(model)
+ let asset
+ if(model==='patrol'){
+  try{asset=await loadModel(model)}
+  catch(error){console.warn('Patrol model unavailable',error);model='resident'}
+ }
+ asset??=await loadModel(model)
+ // The patrol and resident share the Rocketbox adult male bind rig and bone names.
+ const {animations}=model==='patrol'?await loadModel('resident'):asset
+ const source=asset.scene
  const scene=clone(source),root=new Group(),posture=new Group()
  root.add(posture);posture.add(scene)
  if(model==='resident'&&variant!=null)applyWardrobe(scene,variant)
@@ -26,7 +34,7 @@ export async function createCharacter({variant,model='resident'}={}){
  actions.Walk.paused=actions.Run.paused=true
  let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0
  const layer=characterPose(scene)
- return {root,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
+ return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
   const phase=pose.jump==null?null:MathUtils.clamp(pose.jump,0,1)
   const landing=MathUtils.clamp(pose.land||0,0,1)
