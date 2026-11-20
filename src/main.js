@@ -397,7 +397,9 @@ export async function start(onContextLost){
    const stagger=player.f.action==='hit'?.55:0
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
-   foot.advance(dt,floor)
+   const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
+     insidePremises(pos.x,pos.z)?3.44:Infinity
+   foot.advance(dt,floor,roomCeiling-player.height)
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
    shadow.material.opacity=1-.65*clamp(pos.y-floor,0,1)

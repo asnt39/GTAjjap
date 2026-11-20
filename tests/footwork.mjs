@@ -31,3 +31,16 @@ for (const fps of [20,60,120]){
  for(let i=0;i<fps;i++)tick(2/fps)
  assert(player.z<3.69)
 }
+
+// An indoor jump from furniture contacts the ceiling and falls back to the same surface.
+const indoor=createFootwork()
+indoor.reset(.96)
+assert(indoor.jump())
+let indoorPeak=0
+for(let frame=0;frame<70;frame++){
+ indoor.advance(1/60,.96,1.64)
+ indoorPeak=Math.max(indoorPeak,indoor.height)
+}
+assert.equal(indoorPeak,1.64)
+assert.equal(indoor.height,.96)
+assert(!indoor.air)
