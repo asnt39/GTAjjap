@@ -46,16 +46,18 @@ export function createUI(game){
  const row=(left,right)=>'<div class="control-row"><span>'+left+'</span><span>'+right+'</span></div>'
  const button=(action,label,end='›')=>'<button type="button" class="menubtn" data-action="'+action+'"><span>'+label+'</span><span>'+end+'</span></button>'
  function close(){
+  if(panel==='rooms'&&game.room.phase==='connecting')game.room.leave()
   panel='';overlay.hidden=true;game.setPaused(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
   if(game.crowd.talking)return
+  if(panel==='rooms'&&name!=='rooms'&&game.room.phase==='connecting')game.room.leave()
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
   const journal=game.episode.snapshot()
   const menu={
    bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')],
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(defaultRoomEndpoint?button('rooms','비공개 멀티플레이'):'<p class="smallnote">온라인 멀티플레이 준비 중</p>')+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
-   rooms:['HARBORLINE','비공개 멀티플레이','<div id="room-controls"></div>'],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
+   rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
    controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('주먹 공격','<kbd>F</kbd>')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 오른쪽 버튼으로 점프하거나 공격해. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
@@ -73,26 +75,30 @@ export function createUI(game){
   if(name==='credits'){for(const [label,path] of [['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Barlow 글꼴','fonts/OFL-Barlow.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
- let roomForm,endpoint=defaultRoomEndpoint,code=''
+ let roomForm,code=''
+ const playMode=$('#play-mode')
  function updateRoom(){
   const root=$('#room-controls'),room=game.room
-  if(!root){roomForm=null;return}
   const phase=room.phase
+  playMode.textContent=phase==='connected'?'온라인 플레이':phase==='reconnecting'?'온라인 · 재접속 중':'싱글플레이'
+  if(!root){roomForm=null;return}
+  if(!defaultRoomEndpoint){
+   root.textContent='온라인 서버 준비 중. 지금은 싱글플레이를 이용할 수 있어.'
+   return
+  }
   if(roomForm?.root!==root||roomForm.phase!==phase){
    if(phase==='offline'){
-    root.innerHTML='<form id="room-form"><label for="room-endpoint">서버 주소</label>'+
-     '<input id="room-endpoint" type="text" placeholder="wss://…" spellcheck="false" required>'+
-     '<label for="room-code">초대 코드</label><input id="room-code" type="text" maxlength="12" autocapitalize="characters" spellcheck="false">'+
+    root.innerHTML='<form id="room-form">'+
+     '<label for="room-code">12자리 초대 코드</label><input id="room-code" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" spellcheck="false">'+
      button('roomCreate','방 만들기')+button('roomJoin','코드로 입장')+
      '</form><p id="room-message" class="smallnote" role="status"></p>'
-    $('#room-endpoint').value=endpoint;$('#room-code').value=code
-    $('#room-endpoint').oninput=e=>{endpoint=e.target.value}
+    $('#room-code').value=code
     $('#room-code').oninput=e=>{code=e.target.value}
     $('#room-form').onsubmit=e=>{e.preventDefault();joinRoom(false)}
     $('#room-code').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();joinRoom(false)}}
    }else if(phase==='connected'){
     root.innerHTML='<p>초대 코드 <strong id="room-invite"></strong></p>'+
-     '<p id="room-roster"></p>'+button('roomLeave','방 나가기')+
+     '<p id="room-roster"></p>'+button('resume','온라인 플레이 계속')+button('roomLeave','방 나가기')+
      '<p id="room-message" class="smallnote" role="status"></p>'
    }else root.innerHTML=button('roomLeave','취소')+'<p id="room-message" class="smallnote" role="status"></p>'
    roomForm={root,phase}
@@ -107,7 +113,7 @@ export function createUI(game){
  function joinRoom(create){
   code=code.trim().toUpperCase()
   if(!create&&!ROOM_CODE.test(code)){$('#room-message').textContent='12자리 방 코드를 확인해';return}
-  game.startRoom(endpoint,create?{t:'create'}:{t:'join',code})
+  game.startRoom(defaultRoomEndpoint,create?{t:'create'}:{t:'join',code})
  }
  $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close

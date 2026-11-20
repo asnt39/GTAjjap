@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: harborline-rooms
+    runtime: node
+    plan: free
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run rooms
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HARBORLINE_HOST
+        value: "0.0.0.0"
+      - key: HARBORLINE_ORIGINS
+        value: "https://harborline-docklands.asnt1.chatgpt.site"

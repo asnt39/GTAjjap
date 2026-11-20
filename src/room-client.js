@@ -3,10 +3,13 @@ import {ROOM_PATH,TICK_MS,wrapAngle,unpackPlayer,unpackVehicle} from './room-pro
 const errors={
  invalid_code:'12자리 방 코드를 확인해',room_missing:'이 코드의 방을 찾을 수 없어',
  room_full:'방이 가득 찼어 (최대 4명)',server_full:'서버가 혼잡해. 잠시 후 다시 시도해',
- expired:'재접속 시간이 지났어',try_again:'잠시 후 다시 시도해'
+ expired:'방이 종료됐거나 서버가 재시작됐어. 새 방을 만들어 줘',try_again:'잠시 후 다시 시도해'
 }
+const INITIAL_WINDOW_MS=90000
+const HANDSHAKE_MS=8000
 export const defaultRoomEndpoint=import.meta.env?.VITE_HARBORLINE_WS||
- (location.protocol==='http:'?'ws://'+location.hostname+':8787'+ROOM_PATH:'')
+ (location.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)?
+  'ws://'+location.hostname+':8787'+ROOM_PATH:'')
 
 export function roomEndpoint(raw){
  const url=new URL(raw.trim())
@@ -47,11 +50,15 @@ export function createRoomClient(events){
   return changed
  }
  function connect(){
+  retry=null
+  const remaining=attempt.deadline-performance.now()
+  if(remaining<=0){finish(session?'재접속에 실패했어':'서버 응답이 없어. 다시 시도해');return}
+  attempt.sent=false
   let ws
   try{ws=new WebSocket(attempt.endpoint)}catch{finish('서버 주소를 열 수 없어');return}
   socket=ws
-  timer=setTimeout(()=>lost(ws),3300)
-  ws.addEventListener('open',()=>{if(socket===ws)send(attempt.request)})
+  timer=setTimeout(()=>lost(ws),Math.min(HANDSHAKE_MS,remaining))
+  ws.addEventListener('open',()=>{if(socket===ws)attempt.sent=send(attempt.request)})
   ws.addEventListener('message',({data})=>{
    if(socket!==ws)return
    let msg
@@ -85,7 +92,14 @@ export function createRoomClient(events){
   if(!ws||socket!==ws)return
   socket=null;clearTimeout(timer);timer=null
   if(ws.readyState<WebSocket.CLOSING)ws.close()
-  if(!session){finish('서버에 연결할 수 없어. 주소와 서버 상태를 확인해');return}
+  if(!session){
+   if(attempt.sent||performance.now()+3000>=attempt.deadline){
+    finish('서버 응답이 없어. 방 만들기나 입장을 다시 시도해');return
+   }
+   update('connecting','서버가 절전 상태라면 약 1분 걸려. 다시 연결하는 중…')
+   retry=setTimeout(connect,3000)
+   return
+  }
   if(phase!=='reconnecting'){
    clearFrames()
    attempt={endpoint:session.endpoint,request:{t:'resume',code:session.code,token:session.token},deadline:performance.now()+23000}
@@ -97,8 +111,8 @@ export function createRoomClient(events){
  }
  function start(endpoint,request){
   if(phase!=='offline')return
-  try{attempt={endpoint:roomEndpoint(endpoint),request}}catch{update('offline','유효한 ws:// 또는 wss:// 서버 주소를 입력해');return}
-  update('connecting','서버에 연결하는 중…');connect()
+  try{attempt={endpoint:roomEndpoint(endpoint),request,deadline:performance.now()+INITIAL_WINDOW_MS}}catch{update('offline','온라인 서버 주소를 확인해');return}
+  update('connecting','서버에 연결하는 중… 절전 상태에서는 약 1분 걸릴 수 있어');connect()
  }
  function leave(){
   if(phase==='connected')send({t:'leave'})
