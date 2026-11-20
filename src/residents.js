@@ -5,7 +5,7 @@ import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
 import {fighter,swing,injure,revive,advance,combatPose,contact} from './melee.js'
 
-import {people} from './resident-profiles.js'
+import {people,residentHealth} from './resident-profiles.js'
 const cell=.92,clamp=MathUtils.clamp
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]
@@ -14,17 +14,31 @@ function turn(n,angle,dt){
  n.face+=clamp(d*(1-Math.exp(-8*dt)),-4.8*dt,4.8*dt)
 }
 function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37)>6?.087:.008}
-export async function createResidents(scene,boxes,car,fleet=[car]){
+export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=ground){
  const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
   const rig=await createCharacter({variant:profile.variant??i,model:profile.model}),pos=new Vector3(profile.x,0,profile.z)
-  const n={...profile,rig,pos,height:profile.height??1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
-   f:fighter(64+i*4),alert:0,talk:0,line:0,accum:0,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
+  pos.y=surfaceHeight(pos)
+  const health=residentHealth[profile.officer?(profile.station?'guard':'officer'):'civilian']
+  const shadowMeshes=[]
+  rig.root.traverse(mesh=>{if(mesh.isMesh&&mesh.castShadow)shadowMeshes.push(mesh)})
+  const n={...profile,rig,pos,shadowMeshes,castsShadow:true,patrolStop:1,height:profile.height??1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
+   f:fighter(health),alert:0,talk:0,line:0,accum:0,stagger:(i%7)/7,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
   return n
  }))
  const officers=all.filter(n=>n.officer),wanted=createWanted()
- let response=officers[0],sensing=0,observed=false
+ const responders=new Set()
+ let sensing=0,observed=false
+ const responding=n=>responders.has(n)&&n.f.hp>0
+ function dispatch(point){
+  const count=wanted.level===3?2:1
+  for(const n of responders)if(!n.f.hp)responders.delete(n)
+  if(responders.size>=count)return
+  const nearby=officers.filter(n=>n.f.hp>0&&!responders.has(n))
+   .sort((a,b)=>distance(a.pos,point)-distance(b.pos,point))
+  for(const n of nearby.slice(0,count-responders.size)){responders.add(n);n.replan=0}
+ }
  const playerList=[],visibleSphere=new Sphere(new Vector3(),1.3),frustum=new Frustum(),viewProjection=new Matrix4()
  let talking=null,lastTalk='',shadowDirty=false
  const free=(p)=>canWalk(p.x,p.z,boxes,.31)&&!carAt(p.x,p.z,.32)
@@ -33,9 +47,14 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
   for(let k=1;k<count;k++){const t=k/count;if(!free({x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t}))return false}
   return true
  }
- const blockedBy=(n,x,z)=>all.some(other=>other!==n&&Math.hypot(other.pos.x-x,other.pos.z-z)<.59)
+ const blockedBy=(n,x,z)=>all.some(other=>other!==n&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
  // Small, local eight-neighbour flood search. Choose the reachable cell closest to the goal.
  function plan(n,goal,lane){
+  const gap=distance(n.pos,goal)
+  if(gap<12&&(!lane||n.pos.x>=lane[0]&&n.pos.x<=lane[1]&&goal.x>=lane[0]&&goal.x<=lane[1])&&free(goal)&&lineClear(n.pos,goal)){
+   n.path=gap>.23?[goal]:[]
+   return
+  }
   const origin=n.pos,start={x:origin.x,z:origin.z,prev:null,i:0,j:0}
   const queue=[start],seen=new Set(['0,0']);let best=start,bestDistance=distance(start,goal)
   for(let head=0;head<queue.length&&head<440&&bestDistance>.65;head++){
@@ -56,6 +75,19 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
  }
  function lane(n){return n.x<0?[-10,-6.65]:n.x>10.8?[11.2,15.6]:[6.7,10.25]}
  function wander(n){
+  if(n.officer&&n.station){
+   plan(n,{x:n.x,z:n.z},null)
+   n.state=n.path.length?'walk':'idle';n.wait=3
+   return
+  }
+  if(n.patrol){
+   const stops=[{x:n.x,z:n.z},...n.patrol]
+   const goal=stops[n.patrolStop]
+   plan(n,goal,null)
+   if(distance(n.pos,goal)<.8||!n.path.length)n.patrolStop=(n.patrolStop+1)%stops.length
+   n.state=n.path.length?'walk':'idle';n.wait=2
+   return
+  }
   if(n.station){plan(n,{x:n.x+(Math.random()-.5)*2,z:n.z+(Math.random()-.5)*2},null);n.state=n.path.length?"walk":"idle";n.wait=5;return}
   const band=lane(n),range=n.role==='배송 기사'?11:9
   plan(n,{x:band[0]+Math.random()*(band[1]-band[0]),z:n.z+(Math.random()-.5)*range*2},n.pos.x>=band[0]&&n.pos.x<=band[1]?band:null)
@@ -67,12 +99,15 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
   n.state='flee';n.replan=1.3
  }
  function walkPath(n,dt,pace,player){
-  if(!n.path.length){n.speed=MathUtils.damp(n.speed,0,12,dt);return}
+  if(!n.path.length){n.speed=0;return}
   const to=n.path[0],p=n.pos,d=distance(p,to)
-  if(d<.23){n.path.shift();return}
+  if(d<.23){n.path.shift();if(!n.path.length)n.speed=0;return}
   const angle=Math.atan2(to.x-p.x,to.z-p.z)
   turn(n,angle,dt)
-  n.speed=MathUtils.damp(n.speed,pace*Math.max(.18,Math.cos(n.face-angle)),7,dt)
+  const aligned=Math.max(0,Math.cos(n.face-angle))
+  const brake=13
+  const target=Math.min(pace*aligned,n.path.length===1?Math.sqrt(2*brake*Math.max(.035,d-.19)):pace)
+  n.speed+=clamp(target-n.speed,-brake*dt,6.8*dt)
   const step=Math.min(d,n.speed*dt),oldX=p.x,oldZ=p.z
   const occupied=(x,z)=>carAt(x,z,.32)||blockedBy(n,x,z)||Math.hypot(x-player.x,z-player.z)<.64
   movePlayer(p,Math.sin(n.face)*step,Math.cos(n.face)*step,boxes,occupied)
@@ -97,15 +132,16 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
   endTalk()
   if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
    wanted.report(source,n.officer||!n.f.hp?2:1)
-   response=officers.filter(o=>o.f.hp>0).sort((a,b)=>distance(a.pos,source)-distance(b.pos,source))[0]||officers[0];sensing=0
+   dispatch(source);sensing=0
   }
   n.state='react';n.stunX=-Math.sin(angle);n.stunZ=-Math.cos(angle);n.alert=n.temper==='defend'?7:5;n.path=[];n.replan=0
   for(const other of all)if(other!==n&&distance(other.pos,n.pos)<5&&!other.f.action){other.alert=Math.max(other.alert,2);other.state='watch'}
   return true
  }
  function update(dt,camera,player,hitPlayer,onOutcome){
-  const responding=n=>n.officer&&(wanted.level===3||response===n)&&n.f.hp>0
+  if(dt<=0)return
   if(wanted.level){
+   dispatch(wanted.lastKnown)
    sensing-=dt
    if(sensing<=0){
     sensing=.2
@@ -121,15 +157,31 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
    const outcome=wanted.tick(dt,player.pos,observed,near)
    if(outcome)onOutcome?.(outcome)
   }
+  if(!wanted.level&&responders.size){
+   for(const n of responders){n.alert=0;n.path=[];n.speed=0}
+   responders.clear();observed=false;sensing=0
+  }
   viewProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(viewProjection)
   shadowDirty=false
   for(const n of all){
-   const p=n.pos,d=distance(p,player.pos);visibleSphere.center.set(p.x,1,p.z)
+   const p=n.pos,d=distance(p,player.pos),priorFace=n.face
+   visibleSphere.center.set(p.x,p.y+1,p.z)
    const visible=frustum.intersectsSphere(visibleSphere)
    n.rig.root.visible=visible
+   // Remote patrols stay posted, and never add distant dynamic shadow passes.
+   const castsShadow=visible&&d<22
+   if(n.castsShadow!==castsShadow){
+    n.castsShadow=castsShadow
+    for(const mesh of n.shadowMeshes)mesh.castShadow=castsShadow
+    shadowDirty=true
+   }
+   if(n.officer&&d>44&&!responding(n)&&!n.f.action){
+    if(n.stepping){n.rig.update(.12,0);n.stepping=n.speed=0}
+    continue
+   }
    n.accum+=dt
-   const interval=d<7?0:visible?(d<25?1/30:.10):.45
-   if(n.accum<interval)continue
+   const interval=d<7?0:visible?(d<25?1/30:.125):.45
+   if(n.accum<interval*(n.age===0?.55+.45*n.stagger:1))continue
    const tick=Math.min(n.accum,.45);n.accum=0;n.age+=tick;n.replan-=tick;n.stepping=0;n.alert=Math.max(0,n.alert-tick)
    advance(n.f,tick)
    const traffic=fleet.find(vehicle=>Math.abs(vehicle.speed)>1&&distance(p,vehicle)<5)
@@ -160,7 +212,7 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
     walkPath(n,tick,[0,1.55,4.4,5.2][wanted.level],player.pos)
    }else if(talking===n){
     n.talk-=tick;turn(n,toward,tick);if(n.alert>0||n.talk<=0||d>2.8||!player.available||!lineClear(n.pos,player.pos))endTalk()
-   }else if(n.alert>0&&player.available){
+   }else if(n.alert>0&&player.available&&(!n.officer||!wanted.level)){
     if(n.temper==='defend'&&n.state!=='watch'){
      n.state='guard'
      if(d<1.07&&lineClear(p,player.pos)){turn(n,toward,tick);if(n.f.recovery<=0&&Math.cos(n.face-toward)>.86){swing(n.f);n.replan=.65}}
@@ -178,9 +230,11 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
     else{if(n.state==='walk'){n.state='idle';n.wait=1.6+Math.random()*4}
      n.wait-=tick;turn(n,n.face+Math.sin(n.age*.85)*.13,tick);if(n.wait<=0)wander(n)}
    }
-   p.y=ground(p);n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
+   if(!n.stepping&&n.state!=='walk'&&n.state!=='flee')n.speed=0
+   p.y=surfaceHeight(p);n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
    if(visible||d<5){
-    n.rig.update(tick,n.stepping,combatPose(n.f,n.state==='guard'||n.state==='watch'))
+    n.rig.update(tick,n.stepping,{...combatPose(n.f,n.state==='guard'||n.state==='watch'),
+     guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick})
     if(n.f.action==='punch'&&player.available){
      playerList[0]=player
      contact(n.f,n.rig,p,playerList,lineClear,(_,zone,point)=>hitPlayer(n,zone,point))

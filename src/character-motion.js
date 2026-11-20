@@ -30,14 +30,17 @@ export function characterPose(scene){
  }
  function jump(phase,landing){
   const lift=phase==null?0:Math.sin(Math.PI*phase)
+  const launch=phase==null?0:Math.sin(Math.PI*Math.min(1,phase/.26))
+  const brace=landing*landing
   if(!lift&&!landing)return
-  offset('Spine1','x',.12*lift+.16*landing)
+  offset('Spine1','x',.12*lift+.095*launch+.20*brace)
+  offset('Spine2','x',.045*lift+.08*brace)
   offset('Neck','x',-.10*lift-.10*landing)
   for(const [side,lead] of [['L',true],['R',false]]){
    offset(side+' Thigh','x',-(lead?.94:.56)*lift-.42*landing)
    offset(side+' Calf','x',(lead?1.40:1.25)*lift+.85*landing)
    offset(side+' Foot','x',-.31*lift-.44*landing)
-   offset(side+' UpperArm','x',-(lead?.42:.84)*lift-.16*landing)
+   offset(side+' UpperArm','x',-(lead?.42:.84)*lift-.19*launch-.16*landing)
    offset(side+' UpperArm','z',(lead?1:-1)*(.25*lift+.23*landing))
    offset(side+' Forearm','x',-.42*lift)
   }
@@ -100,7 +103,7 @@ export function characterPose(scene){
   }
   if(reach>.001){placeArm(side,side*.20,.98,.61,reach);curl(side,reach*.7)}
  }
- function gesture(action,p,side,zone){
+ function gesture(action,p,side,zone,ready=0,run=0){
   if(!action)return
   if(action==='hit'){
    const recoil=Math.sin(Math.PI*Math.pow(p,.66))
@@ -122,18 +125,23 @@ export function characterPose(scene){
   if(action!=='guard'&&action!=='punch')return
   const punch=action==='punch'
   const ramp=(a,b,value)=>{const f=Math.max(0,Math.min(1,(value-a)/(b-a)));return f*f*(3-2*f)}
-  const guard=punch?ramp(0,.19,p)*(1-ramp(.76,1,p)):ramp(0,.20,p)
+  // The existing wrist trajectory and weight are intact through the contact window.
+  const blendEdge=punch?1-ramp(.02,.20,p)+ramp(.79,1,p):0
+  const guard=punch?Math.max(ready*blendEdge,ramp(0,.19,p)*(1-ramp(.76,1,p))):ramp(0,.20,p)
   const reach=punch?ramp(.17,.48,p)*(1-ramp(.51,.81,p)):0
   const draw=punch?Math.sin(Math.PI*Math.min(1,p/.30)):0
+  offset('Pelvis','y',punch?side*.11*blendEdge*Math.sin(Math.PI*p):0)
   offset('Spine','y',side*(.17*draw-.36*reach))
+  offset(side>0?'L Clavicle':'R Clavicle','y',punch?side*.16*blendEdge*Math.sin(Math.PI*p):0)
   offset('Spine1','y',-side*.16*reach);offset('Spine2','x',.17*reach+.06*guard)
   offset('Neck','y',side*.21*reach)
-  offset('L Thigh','x',-.11*guard);offset('L Calf','x',.22*guard)
-  offset('R Thigh','x',-.09*guard);offset('R Calf','x',.18*guard)
+  const knees=guard*(1-.85*run)
+  offset('L Thigh','x',-.11*knees);offset('L Calf','x',.22*knees)
+  offset('R Thigh','x',-.09*knees);offset('R Calf','x',.18*knees)
   for(const sign of [-1,1]){
    const thrust=sign===side?reach:0,windup=sign===side?draw:0
    const x=sign*(.19-.09*thrust+.06*windup)
-   placeArm(sign,x,1.36+.075*thrust+.035*windup,.24+.72*thrust-.11*windup,guard)
+   placeArm(sign,x+sign*.055*run,1.36+.075*thrust+.035*windup-.19*run,.24+.72*thrust-.11*windup-.12*run,guard)
    curl(sign,guard)
   }
  }

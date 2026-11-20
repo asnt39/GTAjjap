@@ -6,8 +6,23 @@ export const people=[
  {id:'regular',name:'Arthur Hayes',legacyName:'선우',role:'부두 단골',x:-8.3,z:-47,pace:.78,temper:'flee',lines:['저 창고 턱에 걸터앉아서 낚시도 했지. 지금은 저만큼 물러났네.','조금만 더 있다 가지. 불 켜지는 부두도 볼 만한데.']}
 ]
 people.push(
- {id:'constable',name:'Owen Price',legacyName:'한 순경',role:'항만 순찰',officer:true,x:8,z:24,lines:['잠시만요. 차량 통로를 비워 주십시오.','정문 순찰 중입니다. 분실물은 시장 쪽 사무실에서 접수합니다.']},
- {id:'sergeant',name:'Marcus Shaw',legacyName:'박 경장',role:'항만 경비',officer:true,x:-8,z:-30,lines:['교차로 확인 끝. 지나가셔도 됩니다.','작업선 들어옵니다. 노란 선 안쪽으로 서세요.']},
+ {id:'constable',name:'Owen Price',legacyName:'한 순경',role:'항만 순찰',officer:true,patrol:[{x:8.1,z:29.5}],x:8,z:24,lines:['잠시만요. 차량 통로를 비워 주십시오.','정문 순찰 중입니다. 분실물은 시장 쪽 사무실에서 접수합니다.']},
+ {id:'sergeant',name:'Marcus Shaw',legacyName:'박 경장',role:'항만 경비',officer:true,station:true,x:-8,z:-30,lines:['교차로 확인 끝. 지나가셔도 됩니다.','작업선 들어옵니다. 노란 선 안쪽으로 서세요.']},
  {id:'tide-clerk',name:'Morgan',role:'조위 기록원',x:-47,z:-51,variant:3,station:true,lines:['기록지를 보시겠어요? 굵은 눈금 하나가 한 시간입니다.','썰물 때 잰 수치라 따로 적어 두었습니다. 다음 관측은 해진 뒤예요.']}
 )
 for(const person of people.slice(5))Object.assign(person,{pace:1.1,temper:person.officer?'defend':'avoid'})
+
+const districtPolice=[
+ {id:'quay-patrol',name:'Nora Finch',role:'서부 부두 순찰',x:12.1,z:-24,patrol:[{x:12.2,z:-19}]},
+ {id:'north-patrol',name:'Hugo Clarke',role:'북부 하역장 순찰',x:7.7,z:-82,patrol:[{x:8.4,z:-91}]},
+ {id:'south-patrol',name:'Leah Morgan',role:'대로 남쪽 순찰',x:7.6,z:41.5,patrol:[{x:8.4,z:47}]},
+ {id:'crossing-post',name:'Miles Ford',role:'시장 교차로 경비',x:-29,z:-32,station:true},
+ {id:'market-patrol',name:'Avery Brooks',role:'선용품 거리 순찰',x:-57,z:-44.4,patrol:[{x:-69,z:-44.4}]},
+ {id:'signal-post',name:'Inez Ward',role:'항로등 정비소 경비',x:-83,z:-29,station:true}
+]
+people.push(...districtPolice.map(person=>({
+ ...person,officer:true,variant:6,pace:1.18,temper:'defend',
+ lines:person.station?['이 구역은 제가 지키고 있습니다. 통행로만 비워 주세요.']:['순찰 중입니다. 작업 차량이 지나갈 때는 인도에서 기다려 주세요.']
+})))
+
+export const residentHealth = { civilian:108, officer:132, guard:144 }

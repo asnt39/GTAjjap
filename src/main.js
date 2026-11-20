@@ -21,6 +21,7 @@ import {buildPort} from './port.js'
 import {illumination,sky,beacons,footShadow,districtGates} from './atmosphere.js'
 import {createUI} from './interface.js'
 import {missionGuide} from './mission-guide.js'
+import {accelerateOnFoot} from './on-foot-motion.js'
 import {spawn,canWalk,movePlayer,supportHeight,cameraFraction} from './navigation.js'
 
 // The downloadable preview resolves the same site assets from its embedded manifest.
@@ -77,7 +78,7 @@ export async function start(onContextLost){
  for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
- const crowd=await createResidents(scene,boxes,cars.touring,fleet)
+ const crowd=await createResidents(scene,boxes,cars.touring,fleet,p=>groundHeight(p.x,p.z))
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode()
@@ -390,9 +391,14 @@ export async function start(onContextLost){
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
    const rate=pace*(coffee>0&&pace>1.85?1.15:1)
-   const response=foot.air?1.15:(ax||az?9:16)
-   velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,response,dt)
-   velocity.y=damp(velocity.y,(ax*sn-az*cs)*rate/length,response,dt)
+   const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
+   const accelerate=!foot.air&&!player.f.action
+   if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
+   else{
+    const response=foot.air?1.15:(ax||az?9:16)
+    velocity.x=damp(velocity.x,targetX,response,dt)
+    velocity.y=damp(velocity.y,targetZ,response,dt)
+   }
    const ox=pos.x,oz=pos.z
    const stagger=player.f.action==='hit'?.55:0
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
@@ -403,11 +409,17 @@ export async function start(onContextLost){
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
    shadow.material.opacity=1-.65*clamp(pos.y-floor,0,1)
-   const dx=pos.x-ox,dz=pos.z-oz;speed=Math.hypot(dx,dz)/Math.max(.001,dt)
+   const dx=pos.x-ox,dz=pos.z-oz
+   speed=dt>0?Math.hypot(dx,dz)/dt:walkSpeed
+   // Lose momentum along blocked axes without affecting air control or knockback.
+   if(accelerate&&dt>0)velocity.set(dx/dt,dz/dt)
+   const previousFace=face
    const facing=player.f.action==='punch'?focus:crowd.talking
    if(facing||speed>.07){const desired=facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.copy(pos)
-   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land})
+   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
+    guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
+    turn:dt>0?(face-previousFace)/dt:0})
    if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
    })
