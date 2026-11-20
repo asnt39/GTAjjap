@@ -91,6 +91,12 @@ export function characterPose(scene){
   }
  }
  function handPosition(side,out){return arms[side>0?1:0].knuckle.bone.getWorldPosition(out)}
+ function orientHand(sign,worldRotation,weight=1){
+  const joint=arms[sign>0?1:0].hand
+  remember(joint)
+  joint.bone.parent.getWorldQuaternion(parentQ)
+  joint.bone.quaternion.slerp(parentQ.invert().multiply(worldRotation),weight)
+ }
  function vehicle({side,crouch,reach}){
   offset('Spine','x',.38*crouch)
   offset('Spine1','x',.22*crouch)
@@ -145,5 +151,6 @@ export function characterPose(scene){
    curl(sign,guard)
   }
  }
- return {reset,jump,offset,gesture,vehicle,handPosition}
+ return {reset,jump,offset,gesture,vehicle,handPosition,
+  equipment:{placeArm,curl,orientHand,offset,hand:arms[0].hand?.bone,knuckle:arms[0].knuckle?.bone}}
 }

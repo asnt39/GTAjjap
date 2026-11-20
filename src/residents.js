@@ -125,10 +125,20 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  function beginTalk(n){
   endTalk();talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
  }
- function receive(n,source,zone,point){
+ function hearShot(source,reported=false){
+  // React once per game sound. Reuse the normal flee and patrol states.
+  for(const n of all){
+   if(!n.f.hp||distance(n.pos,source)>16)continue
+   if(!n.officer){n.state='flee';n.alert=Math.max(n.alert,4);n.replan=0}
+  }
+  if(!reported&&officers.some(n=>n.f.hp>0&&distance(n.pos,source)<22)){
+   wanted.report(source,1);dispatch(source);sensing=0
+  }
+ }
+ function receive(n,source,zone,point,damage){
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
-  if(!injure(n.f,24,side,zone))return false
+  if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
   endTalk()
   if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
    wanted.report(source,n.officer||!n.f.hp?2:1)
@@ -213,7 +223,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }else if(talking===n){
     n.talk-=tick;turn(n,toward,tick);if(n.alert>0||n.talk<=0||d>2.8||!player.available||!lineClear(n.pos,player.pos))endTalk()
    }else if(n.alert>0&&player.available&&(!n.officer||!wanted.level)){
-    if(n.temper==='defend'&&n.state!=='watch'){
+    if(n.temper==='defend'&&n.state!=='watch'&&n.state!=='flee'){
      n.state='guard'
      if(d<1.07&&lineClear(p,player.pos)){turn(n,toward,tick);if(n.f.recovery<=0&&Math.cos(n.face-toward)>.86){swing(n.f);n.replan=.65}}
      else if(d<6){if(n.replan<=0){plan(n,player.pos,null);n.replan=.55}if(d<1.55&&lineClear(p,player.pos))n.path=[{x:player.pos.x,z:player.pos.z}];walkPath(n,tick,1.65,player.pos)}
@@ -243,6 +253,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }
   }
  }
- return {all,officers,wanted,candidate,beginTalk,endTalk,receive,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,candidate,beginTalk,endTalk,receive,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

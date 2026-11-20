@@ -9,3 +9,23 @@ https://polyhaven.com/a/rusty_metal_02
 CC0 1.0. The 1K base-color scan supplies weathering for the crane paint and cargo container atlas.
 
 The terminal, vessels, cranes, quay furniture, signs, cargo liveries and rib patterns were modeled or drawn for Harborline. The water shader is original.
+
+Three pieces of playable scenery use Poly Haven's downloadable CC0 1.0 models.
+The GLBs embed base colour, tangent-space normal and roughness/metalness maps
+at 384, 256 and 128 pixels. Repeated copies use instancing. Original author
+credits and release terms are available at https://polyhaven.com/license.
+
+quay-fender.glb — Old Tyre by MP
+https://polyhaven.com/a/old_tyre
+The tyre profile replaces the rectangular fenders on the near quay wall.
+Decimated from 2,880 to 518 triangles. One material for 14 fenders.
+
+archive-bench.glb — Painted Wooden Bench by Kirill Sannikov
+https://polyhaven.com/a/painted_wooden_bench
+Two panelled 630-triangle seats occupy the old chart archive bench footprint.
+
+chandlery-crate.glb — Wooden Crate 02 by James Ray Cock and Jurita Burger
+https://polyhaven.com/a/wooden_crate_02
+The open fitted timber box replaces the six solid parcels at the chandlery.
+Lid omitted; reduced from 4,492 to 1,078 triangles per open crate.
+Loaded and released with the Tide Market district.

@@ -1,10 +1,15 @@
+import {loadPortProp} from './port-props.js'
 import {archive,buildArchive,archivePrint} from './chart-room.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 
 export async function buildArchitecture(scene,addCollider){
  const loader=new T.TextureLoader(),root='/assets/architecture/'
- const maps=await Promise.all(['factory_brick','grey_plaster','blue_plaster_weathered','worn_corrugated_iron','district_graphics'].map(n=>loader.loadAsync(root+n+'.webp')))
+ const files=['factory_brick','grey_plaster','blue_plaster_weathered','worn_corrugated_iron','district_graphics']
+ const [bench,maps]=await Promise.all([
+  loadPortProp('archive-bench'),
+  Promise.all(files.map(n=>loader.loadAsync(root+n+'.webp')))
+ ])
  for(const m of maps){m.colorSpace=T.SRGBColorSpace;m.anisotropy=4}
  for(const m of maps.slice(0,4))m.wrapS=m.wrapT=T.RepeatWrapping
  const walls=maps.slice(0,4).map(map=>new T.MeshStandardMaterial({map,roughness:.89}))
@@ -43,7 +48,7 @@ export async function buildArchitecture(scene,addCollider){
    const lamp=new T.MeshBasicMaterial({color:0xffe2a0})
    add(new T.PlaneGeometry(2.10,1.05).rotateX(-Math.PI/2).translate((x+archive.back)/2,1.125,25.5),paper)
    add(new T.PlaneGeometry(2.1,1.05).rotateY(Math.PI/2).translate(x+.3,1.62,archive.door-2.43),paper)
-   buildArchive({cube,rail,panel,addCollider,walls:walls[skin],iron,trim,ledge,lit,lamp,roof},h)
+   buildArchive({cube,rail,panel,addCollider,walls:walls[skin],iron,trim,ledge,lit,lamp,roof,benchModel:bench},h)
    activeBatch=batches
   }else{
    cube(tx(-depth/2),h/2,z,depth,h,w,walls[skin])
@@ -110,5 +115,17 @@ export async function buildArchitecture(scene,addCollider){
  const group=new T.Group();group.name='Portside architecture'
  const room=new T.Group();room.name=archive.id
  for(const [collection,target] of [[batches,group],[archiveBatches,room]])for(const [m,parts] of collection){const mesh=new T.Mesh(mergeGeometries(parts),m);mesh.castShadow=mesh.receiveShadow=true;target.add(mesh);for(const g of parts)g.dispose()}
+ if(bench){
+  const seats=new T.InstancedMesh(bench.geometry,bench.material,2)
+  const placement=new T.Object3D()
+  placement.scale.setScalar(1.23)
+  placement.rotation.y=Math.PI
+  for(const [index,offset] of [-.82,.82].entries()){
+   placement.position.set((archive.front+archive.back)/2+offset,.066,archive.south-.57)
+   placement.updateMatrix();seats.setMatrixAt(index,placement.matrix)
+  }
+  seats.name='Archive waiting benches';seats.castShadow=seats.receiveShadow=true
+  room.add(seats)
+ }
  group.add(room);scene.add(group)
 }

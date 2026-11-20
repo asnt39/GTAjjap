@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import {createLoadout} from './equipment.js'
+import {equipmentPlay} from './equipment-play.js'
 import {buildMarket} from './market.js'
 import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
@@ -90,6 +92,20 @@ export async function start(onContextLost){
   return result
  }
  let focus=null,feedbackTime=0,knockX=0,knockZ=0
+ let storage
+ try{storage=window.localStorage}catch{}
+ const loadout=createLoadout(storage)
+ let aiming=false
+ const armed=()=>loadout.selected!=='fists'
+ const equipment=equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadout,
+  onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
+ function selectEquipment(id){
+  if(mode!=='walk'||crowd.talking||player.f.action||!loadout.select(id))return false
+  aiming=false;return true
+ }
+ function reloadEquipment(){
+  if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action)loadout.reload()
+ }
  const occupied=(x,z)=>fleet.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
@@ -105,13 +121,18 @@ export async function start(onContextLost){
  function attack(){
   if(mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
   crowd.endTalk()
+  if(armed()){
+   if(player.f.action||pendingSeat||room.phase==='reconnecting')return
+   if(loadout.def.capacity)face=Math.PI-yaw
+   equipment.attack();foot.sprint=false;return
+  }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
  }
  function hitPlayer(n,zone,point){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
   if(!injure(player.f,16,side,zone,{responseWindow:.65}))return false
-  crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
+  equipment.interrupt();aiming=false;crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(arrested=false){
   for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
@@ -128,7 +149,7 @@ export async function start(onContextLost){
  const driving=()=>mode==='drive'
  const canAct=()=>!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
  function jump(){if(canAct()&&!crowd.talking)foot.jump()}
- const clearControls=()=>{resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
+ const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
   if(driving())return Math.abs(car.speed)>.45?'정차 후 하차':'하차'
@@ -295,18 +316,39 @@ export async function start(onContextLost){
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
- window.addEventListener('keydown',e=>{if(crowd.talking)return;if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
+ window.addEventListener('keydown',e=>{if(crowd.talking||isPaused||document.querySelector('#game').inert)return;
+  if(!e.repeat&&mode==='walk'){
+   const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat'}[e.code]
+   if(slot){if(loadout.items[slot])selectEquipment(slot);else ui.show('equipment');return}
+   if(e.code==='KeyR'){reloadEquipment();return}
+   if(e.code==='KeyQ'){ui.show('equipment');return}
+  }
+  if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
    if(e.code.startsWith('Shift'))foot.shift()
    if(e.code==='Space')jump()
   }}})
  window.addEventListener('keyup',e=>keys.delete(e.code))
  window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{clearControls();last=performance.now()})
- let drag=null
- canvas.onpointerdown=e=>{if(isPaused||drag)return;canvas.focus();canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY}}
+ let drag=null,clickOrigin=null
+ canvas.addEventListener('mousedown',e=>{
+  if(isPaused||crowd.talking||mode!=='walk'||!armed())return
+  if(e.button===2)aiming=!!loadout.def.capacity
+  if(e.button===0)clickOrigin={x:e.clientX,y:e.clientY}
+ })
+ canvas.addEventListener('mouseup',e=>{
+  if(e.button===2)aiming=false
+  if(e.button===0&&clickOrigin){
+   if(Math.hypot(e.clientX-clickOrigin.x,e.clientY-clickOrigin.y)<7)attack()
+   clickOrigin=null
+  }
+ })
+ canvas.onpointerdown=e=>{if(isPaused||crowd.talking)return;
+  if(drag)return;canvas.focus();canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY}}
  canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
+ window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===2)aiming=false});
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
@@ -318,13 +360,16 @@ export async function start(onContextLost){
  let stickId=null
  stick.onpointerdown=e=>{if(stickId!==null||crowd.talking)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
  const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
+ document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
+ document.querySelector('#gear-reload').onclick=reloadEquipment
+ document.querySelector('#gear-aim').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity)aiming=!aiming}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
- const anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
+ const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
  let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0,followHeight=actor.position.y
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
-  const arm=distance+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115
+  const arm=(aiming?Math.min(distance,2.7):distance)+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115-loadout.recoil*.012
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
   anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
@@ -415,7 +460,7 @@ export async function start(onContextLost){
    if(accelerate&&dt>0)velocity.set(dx/dt,dz/dt)
    const previousFace=face
    const facing=player.f.action==='punch'?focus:crowd.talking
-   if(facing||speed>.07){const desired=facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
+   if((armed()&&(aiming||loadout.recoil>.1))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.copy(pos)
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
@@ -444,7 +489,10 @@ export async function start(onContextLost){
    const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    positionCamera(dt);const districtChanged=market.update(pos);if(updateVisibility()||districtChanged)renderer.shadowMap.needsUpdate=true
-   camera.updateMatrixWorld();ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
+   camera.updateMatrixWorld()
+   equipment.update(dt,{active:mode==='walk'&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
+    speed,pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+   ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++
     if(frameCount>=30||frameSum>3){const mean=frameSum/frameCount;recentFrameMs=mean*1000

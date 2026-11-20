@@ -1,3 +1,4 @@
+import {loadPortProp} from './port-props.js';
 import * as THREE from 'three';
 
 const PI = Math.PI;
@@ -113,8 +114,9 @@ export async function buildPort(scene, addCollider) {
   scene.add(group);
   const loader = new THREE.TextureLoader();
   const files = ['quay-diff.webp', 'quay-nor_gl.webp', 'paint-wear.webp', 'container-paint.webp', 'container-ribs.webp'];
-  const [groundMap, groundNormal, wear, paint, ribs] = await Promise.all(files.map(name =>
-    loader.loadAsync(assetRoot + name)));
+  const [fender, [groundMap, groundNormal, wear, paint, ribs]] = await Promise.all([
+    loadPortProp('quay-fender'), Promise.all(files.map(name => loader.loadAsync(assetRoot + name)))
+  ]);
   for (const t of [groundMap, groundNormal, wear, paint, ribs]) t.anisotropy = 4;
   for (const t of [groundMap, wear, paint]) t.colorSpace = THREE.SRGBColorSpace;
   for (const t of [groundMap, groundNormal, wear]) t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -165,7 +167,12 @@ export async function buildPort(scene, addCollider) {
     box(17.46,.016,z,.10,.041,4.15,'#49514b');
     box(23.82,.016,z,.10,.041,4.15,'#49514b');
     if (Math.round((z+68)/4.15)%2 === 0) {
-      box(26.16,-.72,z,.45,1.55,.72,'#283338',plain,[.12,0,.05]);
+      if (fender) {
+        batch(fender.geometry, fender.material, [26.20,-.66,z], [1.74,1.74,1.74], '#ffffff', [0,PI/2,0]);
+        for (const side of [-1,1]) line([26.02,.08,z+side*.26],[26.20,-.38,z+side*.19],.035,iron);
+      } else {
+        box(26.16,-.72,z,.45,1.55,.72,'#283338',plain,[.12,0,.05]);
+      }
       box(25.20,.12,z,.86,.22,.82,'#454944');
       tube(25.20,.39,z,.37,.53,.37,safety);
       tube(25.20,.65,z,.55,.12,.55,safety);

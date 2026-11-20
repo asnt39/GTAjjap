@@ -1,3 +1,4 @@
+import {loadPortProp} from './port-props.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {premises,front} from './market-plan.js'
@@ -5,6 +6,7 @@ import {premises,front} from './market-plan.js'
 // Batch fixed fittings by material; unloading releases district-owned GPU resources.
 export async function marketDetail(){
  let testLamp
+ const crates=[]
  const group=new T.Group(), batches=new Map(), textures=[], materials=[]
  const mat=(color,extra={})=>{const m=new T.MeshStandardMaterial({color,roughness:.8,...extra});materials.push(m);return m}
  const loader=new T.TextureLoader()
@@ -12,9 +14,23 @@ export async function marketDetail(){
   const t=await loader.loadAsync('/assets/'+path+'.webp');textures.push(t)
   t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(2,1);return t
  }
- const dispose=()=>{group.traverse(o=>o.geometry?.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose())}
- const loaded=await Promise.allSettled([...premises.map(p=>'architecture/'+p.skin),'street/asphalt_04-Diffuse','street/concrete_pavement_02-Diffuse'].map(load))
- if(loaded.some(v=>v.status==='rejected')){dispose();throw Error('시장 표면 재질 로딩 실패')}
+ const dispose=()=>{
+  group.traverse(o=>{
+   o.geometry?.dispose()
+   if(o.isInstancedMesh)o.dispose()
+  })
+  materials.forEach(m=>m.dispose())
+  textures.forEach(t=>t.dispose())
+ }
+ const surfaces=[...premises.map(p=>'architecture/'+p.skin),'street/asphalt_04-Diffuse','street/concrete_pavement_02-Diffuse']
+ const [crate,loaded]=await Promise.all([
+  loadPortProp('chandlery-crate'),Promise.allSettled(surfaces.map(load))
+ ])
+ if(crate){
+  materials.push(crate.material)
+  for(const t of new Set(Object.values(crate.material).filter(v=>v?.isTexture)))textures.push(t)
+ }
+ if(loaded.some(v=>v.status==='rejected')){crate?.geometry.dispose();dispose();throw Error('시장 표면 재질 로딩 실패')}
  const maps=loaded.map(v=>v.value)
  function box(x,y,z,w,h,d,m){
   const g=new T.BoxGeometry(w,h,d).translate(x,y,z)
@@ -78,7 +94,15 @@ export async function marketDetail(){
    box(x,h,z,w,.12,d,wood)
    for(const u of [-1,1])for(const v of [-1,1])box(x+u*(w*.5-.1),h*.5,z+v*(d*.5-.1),.11,h,.11,metal)
    if(i===0){box(x,h+.09,z,w*.6,.025,d*.7,paper);box(x+.25,h+.15,z,.62,.1,.13,wood)}
-   if(i===1){for(let j=0;j<3;j++)box(x,h+.17,z+(j-1)*d*.26,.63,.31,.5,j===1?linen:wood);box(x,h*.46,z,w,.07,d,wood)}
+   if(i===1){
+    box(x,h*.46,z,w,.07,d,wood)
+    for(let j=0;j<3;j++){
+     const zz=z+(j-1)*d*.26
+     // The reels occupy the western tabletop; the freight sits on its lower shelf.
+     if(crate)crates.push([x,(dx<0?h*.46+.035:h+.06)+.01,zz])
+     else box(x,h+.17,zz,.63,.31,.5,j===1?linen:wood)
+    }
+   }
    if(i===2){for(const k of [-.3,.3]){box(x+k,h+.22,z,.25,.36,.24,glow);box(x+k,h+.43,z,.36,.08,.35,metal)}}
   }
   // A wall tide dial, chandlery rope reels and serviceable signal lanterns.
@@ -104,6 +128,15 @@ export async function marketDetail(){
   for(let j=0;j<4;j++)box(p.x+2+j*.65,3.67,-53, .07,.32,2.2,metal)
  }
  for(let x=-44;x>=-94;x-=16){box(x,1.9,-30.7,.13,3.8,.13,metal);box(x+.5,3.76,-30.7,1,.11,.18,metal);box(x+.89,3.68,-30.7,.4,.07,.36,linen)}
+ if(crate){
+  const bins=new T.InstancedMesh(crate.geometry,crate.material,crates.length)
+  const placement=new T.Object3D()
+  placement.rotation.y=Math.PI/2;placement.scale.setScalar(.83)
+  crates.forEach(([x,y,z],index)=>{
+   placement.position.set(x,y,z);placement.updateMatrix();bins.setMatrixAt(index,placement.matrix)
+  })
+  bins.name='Chandlery freight';bins.castShadow=bins.receiveShadow=true;group.add(bins)
+ }
  for(const [material,parts] of batches){const mesh=new T.Mesh(mergeGeometries(parts),material);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);parts.forEach(g=>g.dispose())}
  return {group,dispose,signalTest(on){testLamp.emissiveIntensity=on?3:.12}}
 }

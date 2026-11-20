@@ -1,0 +1,28 @@
+#equipment-hud {
+ position:absolute; z-index:2; right:max(24px,env(safe-area-inset-right)); bottom:76px;
+ display:flex; align-items:center; gap:4px;
+}
+#equipment-hud button,#gear-status {
+ border:1px solid #bdc7c34d; border-radius:3px; padding:7px 10px;
+ color:#f5f2e9; background:#15232be8; font:600 13px 'Barlow',sans-serif;
+}
+#gear-status {order:-1; font-variant-numeric:tabular-nums}
+#equipment-hud button:hover,#equipment-hud [aria-pressed=true] {border-color:#ff8147}
+#equipment-hud button:disabled {opacity:.55}
+#gear-reticle {
+ position:absolute; z-index:2; left:50%; top:50%; transform:translate(-50%,-50%);
+ background:#fff6db; width:4px; height:4px; border-radius:50%;
+ box-shadow:0 0 0 1px #19242d; pointer-events:none;
+}
+#equipment-hud [hidden],#equipment-hud[hidden],#gear-reticle[hidden],
+#game:has(#overlay:not([hidden])) :is(#equipment-hud,#gear-reticle) {display:none}
+@media(pointer:fine) {#gear-aim,#gear-reload {display:none}}
+@media(pointer:coarse) {
+ #equipment-hud {right:max(16px,env(safe-area-inset-right));bottom:max(86px,calc(env(safe-area-inset-bottom) + 80px))}
+ #equipment-hud button {min-height:44px;min-width:44px;touch-action:manipulation}
+ .shortcuts {bottom:146px}
+}
+@media(pointer:coarse) and (max-width:600px) {
+ #equipment-hud {flex-wrap:wrap;justify-content:flex-end;max-width:158px}
+ #gear-status {width:100%;text-align:right}
+}
