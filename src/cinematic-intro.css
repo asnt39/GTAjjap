@@ -93,3 +93,9 @@
 @media (prefers-reduced-motion: reduce) {
   #status { transition: none; }
 }
+#intro-frame{position:absolute;inset:0;overflow:hidden}
+#intro-video{object-fit:contain}
+#intro-frame.corner{inset:auto max(22px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) auto;width:clamp(48px,7vmin,84px);aspect-ratio:70/49}
+#intro-frame.corner video{inset:auto;width:974.286%;height:auto;left:-837.143%;top:-904.082%}
+#intro-skip{position:absolute;right:max(16px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));background:#111a;color:white;border:0;padding:0 14px}
+#intro-recovery[hidden]{display:none}

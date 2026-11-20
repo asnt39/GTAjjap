@@ -5,14 +5,7 @@ import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
 import {fighter,swing,injure,revive,advance,combatPose,contact} from './melee.js'
 
-const people=[
- {name:'강 반장',role:'부두 반장',x:-7.4,z:21.4,pace:.94,temper:'defend',lines:['저 크레인 아래는 작업 중이야. 부두길로 가면 배가 잘 보여.','교대 시간이라 한숨 돌리는 중이야.']},
- {name:'윤서',role:'시장 점원',x:-8.9,z:5.4,pace:1.18,temper:'flee',lines:['오늘은 가게 문을 일찍 닫아. 해 질 때 시장 골목이 제일 예쁘거든.','내일 아침 첫 배 들어오면 다시 와.']},
- {name:'도현',role:'배송 기사',x:7.6,z:16.2,pace:1.43,temper:'avoid',lines:['정문에서 서부 부두까지 한 바퀴 돌면 내 배달 코스야.','도로로 나갈 땐 좌우를 한번 봐.']},
- {name:'미라',role:'설비 담당',x:12.1,z:-13,pace:1.02,temper:'defend',lines:['바람이 세지면 크레인부터 점검해야 해.','교차로 지나 안쪽이 하역장이야.']},
- {name:'선우',role:'부두 단골',x:-8.3,z:-47,pace:.78,temper:'flee',lines:['예전엔 저 창고 앞까지 배가 들어왔지.','이 시간에는 바다색이 금방 바뀌어.']}
-]
-for(const [name,x,z] of [['한 순경',8,24],['박 경장',-8,-30]])people.push({name,x,z,role:'항만 경찰',officer:true,pace:1.1,temper:'defend',lines:['정문은 비워 둬. 교대 차량이 곧 들어와.','야간 순찰 중이야.']})
+import {people} from './resident-profiles.js'
 const cell=.92,clamp=MathUtils.clamp
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]
@@ -24,7 +17,7 @@ function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37
 export async function createResidents(scene,boxes,car,fleet=[car]){
  const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
-  const rig=await createCharacter({variant:i}),pos=new Vector3(profile.x,0,profile.z)
+  const rig=await createCharacter({variant:profile.variant??i}),pos=new Vector3(profile.x,0,profile.z)
   const n={...profile,rig,pos,height:1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
    f:fighter(64+i*4),alert:0,talk:0,line:0,accum:0,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
@@ -63,6 +56,7 @@ export async function createResidents(scene,boxes,car,fleet=[car]){
  }
  function lane(n){return n.x<0?[-10,-6.65]:n.x>10.8?[11.2,15.6]:[6.7,10.25]}
  function wander(n){
+  if(n.station){plan(n,{x:n.x+(Math.random()-.5)*2,z:n.z+(Math.random()-.5)*2},null);n.state=n.path.length?"walk":"idle";n.wait=5;return}
   const band=lane(n),range=n.role==='배송 기사'?11:9
   plan(n,{x:band[0]+Math.random()*(band[1]-band[0]),z:n.z+(Math.random()-.5)*range*2},n.pos.x>=band[0]&&n.pos.x<=band[1]?band:null)
   n.state='walk';n.wait=0

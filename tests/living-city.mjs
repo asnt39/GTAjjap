@@ -17,7 +17,7 @@ const scene=new Scene(),camera=new PerspectiveCamera(65,1,.1,200)
 camera.position.set(-7,2,30);camera.lookAt(-7,1,21);camera.updateMatrixWorld()
 const car={x:4.92,z:12,width:2.02,length:4.15,heading:0,speed:0}
 const rig=await createCharacter(),crowd=await createResidents(scene,[],car)
-assert.equal(requests,1);assert.equal(crowd.all.filter(n=>!n.officer).length,5);assert.equal(crowd.officers.length,2)
+assert.equal(requests,1);assert.equal(crowd.all.filter(n=>!n.officer).length,6);assert.equal(crowd.officers.length,2)
 scene.add(rig.root)
 const player={pos:rig.root.position,f:fighter(100),height:1.8,available:true}
 function tick(n){
@@ -42,4 +42,4 @@ for(let i=0;i<4;i++){foreman.f.immune=0;crowd.receive(foreman,player.pos,'upper'
 assert.equal(foreman.f.action,'down');assert(!swing(foreman.f))
 camera.position.set(20,2,20);camera.lookAt(25,2,25);camera.updateMatrixWorld();player.pos.set(18,0,20);tick(1200)
 assert(foreman.f.hp>0);assert.notEqual(foreman.f.action,'down')
-console.log('Five independent rigs, one asset load, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')
+console.log('Eight resident rigs, one asset load, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')

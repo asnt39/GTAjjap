@@ -81,13 +81,13 @@ export function createEpisode(options={}) {
     return result(true,'의뢰를 중단했어. 지금까지 받은 보상은 보관돼.')
   }
   function choices(resident) {
-    const name=typeof resident==='string' ? resident : resident?.name
-    if (state.index===0 && state.status==='available' && name==='도현') return [{id:'accept',label:'물때표 배달 맡기'}]
-    if (state.status!=='active' || step().goal.resident!==name) return []
+    const matches=goal=>resident?.id ? goal.residentId===resident.id : goal.resident===(resident?.name??resident)
+    if (state.index===0 && state.status==='available' && matches(missions[0].steps[0].goal)) return [{id:'accept',label:'물때표 배달 맡기'}]
+    if (state.status!=='active' || !matches(step().goal)) return []
     return (step().choices ?? []).map(({id,label})=>({id,label}))
   }
   function interact({resident, name, choice, sight}={}) {
-    const who=typeof resident==='string' ? resident : (resident?.name ?? name)
+    const who=resident??name
     if (choice==='accept' && choices(who).some(option=>option.id==='accept')) {
       start()
       return advance('도현: 오늘 물때표야. 시장에 있는 윤서에게 봉투를 전해 줘.')
@@ -95,7 +95,7 @@ export function createEpisode(options={}) {
     if (state.status!=='active') return null
     const current=step()
     if (current.goal.sight && current.goal.sight===(sight?.tag ?? sight)) return advance(current.reply)
-    if (!current.goal.resident || current.goal.resident!==who) return null
+    if (!current.goal.resident || !(who?.id ? current.goal.residentId===who.id : current.goal.resident===(who?.name??who))) return null
     const answer=current.choices.find(item=>item.id===choice)
     if (!answer) return null
     return answer.advance ? advance(answer.reply) : result(true,answer.reply)
