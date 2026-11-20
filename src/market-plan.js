@@ -25,7 +25,11 @@ export function roomParts(p){
 }
 export function marketCollision(add){
  for(const p of premises){
-  const parts=roomParts(p).concat(p.furnishings.map(([dx,dz,w,h,d])=>[p.x+dx,h/2,-51+dz,w,h,d]))
-  for(const [x,,z,w,h,d] of parts)add(x-w/2,x+w/2,z-d/2,z+d/2,h)
+  for(const [x,,z,w,h,d] of roomParts(p))add(x-w/2,x+w/2,z-d/2,z+d/2,h)
+  for(const [dx,dz,w,h,d] of p.furnishings){
+   const x=p.x+dx,z=-51+dz
+   // Table tops are drawn 6 cm above the frame height.
+   add(x-w/2,x+w/2,z-d/2,z+d/2,h+.06,h<=.9)
+  }
  }
 }

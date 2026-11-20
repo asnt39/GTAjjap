@@ -37,3 +37,33 @@
 @media(prefers-reduced-motion:reduce){#conversation{animation:none}}
 #conversation.leaving{opacity:0;transition:opacity .14s ease-out;pointer-events:none}
 @media(prefers-reduced-motion:reduce){#conversation.leaving{transition:none}}
+
+#guide-frame {
+ position:absolute; z-index:2; pointer-events:none;
+ inset:max(90px,calc(env(safe-area-inset-top) + 28px))
+       max(52px,calc(env(safe-area-inset-right) + 30px))
+       max(90px,calc(env(safe-area-inset-bottom) + 30px))
+       max(52px,calc(env(safe-area-inset-left) + 30px));
+}
+#guide-marker {
+ position:absolute; top:0; left:0;
+ display:grid; justify-items:center; gap:5px; color:#ffcf8d; white-space:nowrap;
+}
+#guide-marker i {
+ display:block; width:9px; height:9px; background:currentColor;
+ border:1px solid #352921; transform:rotate(45deg);
+}
+#guide-marker.edge i {
+ width:15px; height:14px; border:0;
+ clip-path:polygon(100% 50%,0 0,24% 50%,0 100%);
+ transform:rotate(var(--bearing)); filter:drop-shadow(0 1px 2px #111);
+}
+#guide-marker span {
+ background:#142026de; padding:2px 5px; border-radius:2px;
+ font:600 12px/1.15 'Barlow',sans-serif; color:#ffead3;
+}
+body.speaking #guide-marker { visibility:hidden }
+#game:has(#overlay:not([hidden])) #guide-marker { visibility:hidden }
+@media(max-height:460px) {
+ #guide-frame { inset-block-start:max(67px,calc(env(safe-area-inset-top) + 22px)); inset-block-end:max(82px,calc(env(safe-area-inset-bottom) + 22px)); }
+}

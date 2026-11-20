@@ -1,19 +1,20 @@
 import {Vector3} from 'three'
 
 export function fighter(maxHealth){
- return {maxHealth,hp:maxHealth,action:'',elapsed:0,duration:0,recovery:0,immune:0,side:1,zone:'body',
+ return {maxHealth,hp:maxHealth,action:'',elapsed:0,duration:0,recovery:0,immune:0,responseWindow:0,side:1,zone:'body',
   previousHand:new Vector3(),handReady:false,connected:false,queued:false,downTime:0}
 }
-export function swing(f,side=-f.side){
+export function swing(f,side=-f.side,{bufferHit=false}={}){
+ if(bufferHit&&f.action==='hit'&&f.duration-f.elapsed<=.18){f.queued=true;return false}
  if(f.action==='punch'&&f.elapsed>f.duration*.52){f.queued=true;return false}
  if(f.action||f.recovery>0||f.hp<=0)return false
  Object.assign(f,{action:'punch',side,elapsed:0,duration:side===1?.54:.48,connected:false,handReady:false})
  return true
 }
-export function injure(f,amount,side,zone){
- if(f.immune>0||f.hp===0)return false
+export function injure(f,amount,side,zone,{responseWindow=0}={}){
+ if(f.action==='hit'||f.immune>0||f.hp===0)return false
  f.hp=Math.max(0,f.hp-amount)
- Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,
+ Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,responseWindow,recovery:0,
   queued:false,handReady:false,connected:false,downTime:0})
  return true
 }
@@ -23,7 +24,8 @@ export function advance(f,dt){
  f.elapsed+=dt
  if(f.action==='down'){f.downTime+=dt;return}
  if(f.elapsed>=f.duration){
-  f.recovery=f.action==='punch'?.135:.14
+  if(f.action==='hit')f.immune=Math.max(f.immune,f.responseWindow)
+  f.recovery=f.action==='punch'?.135:0
   f.action='';f.elapsed=0
  }
 }

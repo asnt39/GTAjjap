@@ -4,13 +4,18 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {characterPose} from './character-motion.js'
 import {applyWardrobe} from './resident-wardrobe.js'
 
-let resident
-export async function createCharacter({variant}={}){
- resident??=new GLTFLoader().loadAsync('/assets/character/harbor-resident.glb')
- const {scene:source,animations}=await resident
+const modelFiles = {resident:'harbor-resident.glb',crew:'harbor-crew.glb',mariner:'harbor-mariner.glb'}
+const models = new Map()
+
+function loadModel(model) {
+ if (!models.has(model)) models.set(model,new GLTFLoader().loadAsync('/assets/character/'+modelFiles[model]))
+ return models.get(model)
+}
+export async function createCharacter({variant,model='resident'}={}){
+ const {scene:source,animations}=await loadModel(model)
  const scene=clone(source),root=new Group(),posture=new Group()
  root.add(posture);posture.add(scene)
- if(variant!=null)applyWardrobe(scene,variant)
+ if(model==='resident'&&variant!=null)applyWardrobe(scene,variant)
  scene.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false}})
  const mixer=new AnimationMixer(scene)
  const actions=Object.fromEntries(animations.map(clip=>[clip.name,mixer.clipAction(clip)]))

@@ -1,4 +1,4 @@
-// The vertical simulation is separate from sidewalk height and 2-D obstruction tests.
+// Height is the absolute position of the soles. The caller supplies the floor under them.
 const launch=5.25, gravity=13.8
 export function createFootwork(){
  let preference='toggle'
@@ -9,11 +9,16 @@ export function createFootwork(){
   changePreference(){preference=preference==='toggle'?'hold':'toggle';state.sprint=false;try{localStorage.setItem('harborline.runMode.v3',preference)}catch{}},
   shift(){if(preference==='toggle')state.sprint=!state.sprint},
   jump(){if(state.air||state.land>.25)return false;state.vertical=launch;state.flight=0;state.air=true;return true},
-  advance(dt){
+  reset(floor){Object.assign(state,{height:floor,vertical:0,air:false,flight:0,land:0})},
+  advance(dt,floor=0){
+   if(!state.air && state.height-floor>.135){
+    state.air=true;state.vertical=0;state.flight=.23
+   }
+
    if(state.air){
     state.height+=state.vertical*dt-gravity*dt*dt/2;state.vertical-=gravity*dt;state.flight+=dt
-    if(state.height<=0){state.height=0;state.vertical=0;state.air=false;state.land=1}
-   }else state.land=Math.max(0,state.land-dt*5.7)
+    if(state.vertical<=0&&state.height<=floor){state.height=floor;state.vertical=0;state.air=false;state.land=1}
+   }else{state.height=floor;state.land=Math.max(0,state.land-dt*5.7)}
   },
   get phase(){return state.air?Math.min(1,state.flight/(2*launch/gravity)):null},
   rate(held,stick){

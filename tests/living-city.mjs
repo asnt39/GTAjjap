@@ -1,23 +1,35 @@
 // Exercise real skinned hand positions in Node. The only substitutes are image decoding and file transport.
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
-import {PerspectiveCamera,Scene,Texture,TextureLoader} from 'three'
+import {Box3,PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {createCharacter} from '../src/character.js'
 import {createResidents} from '../src/residents.js'
 import {fighter,swing,advance,revive,injure,combatPose,contact} from '../src/melee.js'
 globalThis.self=globalThis
 TextureLoader.prototype.load=function(url,onLoad){const t=new Texture();queueMicrotask(()=>onLoad(t));return t}
-let requests=0
-GLTFLoader.prototype.loadAsync=async function(){
- requests++;const b=await readFile(new URL('../public/assets/character/harbor-resident.glb',import.meta.url))
+const requests=[]
+GLTFLoader.prototype.loadAsync=async function(url){
+ requests.push(url);const b=await readFile(new URL('../public'+url,import.meta.url))
  return this.parseAsync(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),'')
 }
 const scene=new Scene(),camera=new PerspectiveCamera(65,1,.1,200)
 camera.position.set(-7,2,30);camera.lookAt(-7,1,21);camera.updateMatrixWorld()
 const car={x:4.92,z:12,width:2.02,length:4.15,heading:0,speed:0}
 const rig=await createCharacter(),crowd=await createResidents(scene,[],car)
-assert.equal(requests,1);assert.equal(crowd.all.filter(n=>!n.officer).length,6);assert.equal(crowd.officers.length,2)
+assert.equal(new Set(requests).size,3);assert.equal(requests.length,3);assert.equal(crowd.all.filter(n=>!n.officer).length,6);assert.equal(crowd.officers.length,2)
+for(const npc of crowd.all){
+ const hand=new Vector3()
+ for(const speed of [0,1.85,5.2]){
+  npc.rig.update(.25,speed)
+  npc.rig.handPosition(1,hand)
+  assert(Number.isFinite(hand.y)&&hand.y>.4&&hand.y<2)
+  const bounds=new Box3().setFromObject(npc.rig.root,true)
+  assert(bounds.min.y>-.15&&bounds.max.y>1.48&&bounds.max.y<2.15,npc.name)
+ }
+}
+assert.equal(new Set(crowd.all.map(n=>n.name)).size,8)
+assert(crowd.all.every(n=>/^[A-Za-z]+( [A-Za-z]+)*$/.test(n.name)))
 scene.add(rig.root)
 const player={pos:rig.root.position,f:fighter(100),height:1.8,available:true}
 function tick(n){
@@ -38,8 +50,22 @@ const hp=foreman.f.hp;assert(!crowd.receive(foreman,player.pos,'body',player.pos
 tick(120);assert(player.f.hp<100,'counter should connect')
 const clerk=crowd.all[1],before=clerk.pos.clone();strike(clerk,.86);tick(120)
 assert.equal(clerk.state,'flee');assert(clerk.pos.distanceTo(before)>.4)
-for(let i=0;i<4;i++){foreman.f.immune=0;crowd.receive(foreman,player.pos,'upper',player.pos)}
+for(let i=0;i<4;i++){advance(foreman.f,.55);foreman.f.immune=0;crowd.receive(foreman,player.pos,'upper',player.pos)}
 assert.equal(foreman.f.action,'down');assert(!swing(foreman.f))
 camera.position.set(20,2,20);camera.lookAt(25,2,25);camera.updateMatrixWorld();player.pos.set(18,0,20);tick(1200)
 assert(foreman.f.hp>0);assert.notEqual(foreman.f.action,'down')
-console.log('Eight resident rigs, one asset load, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')
+console.log('Eight resident rigs, three shared assets, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')
+
+const recovering=fighter(100)
+assert(swing(recovering))
+assert(injure(recovering,16,1,'body',{responseWindow:.65}))
+advance(recovering,.31)
+assert(!swing(recovering,undefined,{bufferHit:true}))
+assert(recovering.queued)
+for(let i=0;i<35;i++){
+ advance(recovering,.02)
+ assert(!injure(recovering,16,1,'body',{responseWindow:.65}))
+ if(i===8)assert.equal(recovering.action,'punch')
+}
+assert.equal(recovering.hp,84)
+assert.equal(recovering.action,'')

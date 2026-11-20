@@ -22,8 +22,10 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
   c.save();c.translate(car.x,car.z);c.rotate(car.heading);c.fillStyle='#dbe2cf';c.fillRect(-1.6,-3.3,3.2,6.6);c.fillStyle='#566963';c.fillRect(-1.2,-1.45,2.4,2.5);c.restore()
  }
  if(goal){
-  const gx=Math.max(cx-w/(2*scale)+6,Math.min(cx+w/(2*scale)-6,goal.x)),gz=Math.max(cz-h/(2*scale)+6,Math.min(cz+h/(2*scale)-6,goal.z))
-  c.beginPath();c.arc(gx,gz,4,0,Math.PI*2);c.lineWidth=1.2;c.strokeStyle='#ffc067';c.stroke();c.fillStyle='#ffc067';c.fillRect(gx-1,gz-1,2,2)
+  const gx=Math.max(cx-w/(2*scale)+8/scale,Math.min(cx+w/(2*scale)-8/scale,goal.x))
+  const gz=Math.max(cz-h/(2*scale)+8/scale,Math.min(cz+h/(2*scale)-8/scale,goal.z))
+  c.save();c.translate(gx,gz);c.scale(1/scale,1/scale);c.rotate(Math.PI/4)
+  c.fillStyle='#ffcf8d';c.strokeStyle='#2b2520';c.lineWidth=1.4;c.fillRect(-4.5,-4.5,9,9);c.strokeRect(-4.5,-4.5,9,9);c.restore()
  }
  c.translate(player.x,player.z);c.rotate(yaw);c.scale(1/scale,1/scale)
  c.fillStyle='#ecaf7730';c.beginPath();c.moveTo(0,0);c.arc(0,0,27,-Math.PI*.66,-Math.PI*.34);c.fill()

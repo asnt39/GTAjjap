@@ -32,7 +32,7 @@ export function beacons(scene,addCollider){
 }
 export function footShadow(root){
  const c=document.createElement('canvas');c.width=c.height=96;const p=c.getContext('2d'),g=p.createRadialGradient(48,48,1,48,48,47);g.addColorStop(0,'rgba(10,14,18,.65)');g.addColorStop(.4,'rgba(10,14,18,.34)');g.addColorStop(1,'rgba(10,14,18,0)');p.fillStyle=g;p.fillRect(0,0,96,96)
- const mesh=new T.Mesh(new T.PlaneGeometry(1.2,1.35),new T.MeshBasicMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3}));mesh.rotation.x=-Math.PI/2;mesh.position.y=.014;root.add(mesh)
+ const mesh=new T.Mesh(new T.PlaneGeometry(1.2,1.35),new T.MeshBasicMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3}));mesh.rotation.x=-Math.PI/2;mesh.position.y=.014;root.add(mesh);return mesh
 }
 export function districtGates(scene,addCollider){
  const outline=new T.Shape()
@@ -49,7 +49,7 @@ export function districtGates(scene,addCollider){
   m.position.set(x,0,z);m.rotation.y=r;m.updateMatrix();blocks.setMatrixAt(i,m.matrix)
   const ax=Math.sin(r),az=Math.cos(r)
   for(let side=0;side<2;side++){const off=side?1.07:-1.07;m.position.set(x+off*ax,.64,z+off*az);m.updateMatrix();markers.setMatrixAt(i*2+side,m.matrix)}
-  addCollider(x-(r?1.55:.37),x+(r?1.55:.37),z-(r?.37:1.55),z+(r?.37:1.55),.84)
+  addCollider(x-(r?1.55:.37),x+(r?1.55:.37),z-(r?.37:1.55),z+(r?.37:1.55),.84,true)
  })
  blocks.castShadow=blocks.receiveShadow=true;scene.add(blocks,markers)
 }

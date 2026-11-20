@@ -41,10 +41,12 @@ export function episodeUI(game, toast) {
   option('대화 마치기',()=>game.crowd.endTalk())
  }
  function goal(driving) {
-  const state=episode.snapshot(), goal=state.goal
-  if(!goal)return game.mission.goal(driving)
-  const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):game.crowd.all.find(n=>n.id===goal.residentId)?.pos
-  return {...goal,x:point?.x??goal.x,z:point?.z??goal.z,label:state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')}
+  const state=episode.tracking()
+  if(!state)return game.mission.goal(driving)
+  const {goal}=state
+  const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
+  const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
+  return {...goal,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label:state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')}
  }
  return {dialogue,goal}
 }

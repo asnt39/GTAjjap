@@ -17,8 +17,8 @@ function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37
 export async function createResidents(scene,boxes,car,fleet=[car]){
  const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
-  const rig=await createCharacter({variant:profile.variant??i}),pos=new Vector3(profile.x,0,profile.z)
-  const n={...profile,rig,pos,height:1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
+  const rig=await createCharacter({variant:profile.variant??i,model:profile.model}),pos=new Vector3(profile.x,0,profile.z)
+  const n={...profile,rig,pos,height:profile.height??1.8,state:'idle',face:i*.97,path:[],speed:0,wait:3+i*1.7,age:0,
    f:fighter(64+i*4),alert:0,talk:0,line:0,accum:0,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
   return n

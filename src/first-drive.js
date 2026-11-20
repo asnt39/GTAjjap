@@ -23,7 +23,7 @@ export function firstDrive(car){
   },
   goal(driving){
    if(stage===-2)return null
-   if(!driving)return {x:car.x,z:car.z,label:'Touring 탑승'}
+   if(!driving)return {x:car.x,z:car.z,markerHeight:1.85,label:'Touring 탑승'}
    const stop=stops[Math.min(Math.max(0,stage),2)]
    return {...stop,label:stage===3?'항구 정문에 주차하고 하차':(stage+1)+'/3　'+stop.name+'에 정차'}
   }

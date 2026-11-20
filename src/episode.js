@@ -9,6 +9,12 @@ const initial = () => ({
 const natural = n => Number.isSafeInteger(n) && n >= 0
 const result = (ok,message,effect) => effect ? {ok,message,effect} : {ok,message}
 const wrong = message => result(false,message)
+const matchesResident = (goal, resident) => {
+  if (!goal.residentId || !resident) return false
+  if (resident.id) return goal.residentId === resident.id
+  const name = resident.name ?? resident
+  return name === goal.resident || name === goal.legacyName
+}
 
 function read(storage) {
   try {
@@ -81,7 +87,7 @@ export function createEpisode(options={}) {
     return result(true,'의뢰를 중단했어. 지금까지 받은 보상은 보관돼.')
   }
   function choices(resident) {
-    const matches=goal=>resident?.id ? goal.residentId===resident.id : goal.resident===(resident?.name??resident)
+    const matches=goal=>matchesResident(goal,resident)
     if (state.index===0 && state.status==='available' && matches(missions[0].steps[0].goal)) return [{id:'accept',label:'물때표 배달 맡기'}]
     if (state.status!=='active' || !matches(step().goal)) return []
     return (step().choices ?? []).map(({id,label})=>({id,label}))
@@ -90,12 +96,12 @@ export function createEpisode(options={}) {
     const who=resident??name
     if (choice==='accept' && choices(who).some(option=>option.id==='accept')) {
       start()
-      return advance('도현: 오늘 물때표야. 시장에 있는 윤서에게 봉투를 전해 줘.')
+      return advance(`${mission().steps[0].goal.resident} · 오늘 물때표야. 시장에 있는 ${mission().steps[1].goal.resident}에게 봉투를 전해 줘.`)
     }
     if (state.status!=='active') return null
     const current=step()
     if (current.goal.sight && current.goal.sight===(sight?.tag ?? sight)) return advance(current.reply)
-    if (!current.goal.resident || !(who?.id ? current.goal.residentId===who.id : current.goal.resident===(who?.name??who))) return null
+    if (!matchesResident(current.goal,who)) return null
     const answer=current.choices.find(item=>item.id===choice)
     if (!answer) return null
     return answer.advance ? advance(answer.reply) : result(true,answer.reply)
@@ -154,5 +160,10 @@ export function createEpisode(options={}) {
       completed:missions.slice(0,status==='complete'?missions.length:index).map(item=>item.id)
     }
   }
-  return {snapshot,choices,interact,update,start,retry,abandon,fail,buy,use}
+  function tracking(){
+    if(state.status!=='active')return null
+    const {goal,objective}=step()
+    return {goal,objective,stage:state.index+1,remaining:state.remaining}
+  }
+  return {snapshot,tracking,choices,interact,update,start,retry,abandon,fail,buy,use}
 }

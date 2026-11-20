@@ -13,19 +13,27 @@ export function inDistrict(x,z,r=0){
  if(x>10.7-r && (z< -63+r || z>35-r))return false
  return true
 }
-export function canWalk(x,z,boxes,r=.32) {
+export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  if(!inDistrict(x,z,r))return false
  return !boxes.some(b=>{
+  if(b[5]&&feet>=b[4]-.002)return false
   const dx=x-Math.max(b[0],Math.min(b[1],x)), dz=z-Math.max(b[2],Math.min(b[3],z))
   return dx*dx+dz*dz < r*r
  })
 }
-export function movePlayer(pos,dx,dz,boxes,occupied){
+export function movePlayer(pos,dx,dz,boxes,occupied,feet=-Infinity){
  const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.19))
  for(let i=0;i<n;i++){
-  if(canWalk(pos.x+dx/n,pos.z,boxes)&&!occupied?.(pos.x+dx/n,pos.z))pos.x+=dx/n
-  if(canWalk(pos.x,pos.z+dz/n,boxes)&&!occupied?.(pos.x,pos.z+dz/n))pos.z+=dz/n
+  if(canWalk(pos.x+dx/n,pos.z,boxes,.32,feet)&&!occupied?.(pos.x+dx/n,pos.z))pos.x+=dx/n
+  if(canWalk(pos.x,pos.z+dz/n,boxes,.32,feet)&&!occupied?.(pos.x,pos.z+dz/n))pos.z+=dz/n
  }
+}
+// A shallow footprint lets a foot remain supported until it steps away from an edge.
+export function supportHeight(x,z,feet,floor,surfaces){
+ for(const [left,right,north,south,top] of surfaces){
+  if(top>floor&&top<=feet+.002&&Math.hypot(x-Math.max(left,Math.min(right,x)),z-Math.max(north,Math.min(south,z)))<.32)floor=top
+ }
+ return floor
 }
 export function cameraFraction(from,to,boxes){
  let nearest=1

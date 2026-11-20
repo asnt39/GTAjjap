@@ -41,6 +41,7 @@ export function createUI(game){
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
  const story=episodeUI(game,toast)
+ const missionGoal=()=>story.goal(game.driving()&&game.car.id==='touring')
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
  const row=(left,right)=>'<div class="control-row"><span>'+left+'</span><span>'+right+'</span></div>'
@@ -71,7 +72,7 @@ export function createUI(game){
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
   if(name==='rooms')updateRoom()
-  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,story.goal(game.driving()&&game.car.id==='touring'))
+  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
   if(name==='credits'){for(const [label,path] of [['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Barlow 글꼴','fonts/OFL-Barlow.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
@@ -146,14 +147,14 @@ export function createUI(game){
   const p=game.pos,y=game.yaw(),degrees=(y*180/Math.PI)%360
   const law=game.crowd.wanted;wanted.hidden=!law.level
   if(law.level)wanted.textContent='수배 '+law.level+' · '+({investigate:'조사',pursuit:'추격',search:'수색'}[law.phase])
-  const driving=game.driving(),goal=story.goal(driving&&game.car.id==='touring')
+  const driving=game.driving(),goal=missionGoal()
   document.body.classList.toggle('driving',driving)
   $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)
   $('#speed small').textContent=game.car.speed<-.08?'R':'D'
   $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
   toggleAudio.engine(driving&&!panel,game.car)
   $('#jump').disabled=!game.canAct()||!!game.crowd.talking
-  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||['down','hit'].includes(game.player.f.action)
+  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||game.player.f.action==='down'
   const dialogue=game.crowd.dialogue,box=$('#conversation')
   if(dialogue&&!panel){
    box.hidden=false;box.inert=false;box.classList.remove('leaving')
@@ -187,5 +188,5 @@ export function createUI(game){
   toggleAudio.hit()
   const el=$('#vitals');el.animate?.([{opacity:.55,color:received?'#ff9b77':'#ffd3a1'},{opacity:1,color:'#f5f2e9'}],{duration:240})
  }
- return {update,updateRoom,show,close,toast,impact,isOpen:()=>!!panel}
+ return {update,updateRoom,show,close,toast,impact,missionGoal,isOpen:()=>!!panel}
 }

@@ -20,7 +20,8 @@ import {buildArchitecture} from './architecture.js'
 import {buildPort} from './port.js'
 import {illumination,sky,beacons,footShadow,districtGates} from './atmosphere.js'
 import {createUI} from './interface.js'
-import {spawn,canWalk,movePlayer,cameraFraction} from './navigation.js'
+import {missionGuide} from './mission-guide.js'
+import {spawn,canWalk,movePlayer,supportHeight,cameraFraction} from './navigation.js'
 
 // The downloadable preview resolves the same site assets from its embedded manifest.
 if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>window.harborPreviewAssets[url]||url)
@@ -30,7 +31,7 @@ const pos=new THREE.Vector3(spawn.x,0,spawn.z),velocity=new THREE.Vector2()
 const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
 let yaw=.05,pitch=.13,distance=4.65,isPaused=false
 const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
-const addCollider=(a,b,c,d,h=3)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h])}
+const addCollider=(a,b,c,d,h=3,standable=false)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable])}
 const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
 const coarse=matchMedia('(pointer:coarse)').matches
 let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
@@ -60,8 +61,10 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const updateGuide=missionGuide(scene,camera,groundHeight)
+ const surfaces=boxes.filter(box=>box[5])
  const updateVisibility=archiveVisibility(scene,camera)
- const actor=new THREE.Group();actor.add(char.root);scene.add(actor);footShadow(actor)
+ const actor=new THREE.Group();actor.add(char.root);scene.add(actor);const shadow=footShadow(actor)
  if(!canWalk(pos.x,pos.z,boxes))for(let x=-3;x<=3;x+=.5){if(canWalk(x,spawn.z,boxes)){pos.x=x;break}}
  const safeSpawn={x:pos.x,z:pos.z}
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
@@ -73,7 +76,8 @@ export async function start(onContextLost){
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
- const foot=createFootwork(),crowd=await createResidents(scene,boxes,cars.touring,fleet)
+ const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
+ const crowd=await createResidents(scene,boxes,cars.touring,fleet)
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode()
@@ -100,18 +104,18 @@ export async function start(onContextLost){
  function attack(){
   if(mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
   crowd.endTalk()
-  if(swing(player.f)){focus=closestTarget();foot.sprint=false}
+  if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
  }
  function hitPlayer(n,zone,point){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
-  if(!injure(player.f,16,side,zone))return false
+  if(!injure(player.f,16,side,zone,{responseWindow:.65}))return false
   crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(arrested=false){
   for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
    const x=spawn.x+r*Math.cos(i*Math.PI/4),z=spawn.z+r*Math.sin(i*Math.PI/4)
-   if(canWalk(x,z,boxes)&&!occupied(x,z)){pos.set(x,0,z);revive(player.f);clearControls();crowd.endTalk();crowd.wanted.clear();const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단');focus=null;ui.toast((arrested?'체포 · 부두 정문에서 석방':'부두 정문에서 정신을 차렸어')+(failed?' · 수첩에서 재시도':''));return}
+   if(canWalk(x,z,boxes)&&!occupied(x,z)){plantFeet(x,z);revive(player.f);clearControls();crowd.endTalk();crowd.wanted.clear();const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단');focus=null;ui.toast((arrested?'체포 · 부두 정문에서 석방':'부두 정문에서 정신을 차렸어')+(failed?' · 수첩에서 재시도':''));return}
   }
  }
  function talkCandidate(){return canAct()?crowd.candidate(pos):null}
@@ -135,6 +139,7 @@ export async function start(onContextLost){
  const blockedByCar=(vehicle,x,z)=>fleet.some(other=>vehicle!==other&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function nearestDoor(){
+  if(pos.y-groundHeight(pos.x,pos.z)>.16)return null
   let nearest=null,distance=Infinity
   for(const vehicle of fleet){
    const access=availableDoor(vehicle,pos,boxes,(x,z)=>blockedAtDoor(vehicle,x,z))
@@ -178,9 +183,9 @@ export async function start(onContextLost){
   const joining=mode==='enter',prior=transition
   car.door=0;transition=vehiclePose=null;clearControls()
   mode=joining?'walk':'drive'
-  if(joining){pos.set(prior.from.x,0,prior.from.z);face=prior.face}
+  if(joining){plantFeet(prior.from.x,prior.from.z);face=prior.face}
   else pos.set(car.x,0,car.z)
-  actor.visible=joining;actor.position.set(pos.x,.035,pos.z)
+  actor.visible=joining
   if(joining)releaseSeat()
   renderer.shadowMap.needsUpdate=true
  }
@@ -205,7 +210,7 @@ export async function start(onContextLost){
    mode='drive';pos.set(car.x,0,car.z);actor.visible=false
    if(!offline&&car===cars.touring)mission.board()
   }else{
-   mode='walk';actor.visible=true;actor.position.set(pos.x,.035,pos.z)
+   mode='walk';actor.visible=true;plantFeet(pos.x,pos.z)
    releaseSeat()
    if(!offline&&car===cars.touring&&mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')
   }
@@ -223,9 +228,8 @@ export async function start(onContextLost){
  }
  function resetWalk(x,z,direction){
   pendingSeat=localSeat=transition=vehiclePose=null;mode='walk';car=cars.touring
-  pos.set(x,0,z);face=direction
-  actor.position.set(x,.035,z);actor.rotation.y=face;actor.visible=true;char.root.position.y=0
-  Object.assign(foot,{height:0,vertical:0,flight:0,air:false,land:0})
+  plantFeet(x,z);face=direction
+  actor.rotation.y=face;actor.visible=true
   crowd.endTalk();clearControls();walkSpeed=0
   renderer.shadowMap.needsUpdate=true
  }
@@ -316,12 +320,13 @@ export async function start(onContextLost){
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
- let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0
+ let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0,followHeight=actor.position.y
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
   const arm=distance+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
-  anchor.set(pos.x+.26*cs*(1-cameraBlend),(actor.position.y+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
+  followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
+  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
   for(const vehicle of fleet){
@@ -348,6 +353,10 @@ export async function start(onContextLost){
   const lane=Math.abs(x)
   const edge=Math.min(lane-6,10.9-lane,Math.max(-43-z,z+31))
   return .008+.083*clamp(edge/.18,0,1)
+ }
+ function plantFeet(x,z){
+  foot.reset(groundHeight(x,z))
+  pos.set(x,foot.height,z);actor.position.copy(pos);char.root.position.y=0;shadow.position.y=.014
  }
  const draw=now=>{
   if(contextLost)return
@@ -382,16 +391,20 @@ export async function start(onContextLost){
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
    const rate=pace*(coffee>0&&pace>1.85?1.15:1)
    const response=foot.air?1.15:(ax||az?9:16)
-   foot.advance(dt)
    velocity.x=damp(velocity.x,(ax*cs+az*sn)*rate/length,response,dt)
    velocity.y=damp(velocity.y,(ax*sn-az*cs)*rate/length,response,dt)
    const ox=pos.x,oz=pos.z
    const stagger=player.f.action==='hit'?.55:0
-   movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied)
+   movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
+   const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
+   foot.advance(dt,floor)
+   pos.y=foot.height
+   shadow.position.y=floor-pos.y+.014
+   shadow.material.opacity=1-.65*clamp(pos.y-floor,0,1)
    const dx=pos.x-ox,dz=pos.z-oz;speed=Math.hypot(dx,dz)/Math.max(.001,dt)
    const facing=player.f.action==='punch'?focus:crowd.talking
    if(facing||speed>.07){const desired=facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
-   actor.rotation.y=face;actor.position.set(pos.x,groundHeight(pos.x,pos.z),pos.z);char.root.position.y=foot.height
+   actor.rotation.y=face;actor.position.copy(pos)
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land})
    if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
@@ -417,7 +430,7 @@ export async function start(onContextLost){
    const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    positionCamera(dt);const districtChanged=market.update(pos);if(updateVisibility()||districtChanged)renderer.shadowMap.needsUpdate=true
-   ui.update(elapsed);renderer.render(scene,camera)
+   camera.updateMatrixWorld();ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++
     if(frameCount>=30||frameSum>3){const mean=frameSum/frameCount;recentFrameMs=mean*1000
