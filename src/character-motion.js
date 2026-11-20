@@ -1,4 +1,4 @@
-import {Quaternion, Vector3} from 'three'
+import {MathUtils, Quaternion, Vector3} from 'three'
 
 // Add offsets about the resident's standing body axes. The imported FBX rig
 // has different local axes on each limb, including the two mirrored arms.
@@ -49,6 +49,7 @@ export function characterPose(scene){
  // solved against the current mixer pose; the next update restores that pose.
  const from=new Vector3(),to=new Vector3(),start=new Vector3(),middle=new Vector3()
  const end=new Vector3(),direction=new Vector3(),pole=new Vector3(),bend=new Vector3()
+ const custodyTarget=new Vector3()
  const target=new Vector3(),hint=new Vector3(),delta=new Quaternion(),parentQ=new Quaternion(),inverseParent=new Quaternion()
  const arms=['R','L'].map(short=>({
   upper:byName.get(short+' UpperArm'), lower:byName.get(short+' Forearm'),
@@ -103,6 +104,25 @@ export function characterPose(scene){
   }
   if(reach>.001){placeArm(side,side*.20,.98,.61,reach);curl(side,reach*.7)}
  }
+ function custody({progress,wrist}){
+  const turn=MathUtils.smoothstep(progress,.13,.55)
+  if(wrist){
+   const hands=scene.worldToLocal(custodyTarget.copy(wrist))
+   offset('Spine1','x',.15*turn)
+   const press=MathUtils.smoothstep(progress,.38,.72)
+   placeArm(1,hands.x-.055,hands.y+.085,hands.z-.045,press)
+   placeArm(-1,hands.x+.08,hands.y+.04,hands.z-.10,turn)
+   return
+  }
+  offset('Spine','x',.12*turn);offset('Spine1','x',.09*turn)
+  offset('Neck','x',.12*turn)
+  const settle=MathUtils.smoothstep(progress,.38,.80)
+  for(const sign of [-1,1]){
+   const x=sign*MathUtils.lerp(.36,.117,settle)
+   placeArm(sign,x,1.10-.07*settle,-.26-.085*(1-settle),turn)
+   curl(sign,turn*.32)
+  }
+ }
  function gesture(action,p,side,zone,ready=0,run=0){
   if(!action)return
   if(action==='hit'){
@@ -145,5 +165,5 @@ export function characterPose(scene){
    curl(sign,guard)
   }
  }
- return {reset,jump,offset,gesture,vehicle,handPosition}
+ return {reset,jump,offset,gesture,vehicle,custody,handPosition}
 }

@@ -67,3 +67,6 @@ body.speaking #guide-marker { visibility:hidden }
 @media(max-height:460px) {
  #guide-frame { inset-block-start:max(67px,calc(env(safe-area-inset-top) + 22px)); inset-block-end:max(82px,calc(env(safe-area-inset-bottom) + 22px)); }
 }
+
+#custody-overlay{position:absolute;inset:0;z-index:6;pointer-events:none;background:rgb(12 17 21 / var(--custody-fade,0))}
+.custody-status{position:absolute;left:50%;top:max(68px,calc(env(safe-area-inset-top) + 32px));transform:translateX(-50%);padding:8px 14px;border-left:2px solid var(--orange);background:#142026e8;color:#ffdfc2;white-space:nowrap}

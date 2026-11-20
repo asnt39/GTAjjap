@@ -1,5 +1,6 @@
 import {Vector3,Frustum,Matrix4,Sphere,MathUtils} from 'three'
 import {createWanted} from './wanted.js'
+import {ARREST_REACH} from './custody.js'
 import {createCharacter} from './character.js'
 import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
@@ -153,9 +154,11 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
      return lineClear(n.pos,end)
     })
    }
-   const near=player.available&&officers.some(n=>responding(n)&&!n.f.action&&distance(n.pos,player.pos)<1.65&&lineClear(n.pos,player.pos))
-   const outcome=wanted.tick(dt,player.pos,observed,near)
-   if(outcome)onOutcome?.(outcome)
+   const reach=wanted.level===1||player.legacyArrest?1.65:ARREST_REACH
+   const contact=player.available&&!player.inVehicle&&officers.find(n=>
+    responding(n)&&!n.f.action&&distance(n.pos,player.pos)<reach&&lineClear(n.pos,player.pos))
+   const outcome=wanted.tick(dt,player.pos,observed||!!contact,contact?.id,player.legacyArrest)
+   if(outcome)onOutcome?.(outcome,contact)
   }
   if(!wanted.level&&responders.size){
    for(const n of responders){n.alert=0;n.path=[];n.speed=0}
@@ -164,6 +167,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   viewProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(viewProjection)
   shadowDirty=false
   for(const n of all){
+   if(n===player.custodyOfficer)continue
    const p=n.pos,d=distance(p,player.pos),priorFace=n.face
    visibleSphere.center.set(p.x,p.y+1,p.z)
    const visible=frustum.intersectsSphere(visibleSphere)

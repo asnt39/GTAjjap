@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import {buildPoliceStation} from './police-station.js'
+import {createCustody,station,atStation} from './custody.js'
+import {custodyPresentation} from './custody-presentation.js'
 import {buildMarket} from './market.js'
 import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
@@ -62,6 +65,8 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const updateStation=buildPoliceStation(scene,addCollider)
+ const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
  const surfaces=boxes.filter(box=>box[5])
  const updateVisibility=archiveVisibility(scene,camera)
@@ -82,6 +87,35 @@ export async function start(onContextLost){
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode()
+ const custody=createCustody({
+  admit(){
+   const officer=custody.officer
+   officer.rig.root.rotation.y=officer.face
+   officer.rig.update(0,0)
+   player.custodyOfficer=null
+   revive(player.f)
+   resetWalk(station.cell.x,station.cell.z,0);yaw=Math.PI
+  },
+  release(){
+   const safe=[station.release,{x:-94.7,z:-43.5},{x:-91.7,z:-43.5},safeSpawn]
+    .find(point=>canWalk(point.x,point.z,boxes)&&!occupied(point.x,point.z))??safeSpawn
+   resetWalk(safe.x,safe.z,0);yaw=Math.PI
+   crowd.wanted.clear();ui.toast('석방 · 타이드 마켓 경찰서')
+  }
+ })
+ function beginCustody(officer){
+  if(room.phase!=='offline'||!officer){respawn(true);return}
+  if(!custody.begin(officer))return
+  custodyView.begin(officer,pos)
+  player.custodyOfficer=officer
+  officer.path=[];officer.speed=0;officer.rig.root.visible=true
+  clearControls();crowd.endTalk()
+  player.f.action='';player.f.elapsed=0;focus=null;feedbackTime=0
+  const failed=episode.fail('체포로 의뢰 중단')
+  if(mission.active||failed)ui.toast('의뢰 중단 · 석방 후 다시 시작할 수 있어')
+  mission.cancel()
+  mode='custody'
+ }
  let coffee=0
  function useItem(id){
   const result=episode.use(id,player.f)
@@ -103,14 +137,14 @@ export async function start(onContextLost){
   return nearest
  }
  function attack(){
-  if(mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
+  if(custody.active||mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
   crowd.endTalk()
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
  }
  function hitPlayer(n,zone,point){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
-  if(!injure(player.f,16,side,zone,{responseWindow:.65}))return false
+  if(custody.active||!injure(player.f,16,side,zone,{responseWindow:.65}))return false
   crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(arrested=false){
@@ -126,7 +160,7 @@ export async function start(onContextLost){
   clearControls();crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
- const canAct=()=>!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
+ const canAct=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
  function jump(){if(canAct()&&!crowd.talking)foot.jump()}
  const clearControls=()=>{resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
@@ -292,12 +326,13 @@ export async function start(onContextLost){
   }
  })
  function startRoom(endpoint,request){
+  if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
  const ui=createUI({testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
- window.addEventListener('keydown',e=>{if(crowd.talking)return;if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
+ window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked)return;if(e.code==='KeyF'&&!e.repeat){attack();return}if(!isPaused&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space'].includes(e.code)){e.preventDefault();keys.add(e.code)
   if(mode==='walk'&&!e.repeat){
    if(e.code.startsWith('Shift'))foot.shift()
    if(e.code==='Space')jump()
@@ -306,7 +341,7 @@ export async function start(onContextLost){
  window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{clearControls();last=performance.now()})
  let drag=null
  canvas.onpointerdown=e=>{if(isPaused||drag)return;canvas.focus();canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY}}
- canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
+ canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused||custody.locked)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
@@ -316,7 +351,7 @@ export async function start(onContextLost){
   b.onlostpointercapture=e=>{ids.delete(e.pointerId);if(!ids.size){pedals.delete(b.dataset.pedal);b.classList.remove('held')}}
  }
  let stickId=null
- stick.onpointerdown=e=>{if(stickId!==null||crowd.talking)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
+ stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
  const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
@@ -338,7 +373,7 @@ export async function start(onContextLost){
   if(anchor.x<archive.front && archiveAccess(pos.x,pos.z,0) && eye.y>archive.ceiling-.16){
    fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
   }
-  if(insidePremises(pos.x,pos.z)&&eye.y>3.36&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,(3.36-anchor.y)/(eye.y-anchor.y)))
+  if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
   const room=arm*fraction
   actualArm=initial?room:room<actualArm?room:damp(actualArm,room,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
@@ -348,6 +383,7 @@ export async function start(onContextLost){
  }
  positionCamera(0,true)
  function groundHeight(x,z){
+  if(atStation(x,z))return .092
   if(insidePremises(x,z))return .052
   if(x< -40 && z< -43 && z> -46)return .082
   if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
@@ -379,7 +415,12 @@ export async function start(onContextLost){
    advance(player.f,dt);feedbackTime=Math.max(0,feedbackTime-dt)
    if(player.f.action==='down'&&player.f.downTime>3.2)respawn()
    let speed=0
-   if(transition){updateTransition(dt)}
+   custody.update(dt);custodyView.update(custody)
+   if(custody.officer){
+    custodyView.pose(dt,custody,actor,custody.officer);walkSpeed=0
+    renderer.shadowMap.needsUpdate=true
+   }else if(custody.locked){walkSpeed=0}
+   else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     stepDrive(car,input,boxes,realDt,fleet);speed=Math.abs(car.speed)
@@ -390,7 +431,7 @@ export async function start(onContextLost){
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=pace*(coffee>0&&pace>1.85?1.15:1)
+   const rate=(custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
@@ -404,7 +445,7 @@ export async function start(onContextLost){
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
    const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     insidePremises(pos.x,pos.z)?3.44:Infinity
+     atStation(pos.x,pos.z)?station.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
    foot.advance(dt,floor,roomCeiling-player.height)
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
@@ -431,19 +472,23 @@ export async function start(onContextLost){
    if(!transition&&mode==='walk')walkSpeed=speed
    else if(driving())walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
-   player.available=mode==='walk'&&player.f.hp>0&&!foot.air
+   player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
    const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
-   crowd.update(dt,camera,player,hitPlayer,outcome=>{
-    if(outcome==='arrest')respawn(true)
+   player.legacyArrest=room.phase!=='offline'
+   crowd.update(dt,camera,player,hitPlayer,(outcome,officer)=>{
+    if(outcome==='arrest')beginCustody(officer)
     else ui.toast(outcome==='warning'?'항만 경찰 · 경고 후 조사 종료':'수배 해제')
    })
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.x-trackedX)>10||Math.abs(pos.z-trackedZ)>10){trackedX=pos.x;trackedZ=pos.z;sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
    const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
-   positionCamera(dt);const districtChanged=market.update(pos);if(updateVisibility()||districtChanged)renderer.shadowMap.needsUpdate=true
+   if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
+   else positionCamera(dt)
+   const districtChanged=market.update(pos),stationChanged=updateStation(pos)
+   if(updateVisibility()||districtChanged||stationChanged)renderer.shadowMap.needsUpdate=true
    camera.updateMatrixWorld();ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++
