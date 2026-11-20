@@ -28,3 +28,9 @@ Elena Reed는 구급팩, 부두 커피, 추가 운행권을 판다. 일시 정�
 싱글플레이에서는 수배 2단계부터 경찰차 한 대가 출동하고 3단계에서는 두 대까지 합류한다. 경찰은 도로 경로를 따라 주행하고 플레이어가 내리면 안전한 쪽으로 하차해 도보 추격에 합류한다. 귀환로가 계속 막히면 가까운 위치에서 정차하고 추격 상태를 종료한다. 비공개 방은 기존 체포·복귀 동작을 사용한다.
 
 체포·수감은 `src/custody.js`, 연출과 시설은 `src/custody-presentation.js`와 `src/police-station.js`, 순찰차의 경로와 상태 전환은 `src/police-road.js`와 `src/police-chase.js`에서 관리한다. `node --test tests/custody.mjs tests/police-chase.mjs`로 두 흐름을 검증할 수 있다.
+
+## 주민 동선
+
+주민 여섯 명은 업무와 휴식에 맞춰 기존 도로, 보도와 출입구를 이용한다. Daniel Cole은 해도 자료실, Jack Bennett은 정문 일대 횡단로, Ellis Torres는 서부 부두를 돈다. Arthur Hayes는 교차로를 지나 조위 관측소에 들르며, Morgan은 관측소와 선용품점 사이를 이동한다. Elena Reed의 근무 동선은 기존 상점 주변에 둔다. 미션 마커는 주민의 실시간 위치를 계속 따른다.
+
+지점과 근무 순서는 `src/resident-routes.js`에 있다. 건물이나 길을 수정한 뒤 `node --test tests/resident-life.mjs`로 출입구와 목적지 연결을 다시 검사한다. 경찰 추격과 체포를 적용한 상태에서도 주민 일정은 대화, 피격, 차량 접근에 양보한다.

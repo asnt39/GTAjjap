@@ -66,6 +66,10 @@ export async function createCharacter({variant,model='resident'}={}){
   else if(!pose.vehicle&&guard>.015)layer.gesture('guard',guard*.2*(1-.7*airborne),side,pose.zone,0,run)
   if(pose.vehicle)layer.vehicle(pose.vehicle)
   if(pose.custody)layer.custody(pose.custody)
+  if(pose.nod){
+   layer.offset('Head','x',.17*pose.nod)
+   layer.offset('Spine1','x',.035*pose.nod)
+  }
   if(pose.look)layer.offset('Neck','y',MathUtils.clamp(pose.look,-.53,.53))
  }}
 }
