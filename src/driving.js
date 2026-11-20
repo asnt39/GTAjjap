@@ -80,6 +80,11 @@ export function stepDrive(car,input,boxes,elapsed,others=[]){
  return impact
 }
 export function doorPoint(car,side,extra=.47){return worldPoint(car,side*(car.width/2+extra),car.setup?.doorZ??-.16)}
+// Keep the shared approach point stable for deployed room servers. The rig can
+// place its animated sill farther forward when the cab has a different shape.
+export function cabinPoint(car,side,extra){
+ return worldPoint(car,side*(car.width/2+extra),car.setup?.cabinZ??car.setup?.doorZ??-.16)
+}
 export function clearPath(a,b,boxes,r=.32,blocked){
  const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.14))
  for(let i=0;i<=n;i++){const t=i/n;const x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(!canWalk(x,z,boxes,r)||blocked?.(x,z))return false}
@@ -88,14 +93,14 @@ export function clearPath(a,b,boxes,r=.32,blocked){
 export function availableDoor(car,p,boxes,blocked){
  for(const side of [-1,1]){
   const door=doorPoint(car,side)
-  if(side*localPoint(car,p.x,p.z).x>0 && Math.hypot(p.x-door.x,p.z-door.z)<1.65 && clearPath(p,door,boxes,.32,blocked))return {side,door}
+  if(side*localPoint(car,p.x,p.z).x>0 && Math.hypot(p.x-door.x,p.z-door.z)<1.65 && clearPath(p,door,boxes,.32,blocked)&&(!car.setup?.cabinZ||clearPath(p,cabinPoint(car,side,.26),boxes,.32,blocked)))return {side,door}
  }
  return null
 }
 export function safeExit(car,boxes,preferred=-1,blocked){
  for(const side of [preferred,-preferred]){
   const start=doorPoint(car,side,.05),target=doorPoint(car,side,.61)
-  if(clearPath(start,target,boxes,.32,blocked)&&!nearBody(car,target.x,target.z))return {side,door:target}
+  if(clearPath(start,target,boxes,.32,blocked)&&(!car.setup?.cabinZ||clearPath(cabinPoint(car,side,.26),target,boxes,.32,blocked))&&!nearBody(car,target.x,target.z))return {side,door:target}
  }
  return null
 }

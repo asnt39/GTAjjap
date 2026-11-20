@@ -7,7 +7,7 @@ export const vehicles = Object.freeze({
  sport:Object.freeze({...touring, name:'Sprint', x:-4.86, z:6, heading:0, width:1.94, length:4.32, height:1.31,
   top:21, power:5.1, brake:10.2, steer:.62, steerRate:2, wheelbase:.62, camera:2.4}),
  van:Object.freeze({...touring, name:'Dock Van', x:-4.86, z:-18, heading:0, width:2.11, length:4.72, height:2.16,
-  doorZ:-.23, seatLift:.43, crouchDrop:.31, top:13, power:2.8, brake:7.25, steer:.52, steerRate:1.3, wheelbase:.68, camera:2.95, cameraHeight:1.74})
+  doorZ:-.23, cabinZ:-1.09, seatLift:.43, crouchDrop:.31, top:13, power:2.8, brake:7.25, steer:.52, steerRate:1.3, wheelbase:.68, camera:2.95, cameraHeight:1.74})
 })
 
 export const touringSetup=vehicles.touring

@@ -1,8 +1,9 @@
 import * as T from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
-import { createVehicleRig } from './vehicle-rig.js'
+import { createVehicleRig, parkStreetCar } from './vehicle-rig.js'
 import { touringSetup } from './vehicles.js'
 
 const ROOT = '/assets/street/'
@@ -120,9 +121,9 @@ function floorGeometry(x1, x2, z1, z2, y, scale) {
 }
 
 export async function buildStreet(scene, addCollider) {
-  const texLoader=new T.TextureLoader(), modelLoader=new GLTFLoader()
+  const texLoader=new T.TextureLoader(), modelLoader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
   const files=['asphalt_04-Diffuse.webp','asphalt_04-nor_gl.webp','concrete_pavement_02-Diffuse.webp','concrete_pavement_02-nor_gl.webp','tree-leaves.webp']
-  const modelNames=['tree-wood','touring','saloon','estate','delivery']
+  const modelNames=['tree-wood','touring','riverside','fairheaven','dock-panel','sprint-coupe']
   const [maps,models]=await Promise.all([
     Promise.all(files.map(f=>texLoader.loadAsync(ROOT+f))),
     Promise.all(modelNames.map(f=>modelLoader.loadAsync(ROOT+f+'.glb')))
@@ -280,25 +281,23 @@ export async function buildStreet(scene, addCollider) {
   }
   // The foliage atlas contains four depth slices in each of two viewing directions.
   const foliage=new T.MeshStandardMaterial({map:maps[4],alphaTest:.32,side:T.DoubleSide,roughness:.95})
-  function pasteModel(model,x,z,length,angle,tree=false){
+  function plantTree(model,x,z,height){
     const object=model.scene.clone(true),bounds=new T.Box3().setFromObject(object),size=bounds.getSize(V(0,0,0))
-    const scale=tree?length/size.y:length/Math.max(size.x,size.z)
+    const scale=height/size.y
     const center=bounds.getCenter(V(0,0,0))
     const pivot=new T.Group();pivot.add(object);object.position.sub(V(center.x,bounds.min.y,center.z))
-    pivot.rotation.y=angle+(!tree&&size.x>size.z?PI/2:0);pivot.scale.setScalar(scale);pivot.position.set(x,tree?.083:.015,z)
+    pivot.scale.setScalar(scale);pivot.position.set(x,.083,z)
     pivot.updateMatrixWorld(true)
     pivot.traverse(mesh=>{if(mesh.isMesh){const geo=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);batch(geo,mesh.material);geo.dispose()}})
-    return {width:Math.min(size.x,size.z)*scale,height:size.y*scale}
   }
   const touring=createTouring(models[1],touringSetup.x,touringSetup.z,touringSetup.length)
-  const vehicles={touring,sport:createVehicleRig('sport'),van:createVehicleRig('van')}
+  const vehicles={touring,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
   for(const rig of Object.values(vehicles))group.add(rig.root)
-  for(const [model,x,z,length,turn] of [[2,4.93,-5,4.35,PI],[1,-4.85,-57,4.22,0],[4,4.86,-75,4.5,PI],[2,-4.83,46,4.3,0],[3,4.9,51,4.4,PI]]){
-    const {width,height}=pasteModel(models[model],x,z,length,turn)
-    addCollider(x-width/2,x+width/2,z-length/2,z+length/2,height)
+  for(const [model,x,z,length,turn] of [[2,4.93,-5,4.35,PI],[5,-4.85,-57,4.22,0],[4,4.86,-75,4.5,PI],[2,-4.83,46,4.3,0],[3,4.9,51,4.4,PI]]){
+    parkStreetCar(group,models[model],x,z,length,turn,addCollider)
   }
   for(const [x,z,scale] of [[-8,15,1.2],[8,2,1.22],[-8,-10,1.1],[8,-27,1.28],[-8,-50,1.17],[8,-58,1.2],[-8,45,1.2],[8,36,1.1],[-8,-83,1.1]]){
-    pasteModel(models[0],x,z,4.3*scale,0,true)
+    plantTree(models[0],x,z,4.3*scale)
     for(let ax=0;ax<2;ax++)for(let i=0;i<4;i++){
       const g=new T.PlaneGeometry(4.8*scale,4.8*scale),uv=g.attributes.uv
       for(let j=0;j<uv.count;j++)uv.setXY(j,(i+uv.getX(j))/4,(1-ax+uv.getY(j))/2)
