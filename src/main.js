@@ -192,7 +192,7 @@ export async function start(onContextLost){
  }
  function startTransition(destination,next){
   mode=next;clearControls()
-  car.speed=car.travel=car.accel=0;car.braking=false
+  car.speed=car.travel=car.accel=car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
   lastSide=destination.side
   transition={time:0,from:{x:pos.x,z:pos.z},door:destination.door,side:lastSide,
    x:car.x,z:car.z,heading:car.heading,face}
@@ -328,7 +328,7 @@ export async function start(onContextLost){
   },
   correction(id,pose){
    if(localSeat!==id)return
-   Object.assign(cars[id],pose,{remainder:0,travel:0})
+   Object.assign(cars[id],pose,{remainder:0,travel:0,throttle:0,shiftDelay:0})
   }
  })
  function startRoom(endpoint,request){
@@ -431,7 +431,7 @@ export async function start(onContextLost){
    else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
-    stepDrive(car,input,boxes,realDt,traffic);speed=Math.abs(car.speed)
+    stepDrive(car,input,boxes,dt,traffic);speed=Math.abs(car.speed)
     pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}

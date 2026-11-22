@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {test} from 'node:test'
 import {createFootwork} from '../src/footwork.js'
 import {movePlayer,supportHeight} from '../src/navigation.js'
 const f=createFootwork()
@@ -44,3 +45,10 @@ for(let frame=0;frame<70;frame++){
 assert.equal(indoorPeak,1.64)
 assert.equal(indoor.height,.96)
 assert(!indoor.air)
+
+test('diagonal movement follows the intended line around a clear exterior corner',()=>{
+ const feet={x:.35,z:.12}
+ movePlayer(feet,-.09,.08,[[-1,0,-1,0,3]])
+ assert(Math.abs(feet.x-.26)<1e-9)
+ assert(Math.abs(feet.z-.20)<1e-9)
+})

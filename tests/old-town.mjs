@@ -45,6 +45,11 @@ for(const [a,b,c,d] of townRoadSurface)for(const [l,r,n,s] of boxes.slice(dockBo
 assert.equal(oldTownHeight(0,64),.008)
 assert.equal(oldTownHeight(-68,-28),.008)
 assert.equal(oldTownHeight(-74.2,-26),.083)
+for(const [x,z,dx,dz] of [[-40.5,66,-1,0],[-73.5,-28,-1,0],[6,64,1,0]]){
+ const road=oldTownHeight(x,z),edge=oldTownHeight(x+dx*.05,z+dz*.05)
+ assert(edge>road&&edge<road+.04,'an Old Town curb should rise progressively')
+ assert.equal(oldTownHeight(x+dx*.19,z+dz*.19),.083)
+}
 
 function path(points){
  const result=[points[0]]

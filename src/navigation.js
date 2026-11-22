@@ -24,10 +24,16 @@ export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  })
 }
 export function movePlayer(pos,dx,dz,boxes,occupied,feet=-Infinity){
+ if(!dx&&!dz)return
  const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.19))
+ const stepX=dx/n,stepZ=dz/n
+ const clear=(x,z)=>canWalk(x,z,boxes,.32,feet)&&!occupied?.(x,z)
  for(let i=0;i<n;i++){
-  if(canWalk(pos.x+dx/n,pos.z,boxes,.32,feet)&&!occupied?.(pos.x+dx/n,pos.z))pos.x+=dx/n
-  if(canWalk(pos.x,pos.z+dz/n,boxes,.32,feet)&&!occupied?.(pos.x,pos.z+dz/n))pos.z+=dz/n
+  if(clear(pos.x+stepX,pos.z+stepZ)){pos.x+=stepX;pos.z+=stepZ;continue}
+  if(stepX&&stepZ){
+   if(clear(pos.x+stepX,pos.z))pos.x+=stepX
+   if(clear(pos.x,pos.z+stepZ))pos.z+=stepZ
+  }
  }
 }
 // A shallow footprint lets a foot remain supported until it steps away from an edge.

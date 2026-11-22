@@ -15,8 +15,19 @@ export const oldTownLand=[
 export const clockCourt={x:-51.5,z:51}
 const contains=([a,b,c,d],x,z,r=0)=>x>=a+r&&x<=b-r&&z>=c+r&&z<=d-r
 export const inOldTown=(x,z,r=0)=>oldTownLand.some(rect=>contains(rect,x,z,r))
-export const oldTownHeight=(x,z)=>oldTownRoads.some(rect=>contains(rect,x,z))||
- (Math.abs(x)<=6&&z<63)|| (x>=marketEntrance[0]&&x<=marketEntrance[1]&&z<=-31) ? .008:.083
+const approachRoads=[...oldTownRoads,[-6,6,52,63],[...marketEntrance,-34,-31]]
+export function oldTownHeight(x,z){
+ // Blend the 7.5 cm curb over the same short run as the Docklands curbs.
+ const ramp=.18
+ let closest=ramp*ramp
+ for(const [west,east,north,south] of approachRoads){
+  const dx=Math.max(0,west-x,x-east),dz=Math.max(0,north-z,z-south)
+  const distance2=dx*dx+dz*dz
+  if(distance2===0)return .008
+  closest=Math.min(closest,distance2)
+ }
+ return closest===ramp*ramp?.083:.008+.075*Math.sqrt(closest)/ramp
+}
 
 // Partition overlapping road strips into disjoint tiles so render surfaces
 // have one top face. The same partition supplies hard vehicle curb boundaries.

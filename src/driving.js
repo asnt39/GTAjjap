@@ -34,6 +34,8 @@ export function clearPose(car,boxes,allowOldTown=true){
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){
+ const reach=(a.width+a.length+b.width+b.length)*.5
+ if(Math.abs(a.x-b.x)>=reach||Math.abs(a.z-b.z)>=reach)return false
  const relative=localPoint(a,b.x,b.z),back=localPoint(b,a.x,a.z)
  const c=Math.abs(Math.cos(a.heading-b.heading)),s=Math.abs(Math.sin(a.heading-b.heading))
  return Math.abs(relative.x)*2<a.width+b.width*c+b.length*s &&
@@ -43,6 +45,8 @@ export function overlapsCar(a,b){
 }
 export function stepDrive(car,input,boxes,elapsed,others=[]){
  const setup=car.setup??touringSetup
+ const clear=()=>clearPose(car,boxes)&&!others.some(other=>other!==car&&overlapsCar(car,other))
+ const command=input.forward-input.back
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
  let impact=0
@@ -50,10 +54,11 @@ export function stepDrive(car,input,boxes,elapsed,others=[]){
   car.remainder-=step
   const old=car.speed,mag=Math.abs(old)
   const target=input.steer*(setup.steer/(1+mag*.064))
-  car.steer=approach(car.steer,target,step*(input.steer?setup.steerRate:2.1))
-  const command=input.forward-input.back
+  const steerRate=input.steer?setup.steerRate/(1+mag*.055):2.1
+  car.steer=approach(car.steer,target,step*steerRate)
   const opposite=command*old<0
   car.braking=!!input.handbrake||opposite
+  if(!command||car.braking||car.shiftDelay>0||command*car.throttle<0)car.throttle=0
   if(input.handbrake||opposite){
    car.speed=approach(old,0,(input.handbrake?setup.handbrake:setup.brake)*step)
    if(opposite&&car.speed===0)car.shiftDelay=.19
@@ -61,7 +66,8 @@ export function stepDrive(car,input,boxes,elapsed,others=[]){
    car.shiftDelay-=step
   }else if(command){
    const max=command>0?setup.top:setup.reverse,power=command>0?setup.power:setup.reversePower
-   car.speed=old+command*power*(1-(mag/max)**1.4)*step
+   car.throttle=approach(car.throttle,command,step*6.5)
+   car.speed=old+car.throttle*power*(1-(mag/max)**1.4)*step
   }else{
    car.speed=approach(old,0,(.63+.006*mag*mag)*step)
   }
@@ -75,8 +81,32 @@ export function stepDrive(car,input,boxes,elapsed,others=[]){
   if(travel!==0){
    const x=car.x,z=car.z,h=car.heading
    car.x+=dx;car.z+=dz;car.heading+=turn
-   if(!clearPose(car,boxes)||others.some(other=>other!==car&&overlapsCar(car,other))){car.x=x;car.z=z;car.heading=h;impact=Math.max(impact,Math.abs(old));car.speed=0}
-   else car.travel+=travel
+   if(clear())car.travel+=travel
+   else{
+    const alongX=Math.abs(dx)>Math.abs(dz)
+    const tangent=Math.abs(alongX?dx:dz)/Math.hypot(dx,dz)
+    // A shallow scrape cancels motion into the obstacle. Try the dominant
+    // axis with the last clear heading so the body cannot rotate into it.
+    car.heading=h
+    car.x=x+(alongX?dx:0);car.z=z+(alongX?0:dz)
+    if(tangent>.97&&clear()){
+     car.travel+=travel*tangent
+     car.speed*=tangent*tangent
+     impact=Math.max(impact,mag*(1-tangent*tangent))
+    }else{
+     // Advance to contact on a hard hit instead of stopping a full step short.
+     let safe=0,blocked=1
+     if(mag>.35)for(let i=0;i<4;i++){
+      const part=(safe+blocked)*.5
+      car.x=x+dx*part;car.z=z+dz*part;car.heading=h+turn*part
+      if(clear())safe=part
+      else blocked=part
+     }
+     car.x=x+dx*safe;car.z=z+dz*safe;car.heading=h+turn*safe
+     car.travel+=travel*safe
+     impact=Math.max(impact,mag);car.speed=0
+    }
+   }
   }
   car.accel=approach(car.accel,clamp((car.speed-old)/step,-9,6),step*32)
  }
@@ -103,4 +133,4 @@ export function safeExit(car,boxes,preferred=-1,blocked){
  }
  return null
 }
-export function newDrive(rig,setup=touringSetup){return {setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0}}
+export function newDrive(rig,setup=touringSetup){return {setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0}}

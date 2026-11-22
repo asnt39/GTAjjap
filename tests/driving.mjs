@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {test} from 'node:test'
 import {newDrive,stepDrive,clearPose,safeExit,availableDoor,doorPoint,nearBody} from '../src/driving.js'
 const rig={x:0,z:25,width:2.02373,length:4.15,height:1.257,heading:0}
 const control=(forward=0,back=0,steer=0,handbrake=false)=>({forward,back,steer,handbrake})
@@ -59,3 +60,40 @@ assert(van.z>=blocker.z+(van.length+blocker.length)/2)
 assert.equal(van.speed,0)
 assert.equal(safeExit(van,[],-1,()=>true),null)
 console.log('Passed three distinct acceleration profiles, fleet collision, blocked exit and staged boarding/exit poses.')
+
+test('throttle builds smoothly, then reaches normal driving speed',()=>{
+ const car=newDrive(rig)
+ advance(car,.05,control(1),120)
+ assert(car.speed>0&&car.speed<.09,'full engine torque must not arrive in the first few steps')
+ advance(car,2,control(1))
+ assert(car.speed>6)
+})
+
+test('a quick full-lock input at speed builds yaw progressively',()=>{
+ const car=Object.assign(newDrive(rig),{speed:15})
+ advance(car,.15,control(1,0,1),120)
+ assert(car.heading>.04&&car.heading<.09)
+ assert(car.speed>14)
+})
+
+test('a glancing wall contact preserves forward travel and prevents overlap',()=>{
+ const car=Object.assign(newDrive({...rig,x:.06,heading:.1}),{speed:12})
+ const wall=[[1.3,2,-30,60,3]]
+ for(let i=0;i<30;i++){
+  stepDrive(car,control(1),wall,1/120)
+  assert(clearPose(car,wall))
+ }
+ assert(car.z<22.7)
+ assert(car.speed>9)
+})
+
+test('head-on wall contact settles close to the wall and allows reversing out',()=>{
+ const car=Object.assign(newDrive({...rig,z:13.165}),{speed:15})
+ const wall=[[-5,5,10,11,2]]
+ const hit=stepDrive(car,control(1),wall,1/120)
+ assert(hit>14&&clearPose(car,wall))
+ assert(car.z>=13.075&&car.z<13.095)
+ assert.equal(car.speed,0)
+ advance(car,1,control(0,1),60,wall)
+ assert(car.z>13.8&&clearPose(car,wall))
+})
