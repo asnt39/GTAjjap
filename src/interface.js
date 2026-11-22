@@ -1,3 +1,4 @@
+import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
 import {drawMap} from './cartography.js'
 import {defaultRoomEndpoint} from './room-client.js'
@@ -179,7 +180,7 @@ export function createUI(game){
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

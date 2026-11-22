@@ -3,6 +3,8 @@ import {policeChase} from './police-chase.js'
 import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
+import {buildOldTown} from './old-town.js'
+import {useTownDriveMask,oldTownHeight} from './old-town-plan.js'
 import {buildMarket} from './market.js'
 import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
@@ -52,7 +54,8 @@ export async function start(onContextLost){
  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
  const sunlight=illumination(scene);beacons(scene,addCollider);districtGates(scene,addCollider)
- const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider),buildArchitecture(scene,addCollider),sky(scene,renderer)])
+ const surfaceMaps={}
+ const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
   const lines=[],point=(x,y,z)=>new THREE.Vector3(x,y,z)
@@ -66,6 +69,7 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
@@ -385,9 +389,10 @@ export async function start(onContextLost){
  }
  positionCamera(0,true)
  function groundHeight(x,z){
+  if(useTownDriveMask(x,z))return oldTownHeight(x,z)
   if(atStation(x,z))return .092
   if(insidePremises(x,z))return .052
-  if(x< -40 && z< -43 && z> -46)return .082
+  if((x< -40 && z< -43 && z> -46)||(x< -40 && z> -31 && z< -27))return .082
   if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
   const lane=Math.abs(x)
   const edge=Math.min(lane-6,10.9-lane,Math.max(-43-z,z+31))
@@ -411,6 +416,7 @@ export async function start(onContextLost){
   })
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
+   if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
    coffee=Math.max(0,coffee-dt)

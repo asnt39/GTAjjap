@@ -41,7 +41,7 @@ export function districtGates(scene,addCollider){
  const concrete=new T.MeshStandardMaterial({color:0xa59c88,roughness:.94})
  const paint=new T.MeshStandardMaterial({color:0xea813f,roughness:.58,emissive:0x56321c,emissiveIntensity:.12})
  const reflector=new T.BoxGeometry(.3,.12,.35),points=[]
- for(const z of [-99.5,57])for(const x of [-4.2,0,4.2])points.push([x,z,Math.PI/2])
+ for(const x of [-4.2,0,4.2])points.push([x,-99.5,Math.PI/2])
  for(const z of [-40.1,-35.7,-31.3])points.push([-96,z,0])
  const blocks=new T.InstancedMesh(geometry,concrete,points.length),markers=new T.InstancedMesh(reflector,paint,points.length*2)
  const m=new T.Object3D()

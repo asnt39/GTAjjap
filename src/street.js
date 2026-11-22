@@ -119,7 +119,7 @@ function floorGeometry(x1, x2, z1, z2, y, scale) {
   return geom
 }
 
-export async function buildStreet(scene, addCollider) {
+export async function buildStreet(scene, addCollider, surfaceMaps) {
   const texLoader=new T.TextureLoader(), modelLoader=new GLTFLoader()
   const files=['asphalt_04-Diffuse.webp','asphalt_04-nor_gl.webp','concrete_pavement_02-Diffuse.webp','concrete_pavement_02-nor_gl.webp','tree-leaves.webp']
   const modelNames=['tree-wood','touring','saloon','estate','delivery']
@@ -132,6 +132,7 @@ export async function buildStreet(scene, addCollider) {
     maps[i].anisotropy=4
   }
   for(const i of [0,2,4])maps[i].colorSpace=T.SRGBColorSpace
+  if(surfaceMaps)surfaceMaps.street=maps
   const group=new T.Group()
   group.name='Breakwater Avenue streetscape'
   const batches=new Map()

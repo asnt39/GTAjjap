@@ -1,9 +1,11 @@
 // All dynamics use metres, seconds and radians. Heading zero faces north (-Z).
 import {canWalk} from './navigation.js'
+import {townCurbBlocks,townDriveBounds,useTownDriveMask} from './old-town-plan.js'
 import {touringSetup} from './vehicles.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 const approach=(a,b,step)=>a+clamp(b-a,-step,step)
 const step=1/120
+const dockDriveBounds=[-97,25.3,-101,58]
 const curbBlocks=[[-100,-6.05,-200,-43],[6.05,100,-200,-43],[-100,-6.05,-31,200],[6.05,100,-31,200]]
 export function localPoint(car,x,z){
  const c=Math.cos(car.heading),s=Math.sin(car.heading),dx=x-car.x,dz=z-car.z
@@ -17,16 +19,18 @@ export function nearBody(car,x,z,r=.32){
  const p=localPoint(car,x,z)
  return Math.hypot(Math.max(0,Math.abs(p.x)-car.width/2),Math.max(0,Math.abs(p.z)-car.length/2))<r
 }
-export function clearPose(car,boxes){
+export function clearPose(car,boxes,allowOldTown=true){
  const cs=Math.cos(car.heading),sn=Math.sin(car.heading),c=Math.abs(cs),s=Math.abs(sn)
  const w=car.width/2,l=car.length/2,rx=c*w+s*l,rz=s*w+c*l
- if(car.x-rx < -97||car.x+rx>25.3||car.z-rz< -101||car.z+rz>58)return false
+ const inTown=allowOldTown&&useTownDriveMask(car.x,car.z)
+ const [west,east,north,south]=inTown?townDriveBounds:dockDriveBounds
+ if(car.x-rx<west||car.x+rx>east||car.z-rz<north||car.z+rz>south)return false
  const overlaps=([x1,x2,z1,z2])=>{
   if(car.x+rx<=x1||car.x-rx>=x2||car.z+rz<=z1||car.z-rz>=z2)return false
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z
   return Math.abs(dx*cs+dz*sn)<w+a*c+b*s && Math.abs(-dx*sn+dz*cs)<l+a*s+b*c
  }
- return !curbBlocks.some(overlaps)&&!boxes.some(overlaps)
+ return !(inTown?townCurbBlocks:curbBlocks).some(overlaps)&&!boxes.some(overlaps)
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){
