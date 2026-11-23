@@ -368,7 +368,8 @@ export async function start(onContextLost){
   const arm=distance+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
-  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
+  const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
+  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
   for(const vehicle of traffic){
@@ -380,8 +381,8 @@ export async function start(onContextLost){
    fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
   }
   if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
-  const room=arm*fraction
-  actualArm=initial?room:room<actualArm?room:damp(actualArm,room,8,dt)
+  const availableArm=arm*fraction
+  actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
@@ -431,7 +432,7 @@ export async function start(onContextLost){
    else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
-    stepDrive(car,input,boxes,dt,traffic);speed=Math.abs(car.speed)
+    stepDrive(car,input,boxes,dt,traffic,room.phase==='offline');speed=Math.abs(car.speed)
     pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
@@ -474,7 +475,7 @@ export async function start(onContextLost){
    })
    }
    for(const vehicle of fleet){
-    rigs[vehicle.id].updatePose({...vehicle,dt})
+    rigs[vehicle.id].updatePose({...vehicle,dt,lift:room.phase==='offline'?vehicle.lift:0})
     vehicle.travel=0;vehicle.impact=0
    }
    if(!transition&&mode==='walk')walkSpeed=speed

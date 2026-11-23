@@ -1,6 +1,6 @@
 // All dynamics use metres, seconds and radians. Heading zero faces north (-Z).
 import {canWalk} from './navigation.js'
-import {townCurbBlocks,townDriveBounds,useTownDriveMask} from './old-town-plan.js'
+import {onDrivePavement,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpavedDriveBlocks,useTownDriveMask} from './old-town-plan.js'
 import {touringSetup} from './vehicles.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 const approach=(a,b,step)=>a+clamp(b-a,-step,step)
@@ -19,18 +19,28 @@ export function nearBody(car,x,z,r=.32){
  const p=localPoint(car,x,z)
  return Math.hypot(Math.max(0,Math.abs(p.x)-car.width/2),Math.max(0,Math.abs(p.z)-car.length/2))<r
 }
-export function clearPose(car,boxes,allowOldTown=true){
+export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false){
  const cs=Math.cos(car.heading),sn=Math.sin(car.heading),c=Math.abs(cs),s=Math.abs(sn)
  const w=car.width/2,l=car.length/2,rx=c*w+s*l,rz=s*w+c*l
  const inTown=allowOldTown&&useTownDriveMask(car.x,car.z)
- const [west,east,north,south]=inTown?townDriveBounds:dockDriveBounds
+ const [west,east,north,south]=allowSidewalk?pavedDriveBounds:inTown?townDriveBounds:dockDriveBounds
  if(car.x-rx<west||car.x+rx>east||car.z-rz<north||car.z+rz>south)return false
  const overlaps=([x1,x2,z1,z2])=>{
   if(car.x+rx<=x1||car.x-rx>=x2||car.z+rz<=z1||car.z-rz>=z2)return false
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z
   return Math.abs(dx*cs+dz*sn)<w+a*c+b*s && Math.abs(-dx*sn+dz*cs)<l+a*s+b*c
  }
- return !(inTown?townCurbBlocks:curbBlocks).some(overlaps)&&!boxes.some(overlaps)
+ return !(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).some(overlaps)&&!boxes.some(overlaps)
+}
+
+export function vehicleLift(car){
+ const c=Math.cos(car.heading),s=Math.sin(car.heading)
+ const across=car.width*.39,axle=car.length*(car.setup?.wheelbase??touringSetup.wheelbase)*.5
+ let wheelsOnPavement=0
+ for(const side of [-1,1])for(const end of [-1,1]){
+  if(onDrivePavement(car.x+c*across*side-s*axle*end,car.z+s*across*side+c*axle*end))wheelsOnPavement++
+ }
+ return .083*wheelsOnPavement/4
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){
@@ -43,9 +53,9 @@ export function overlapsCar(a,b){
   Math.abs(back.x)*2<b.width+a.width*c+a.length*s &&
   Math.abs(back.z)*2<b.length+a.width*s+a.length*c
 }
-export function stepDrive(car,input,boxes,elapsed,others=[]){
+export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false){
  const setup=car.setup??touringSetup
- const clear=()=>clearPose(car,boxes)&&!others.some(other=>other!==car&&overlapsCar(car,other))
+ const clear=()=>clearPose(car,boxes,true,allowSidewalk)&&!others.some(other=>other!==car&&overlapsCar(car,other))
  const command=input.forward-input.back
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
@@ -107,6 +117,14 @@ export function stepDrive(car,input,boxes,elapsed,others=[]){
      impact=Math.max(impact,mag);car.speed=0
     }
    }
+   if(allowSidewalk){
+    const lift=vehicleLift(car),rise=Math.max(0,lift-car.lift)
+    if(rise){
+     car.speed*=1-.28*rise/.083
+     impact=Math.max(impact,Math.min(2.2,.55+mag*.12))
+    }
+    car.lift=lift
+   }
   }
   car.accel=approach(car.accel,clamp((car.speed-old)/step,-9,6),step*32)
  }
@@ -133,4 +151,8 @@ export function safeExit(car,boxes,preferred=-1,blocked){
  }
  return null
 }
-export function newDrive(rig,setup=touringSetup){return {setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0}}
+export function newDrive(rig,setup=touringSetup){
+ const car={setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0}
+ car.lift=vehicleLift(car)
+ return car
+}

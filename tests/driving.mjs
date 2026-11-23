@@ -97,3 +97,21 @@ test('head-on wall contact settles close to the wall and allows reversing out',(
  advance(car,1,control(0,1),60,wall)
  assert(car.z>13.8&&clearPose(car,wall))
 })
+
+test('a player car climbs paved curbs with a bump and retains speed',()=>{
+ for(const [x,z] of [[3.5,25],[-32,64],[-60,-34.8]]){
+  const acrossMarket=x===-60
+  const car=Object.assign(newDrive({...rig,x,z,heading:acrossMarket?Math.PI:Math.PI/2}),{speed:8})
+  let impact=0
+  for(let i=0;i<39;i++)impact=Math.max(impact,stepDrive(car,control(1),[],1/120,[],true))
+  assert((acrossMarket?car.z-z:car.x-x)>2.15,'the near wheels should climb the curb')
+  assert(car.speed>5&&impact>.3&&impact<3)
+ }
+})
+
+test('a player car on a sidewalk still stops at the edge of paved ground',()=>{
+ const car=Object.assign(newDrive({...rig,x:7,z:25,heading:Math.PI/2}),{speed:8})
+ for(let i=0;i<100;i++)stepDrive(car,control(1),[],1/120,[],true)
+ assert(car.x>=8&&car.x+rig.length/2<=10.8)
+ assert.equal(car.speed,0)
+})

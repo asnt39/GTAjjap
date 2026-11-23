@@ -55,6 +55,20 @@ const roadBlend=[...oldTownRoads,[-6.05,6.05,-43,63],[-97,25.3,-43,-31]]
 export const townDriveBounds=[-97,25.3,-43,114.5]
 export const townCurbBlocks=townTiles(roadBlend,(x,z)=>!roadBlend.some(r=>contains(r,x,z)))
 
+const dockPavement=[
+ [-10.8,-6,-101,-43],[6,10.8,-101,-43],[-10.8,-6,-31,58],[6,10.8,-31,58],
+ [-40,-6,-46.1,-43],[6,25.3,-46.1,-43],[-40,-6,-31,-27.9],[6,25.3,-31,-27.9],
+ [-96,-40,-46,-43],[-96,marketEntrance[0],-31,-27],[marketEntrance[1],-40,-31,-27],
+ [-9,-6,56,63],[6,9,56,63]
+]
+const drivePavement=[...dockPavement,...townPavement]
+const driveRoads=[[-6,6,-101,63],[-97,25.3,-43,-31],...oldTownRoads]
+const driveSurfaces=[...driveRoads,...drivePavement]
+export const pavedDriveBounds=[-97,25.3,-101,126]
+export const unpavedDriveBlocks=townTiles([...driveSurfaces,pavedDriveBounds],
+ (x,z)=>!driveSurfaces.some(rect=>contains(rect,x,z)))
+export const onDrivePavement=(x,z)=>drivePavement.some(rect=>contains(rect,x,z))
+
 // Use the extended road mask only where the two networks meet or in the
 // expansion. The original Docklands mask still handles the rest of the map.
 export const useTownDriveMask=(x,z)=>inOldTown(x,z)||(z>=52&&z<56&&Math.abs(x)<=6.05)||

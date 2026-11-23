@@ -76,7 +76,7 @@ function path(points){
 function drive(setup,route){
  const points=path(route),[[x,z],[nx,nz]]=points
  const car=Object.assign(newDrive(setup,setup),{x,z,heading:Math.atan2(nx-x,z-nz)})
- assert(clearPose(car,boxes))
+ assert(clearPose(car,boxes,true,true))
  let cursor=0
  for(let frame=0;frame<60*100;frame++){
   const gap=([px,pz])=>Math.hypot(car.x-px,car.z-pz)
@@ -87,8 +87,8 @@ function drive(setup,route){
   const [fx,fz]=points[look],angle=Math.atan2(fx-car.x,car.z-fz)-car.heading
   const error=Math.atan2(Math.sin(angle),Math.cos(angle))
   const speed=Math.abs(error)<.045?9:Math.abs(error)<.16?6:4
-  stepDrive(car,{forward:car.speed<speed?1:0,back:0,handbrake:car.speed>speed+.3,steer:Math.max(-1,Math.min(1,error*2.2))},boxes,1/60,traffic)
-  assert(clearPose(car,boxes))
+  stepDrive(car,{forward:car.speed<speed?1:0,back:0,handbrake:car.speed>speed+.3,steer:Math.max(-1,Math.min(1,error*2.2))},boxes,1/60,traffic,true)
+  assert(clearPose(car,boxes,true,true))
   assert.equal(car.impact,0,setup.name+' contacted a curb or object at '+car.x.toFixed(1)+', '+car.z.toFixed(1))
  }
  assert.fail(setup.name+' did not complete the route')

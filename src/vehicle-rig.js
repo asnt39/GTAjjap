@@ -95,13 +95,14 @@ export function createVehicleRig(id,{police=false}={}) {
   mesh.castShadow=false
   beacons.push(beacon)
  }
- let spin=0
+ let spin=0,impactPitch=0
  return {root,...config, hinged:true,
-  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0}){
-   root.position.set(x,0,z);root.rotation.y=-heading
+  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0,impact=0,lift=0}){
+   root.position.set(x,dt?T.MathUtils.damp(root.position.y,lift,15,dt):lift,z);root.rotation.y=-heading
    spin=(spin-travel/tireRadius)%(Math.PI*2)
    for(const {pivot,axle,front} of wheels){pivot.rotation.y=front?-steer:0;axle.rotation.x=spin}
-   body.rotation.x=T.MathUtils.damp(body.rotation.x,T.MathUtils.clamp(accel*.004,-.044,.036),9,dt)
+   impactPitch=Math.max(impactPitch*Math.exp(-dt*10),Math.min(1,impact/7))
+   body.rotation.x=T.MathUtils.damp(body.rotation.x,T.MathUtils.clamp(accel*.004,-.044,.036)-impactPitch*.045,9,dt)
    body.rotation.z=T.MathUtils.damp(body.rotation.z,T.MathUtils.clamp(steer*speed*speed*.0014,-.05,.05),8,dt)
    doors[0].rotation.y=Math.min(0,door)*1.18
    doors[1].rotation.y=Math.max(0,door)*1.18

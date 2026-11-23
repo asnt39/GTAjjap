@@ -1,18 +1,20 @@
 // Choices live in the existing conversation. Leaving its range closes the shop too.
-export function episodeUI(game, toast) {
+export function episodeUI(game) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
- const choices=document.createElement('div')
- choices.className='episode-choices'
- conversation.append(choices)
+ const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
  let previous='', shopping=false, speaker=null, reply=''
- function option(label, action) {
+ function option(id,label,action,description='') {
   const button=document.createElement('button')
-  button.type='button';button.textContent=label
+  button.type='button';button.dataset.choice=id;button.textContent=label
+  if(description){
+   const detail=document.createElement('small')
+   detail.textContent=description
+   button.append(detail)
+  }
   button.onclick=()=>{
    if(!game.crowd.talking||game.crowd.talking!==speaker)return
    const result=action()
    if(result?.message){reply=result.message}
-   previous=''
   }
   choices.append(button)
  }
@@ -21,7 +23,6 @@ export function episodeUI(game, toast) {
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
   if(!npc)return
   const state=episode.snapshot(), options=episode.choices(npc)
-  const line=conversation.querySelector('.spoken')
   let text=defaultLine
   if(reply)text=reply
   else if(npc.opening&&state.stage===1&&state.status==='available')text=npc.opening
@@ -30,15 +31,24 @@ export function episodeUI(game, toast) {
   if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
   if(line.textContent!==text)line.textContent=text
   if(key===previous)return
+  const focused=choices.contains(document.activeElement)?document.activeElement.dataset.choice:null
   previous=key;choices.replaceChildren()
-  for(const item of options)option(item.label,()=>episode.interact({resident:npc,choice:item.id}))
+  for(const item of options)option(item.id,item.label,()=>episode.interact({resident:npc,choice:item.id}))
   if(npc.id==='merchant'){
-   option(shopping?'물건 접기':'상품 보기',()=>{shopping=!shopping;reply=''})
+   option('shop',shopping?'물건 접기':'상품 보기',()=>{shopping=!shopping;reply=''})
    if(shopping){
-    for(const item of state.items)option(item.name+' · ₩'+item.price+' · '+item.description,()=>{const sale=episode.buy(item.id);return {...sale,message:sale.ok?item.name+' '+npc.purchase:npc.insufficient}})
+    for(const item of state.items)option('buy-'+item.id,item.name+' · ₩'+item.price.toLocaleString('ko-KR'),()=>{
+     const sale=episode.buy(item.id)
+     return {...sale,message:sale.ok?item.name+' '+npc.purchase:npc.insufficient}
+    },item.description)
    }
   }
-  option('대화 마치기',()=>game.crowd.endTalk())
+  choices.hidden=!choices.childElementCount
+  if(focused){
+   const matching=[...choices.children].find(button=>button.dataset.choice===focused)
+   const next=matching??choices.firstElementChild??conversation.querySelector('#dialogue-close')
+   next.focus()
+  }
  }
  function goal(driving) {
   const state=episode.tracking()
