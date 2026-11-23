@@ -29,6 +29,7 @@ export function createLoadout(storage){
   get reloading(){return reloading>0},
   select(id){
    if(!Object.hasOwn(gear,id)||swingLeft>0)return false
+   if(selected===id)return true
    if(!items[id])items[id]={mag:gear[id].capacity??0,reserve:gear[id].stock??0}
    selected=id;reloading=0;kick=0;boltLeft=0;save();return true
   },

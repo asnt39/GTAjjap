@@ -91,7 +91,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   interrupt,
   attack(ready=false){
    if(loadout.def.lethal&&!ready){toast('조준을 누른 상태에서 발사해.');return}
-   if(!art.ready(loadout.selected)){toast(art.failed(loadout.selected)?'장비 모델을 불러오지 못했어':'장비를 준비하는 중');return}
+   if(!loadout.def.lethal&&!art.ready(loadout.selected)){toast(art.failed(loadout.selected)?'장비 모델을 불러오지 못했어':'장비를 준비하는 중');return}
    if(loadout.def.capacity&&!loadout.item.mag){
     toast(loadout.reloading?'재장전 중':loadout.item.reserve?'탄창이 비었어 · 재장전':'탄약 없음 · 부두 정문 안내에서 보급');return
    }
