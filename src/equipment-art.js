@@ -1,9 +1,10 @@
 import {
  ConeGeometry, Euler, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3
 } from 'three'
+import {sniperModel} from './sniper-art.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 
-const equipment = new Set(['pistol','shotgun','bat'])
+const equipment = new Set(['pistol','shotgun','bat','sniper'])
 const loader = new GLTFLoader()
 // The Rocketbox hand's local X points along the fingers and Z toward the thumb.
 const rightGrip = new Quaternion(.5,.5,.5,-.5).normalize()
@@ -46,6 +47,10 @@ export function createEquipmentArt(character) {
 
  function ensure(weapon){
   if(loading.has(weapon)||shapes.has(weapon)||errors.has(weapon))return
+  if(weapon==='sniper'){
+   const scene=sniperModel();scene.visible=false;socket.add(scene)
+   shapes.set(weapon,{scene,end:scene.getObjectByName('End'),bolt:scene.getObjectByName('Bolt')});return
+  }
   loading.add(weapon)
   loader.loadAsync('/assets/equipment/'+weapon+'.glb').then(({scene})=>{
    if(disposed){release(scene);return}
@@ -59,7 +64,7 @@ export function createEquipmentArt(character) {
  }
 
  function update({weapon='fists',aiming=false,recoil=0,swing=0,speed=0,
-                  hidden=false,reload=0,pitch=0,dt=1/60}={}){
+                  hidden=false,reload=0,pitch=0,prone=0,bolt=0,dt=1/60}={}){
   if(disposed)return
   if(weapon!==selected){
    errors.delete(weapon) // Re-selecting a failed model retries its request.
@@ -75,9 +80,14 @@ export function createEquipmentArt(character) {
    if(active){active.scene.visible=true;active.end.add(flash)}
   }
   if(!active){flash.visible=false;return}
+  if(active.bolt){
+   const stroke=Math.sin(Math.PI*bolt)
+   active.bolt.position.z=-.092*stroke
+   active.bolt.rotation.z=-.44*stroke
+  }
   flashTime=Math.max(0,flashTime-dt)
   flash.visible=flashTime>0
-  const bat=weapon==='bat', long=weapon==='shotgun'
+  const bat=weapon==='bat', long=weapon==='shotgun'||weapon==='sniper'
   const run=MathUtils.smoothstep(speed,1.2,5.4)
   stride=(stride+dt*Math.min(speed,7)*3.7)%(2*Math.PI)
   const bob=Math.sin(stride)*(.009+.014*run)
@@ -102,11 +112,16 @@ export function createEquipmentArt(character) {
    yaw=.06*(1-lift)
    tilt=(long?.27:.50)*(1-lift)-MathUtils.clamp(pitch,-.77,.77)*lift-.08*recoil-.44*reloadArc
    roll=(long?-.04:-.09)*(1-lift)-.34*reloadArc
-   x=long?-.13:-.18+.11*lift
-   y=(long?1.21:1.10)+(long?.12:.25)*lift+bob*(1-.7*lift)-.045*run*(1-lift)+.035*recoil
-   z=(long?.17:.23)+(long?.08:.25)*lift-.035*recoil-.10*reloadArc
+   x=long?-.14+.052*lift:-.19+.105*lift
+   y=(long?1.21:1.10)+(long?.185:.30)*lift+bob*(1-.83*lift)-.045*run*(1-lift)+.038*recoil
+   z=(long?.17:.23)+(long?.102:.25)*lift-.058*recoil-.135*reloadArc
    y+=.19*Math.sin(-tilt)*lift
-   rig.offset('Spine1','x',-.035*recoil)
+   x=MathUtils.lerp(x,-.115,prone)
+   y=MathUtils.lerp(y,1.55-.045*reloadArc,prone)
+   z=MathUtils.lerp(z,.16-.065*recoil,prone)-.045*Math.sin(Math.PI*bolt)
+   rig.offset('Spine1','x',.07*lift-.054*recoil)
+   rig.offset('Spine2','y',(.16*lift-.21*reloadArc)*(1-prone))
+   rig.offset('Neck','z',-.10*lift*(1-prone))
   }
   rig.placeArm(-1,x,y,z,1)
   character.root.getWorldQuaternion(rootQ)
@@ -134,7 +149,7 @@ export function createEquipmentArt(character) {
   update,muzzlePosition:endPosition,tipPosition:endPosition,
   ready:weapon=>weapon==='fists'||shapes.has(weapon),
   failed:weapon=>errors.has(weapon),
-  flash(){if(!active||selected==='bat')return;flash.rotation.z+=2.13;flashTime=.064;flash.visible=true},
+  flash(){if(!active||selected==='bat')return;flash.rotation.z+=2.13;flashTime=selected==='sniper'?.093:.064;flash.scale.setScalar(selected==='sniper'?1.65:1);flash.visible=true},
   dispose(){
    disposed=true
    flash.removeFromParent();flash.geometry.dispose();flash.material.dispose()

@@ -7,6 +7,9 @@ import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
 import {buildOldTown} from './old-town.js'
+import {buildWestBank} from './west-bank.js'
+import {garage} from './west-bank-plan.js'
+import {createPedestrianImpacts} from './vehicle-pedestrians.js'
 import {useTownDriveMask,oldTownHeight} from './old-town-plan.js'
 import {buildMarket} from './market.js'
 import {insidePremises} from './market-plan.js'
@@ -38,9 +41,9 @@ import {spawn,canWalk,movePlayer,supportHeight,cameraFraction} from './navigatio
 if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>window.harborPreviewAssets[url]||url)
 
 const canvas=document.querySelector('#world')
-const pos=new THREE.Vector3(spawn.x,0,spawn.z),velocity=new THREE.Vector2()
+const pos=new THREE.Vector3(garage.x,0,garage.z),velocity=new THREE.Vector2()
 const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
-let yaw=.05,pitch=.13,distance=4.65,isPaused=false
+let yaw=garage.yaw,pitch=.13,distance=4.65,isPaused=false
 const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
 const addCollider=(a,b,c,d,h=3,standable=false)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable])}
 const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
@@ -75,14 +78,16 @@ export async function start(onContextLost){
  }
  const market=buildMarket(scene,addCollider)
  const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
+ const westBank=buildWestBank(scene,addCollider,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
  const surfaces=boxes.filter(box=>box[5])
  const updateVisibility=archiveVisibility(scene,camera)
  const actor=new THREE.Group();actor.add(char.root);scene.add(actor);const shadow=footShadow(actor)
- if(!canWalk(pos.x,pos.z,boxes))for(let x=-3;x<=3;x+=.5){if(canWalk(x,spawn.z,boxes)){pos.x=x;break}}
- const safeSpawn={x:pos.x,z:pos.z}
+ const dockSpawnPoints=[spawn,...Array.from({length:13},(_,i)=>({x:-3+i*.5,z:spawn.z}))]
+ const safeSpawn=dockSpawnPoints.find(point=>canWalk(point.x,point.z,boxes))??spawn
+ if(!canWalk(pos.x,pos.z,boxes))pos.set(safeSpawn.x,0,safeSpawn.z)
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
  // The contact decal follows every footstep. Reserve moving sun shadows for High.
  const playerMeshes=[]
@@ -95,6 +100,7 @@ export async function start(onContextLost){
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
+ const pedestrianImpacts=createPedestrianImpacts(),previousCar={}
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
@@ -111,10 +117,8 @@ export async function start(onContextLost){
    resetWalk(station.cell.x,station.cell.z,0);yaw=Math.PI
   },
   release(){
-   const safe=[station.release,{x:-94.7,z:-43.5},{x:-91.7,z:-43.5},safeSpawn]
-    .find(point=>canWalk(point.x,point.z,boxes)&&!occupied(point.x,point.z))??safeSpawn
-   resetWalk(safe.x,safe.z,0);yaw=Math.PI
-   crowd.wanted.clear();ui.toast('석방 · 타이드 마켓 경찰서')
+   returnToHome()
+   crowd.wanted.clear();ui.toast(room.phase==='offline'?'석방 · 차고지로 돌아왔어':'석방 · 부두 정문')
   }
  })
  function beginCustody(officer){
@@ -152,13 +156,13 @@ export async function start(onContextLost){
  let storage
  try{storage=window.localStorage}catch{}
  const loadout=createLoadout(storage)
- let aiming=false
+ let aiming=false,proneProgress=0,shoulder=0
  const armed=()=>loadout.selected!=='fists'
  const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
  function selectEquipment(id){
   if(mode!=='walk'||crowd.talking||player.f.action||!loadout.select(id))return false
-  aiming=false;return true
+  aiming=false;proneProgress=0;return true
  }
  function reloadEquipment(){
   if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action)loadout.reload()
@@ -181,7 +185,7 @@ export async function start(onContextLost){
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
    if(loadout.def.capacity)face=Math.PI-yaw
-   equipment.attack();foot.sprint=false;return
+   equipment.attack(aiming);foot.sprint=false;return
   }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
  }
@@ -191,11 +195,31 @@ export async function start(onContextLost){
   if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65}))return false
   equipment.interrupt();aiming=false;crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
+ function returnToHome(){
+  const base=room.phase==='offline'?garage:safeSpawn
+  const candidates=[base,{x:base.x,z:base.z+2},{x:base.x+1.1,z:base.z-1.1}]
+  const safe=candidates.find(point=>canWalk(point.x,point.z,boxes)&&!occupied(point.x,point.z))??base
+  yaw=room.phase==='offline'?garage.yaw:.05
+  resetWalk(safe.x,safe.z,Math.PI-yaw)
+ }
  function respawn(arrested=false){
-  for(let r=0;r<7;r+=.7)for(let i=0;i<8;i++){
-   const x=spawn.x+r*Math.cos(i*Math.PI/4),z=spawn.z+r*Math.sin(i*Math.PI/4)
-   if(canWalk(x,z,boxes)&&!occupied(x,z)){plantFeet(x,z);revive(player.f);clearControls();crowd.endTalk();crowd.wanted.clear();const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단');focus=null;ui.toast((arrested?'체포 · 부두 정문에서 석방':'부두 정문에서 정신을 차렸어')+(failed?' · 수첩에서 재시도':''));return}
+  returnToHome()
+  revive(player.f);crowd.wanted.clear();mission.cancel()
+  const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단')
+  focus=null
+  const place=room.phase==='offline'?'차고지':'부두 정문'
+  ui.toast((arrested?'체포 후 '+place+'에서 복귀':place+'에서 정신을 차렸어')+(failed?' · 수첩에서 재시도':''))
+ }
+ function useWestBank(tag){
+  if(tag!=='HOME'){westBank.operate(tag);return tag==='PARK'?'분수 펌프 시험 · 8초':'선착장 신호 시험 · 8초'}
+  if(crowd.wanted.level)return '추격이 끝난 뒤 차고지에서 쉴 수 있어.'
+  player.f.hp=player.f.maxHealth
+  const personal=cars['garage-touring']
+  if(personal.z>29&&personal.z<49&&personal.x>-139&&personal.x<-119){
+   personal.dents=undefined;personal.collision=null;renderer.shadowMap.needsUpdate=true
+   return '체력 회복 · 개인 차량 수리 완료'
   }
+  return '체력 회복 · 개인 차량을 차고에 세우면 수리할 수 있어'
  }
  function talkCandidate(){return canAct()?crowd.candidate(pos):null}
  function converse(){
@@ -204,8 +228,9 @@ export async function start(onContextLost){
   clearControls();crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
- const canAct=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
- const canJump=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
+ const scoped=()=>loadout.selected==='sniper'&&aiming&&mode==='walk'&&!isPaused&&!custody.active&&!foot.air&&!player.f.action
+ const canAct=()=>!scoped()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
+ const canJump=()=>!scoped()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
  function jump(){if(canJump())foot.jump()}
  const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
@@ -381,12 +406,12 @@ export async function start(onContextLost){
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
-   const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat'}[e.code]
-   if(slot){if(loadout.items[slot])selectEquipment(slot);else ui.show('equipment');return}
+   const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat',Digit5:'sniper'}[e.code]
+   if(slot){selectEquipment(slot);return}
    if(e.code==='KeyR'){reloadEquipment();return}
    if(e.code==='KeyQ'){ui.show('equipment');return}
   }
@@ -400,7 +425,7 @@ export async function start(onContextLost){
  let drag=null,clickOrigin=null
  canvas.addEventListener('mousedown',e=>{
   if(isPaused||crowd.talking||mode!=='walk'||!armed())return
-  if(e.button===2)aiming=!!loadout.def.capacity
+  if(e.button===2)aiming=!!loadout.def.capacity&&!foot.air&&!player.f.action
   if(e.button===0)clickOrigin={x:e.clientX,y:e.clientY}
  })
  canvas.addEventListener('mouseup',e=>{
@@ -427,18 +452,34 @@ export async function start(onContextLost){
  const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
- document.querySelector('#gear-aim').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity)aiming=!aiming}
+ document.querySelector('#gear-next').onclick=()=>{
+  const ids=Object.keys(loadout.items)
+  selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
+ }
+ document.querySelector('#gear-aim').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=!aiming}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
  let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0,followHeight=actor.position.y
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
-  const arm=(aiming?Math.min(distance,2.7):distance)+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115-loadout.recoil*.012
+  const prone=THREE.MathUtils.smootherstep(proneProgress,0,1)
+  shoulder=damp(shoulder,aiming&&!driving()&&!prone?1:0,12,dt)
+  const zoom=1+3*prone
+  if(camera.zoom!==zoom&&(zoom===1||zoom===4||Math.abs(camera.zoom-zoom)>.001)){
+   camera.zoom=zoom;camera.updateProjectionMatrix()
+  }
+  const viewDistance=THREE.MathUtils.lerp(distance,Math.min(distance,2.45),shoulder)
+  const arm=THREE.MathUtils.lerp(viewDistance,.22,prone)+cameraBlend*car.setup.camera
+  const tilt=pitch+cameraBlend*.115-loadout.recoil*(loadout.selected==='sniper'?.038:.021)
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
   const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
-  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
+  const sideOffset=(.26+.43*shoulder)*(1-prone)*(1-cameraBlend)
+  const scopeOffset=prone*.77
+  const height=THREE.MathUtils.lerp(1.54-.08*shoulder,.56,prone)
+  anchor.set(pos.x+sideOffset*cs+sn*scopeOffset,
+   (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn-cs*scopeOffset)
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
   for(const vehicle of traffic){
@@ -454,7 +495,7 @@ export async function start(onContextLost){
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
-  aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
+  aim.set(anchor.x+sn*2.2,anchor.y+.12*(1-prone)-lift*2.2,anchor.z-cs*2.2)
   camera.lookAt(aim)
  }
  positionCamera(0,true)
@@ -486,6 +527,8 @@ export async function start(onContextLost){
   })
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
+   proneProgress=clamp(proneProgress+(scoped()?dt/2:-dt/.44),0,1)
+   const prone=THREE.MathUtils.smootherstep(proneProgress,0,1)
    if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
@@ -501,7 +544,16 @@ export async function start(onContextLost){
    else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
-    stepDrive(car,input,boxes,dt,traffic,room.phase==='offline');speed=Math.abs(car.speed)
+    Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
+    stepDrive(car,input,boxes,dt,traffic,room.phase==='offline')
+    const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage)=>{
+     if(crowd.receive(resident,car,'body',resident.pos,damage)){
+      effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,4)
+      focus=resident;feedbackTime=2.5
+     }
+    })
+    if(strikes)car.speed*=Math.pow(.85,strikes)
+    speed=Math.abs(car.speed)
     pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
@@ -509,7 +561,7 @@ export async function start(onContextLost){
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=(custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
+   const rate=(scoped()?0:custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
@@ -537,7 +589,7 @@ export async function start(onContextLost){
    const facing=player.f.action==='punch'?focus:crowd.talking
    if((armed()&&(aiming||loadout.recoil>.1))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.copy(pos)
-   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
+   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,prone:player.f.action==='down'?0:prone,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
     turn:dt>0?(face-previousFace)/dt:0})
    if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
@@ -580,12 +632,12 @@ export async function start(onContextLost){
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
-   const districtChanged=market.update(pos),stationChanged=updateStation(pos)
+   const districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||districtChanged||stationChanged||roadChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||districtChanged||stationChanged||westChanged||roadChanged)renderer.shadowMap.needsUpdate=true
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
-    speed,pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+    speed,prone,ready:scoped(),pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    effects.update(dt,canvas.height)
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){

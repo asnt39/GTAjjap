@@ -3,12 +3,15 @@ import {readFile} from 'node:fs/promises'
 import {Scene, Texture, TextureLoader} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {buildOldTown} from '../src/old-town.js'
+import {buildWestBank} from '../src/west-bank.js'
+import {garage} from '../src/west-bank-plan.js'
+import {createPedestrianImpacts} from '../src/vehicle-pedestrians.js'
 import {buildStreet} from '../src/street.js'
 import {buildArchitecture} from '../src/architecture.js'
 import {districtGates} from '../src/atmosphere.js'
 import {firstWorkRoadblock} from '../src/first-work-roadblock.js'
 import {marketCollision} from '../src/market-plan.js'
-import {stationColliders} from '../src/custody.js'
+import {stationColliders,atStation} from '../src/custody.js'
 import {clockCourt,oldTownHeight,townRoadSurface} from '../src/old-town-plan.js'
 import {availableDoor,clearPose,newDrive,safeExit,stepDrive} from '../src/driving.js'
 import {spawn,canWalk,movePlayer} from '../src/navigation.js'
@@ -29,7 +32,7 @@ const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildS
 const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
 const parked=Object.values(rigs).filter(rig=>rig.localOnly)
-assert.equal(parked.length,5)
+assert.equal(parked.length,6)
 for(const rig of parked){
  const vehicle=newDrive(rig,rig.setup)
  const space=safeExit(vehicle,boxes)
@@ -82,7 +85,7 @@ function path(points){
  line(points.at(-1))
  return result
 }
-function drive(setup,route){
+function drive(setup,route,obstacles=traffic){
  const points=path(route),[[x,z],[nx,nz]]=points
  const car=Object.assign(newDrive(setup,setup),{x,z,heading:Math.atan2(nx-x,z-nz)})
  assert(clearPose(car,boxes,true,true))
@@ -96,7 +99,7 @@ function drive(setup,route){
   const [fx,fz]=points[look],angle=Math.atan2(fx-car.x,car.z-fz)-car.heading
   const error=Math.atan2(Math.sin(angle),Math.cos(angle))
   const speed=Math.abs(error)<.045?9:Math.abs(error)<.16?6:4
-  stepDrive(car,{forward:car.speed<speed?1:0,back:0,handbrake:car.speed>speed+.3,steer:Math.max(-1,Math.min(1,error*2.2))},boxes,1/60,traffic,true)
+  stepDrive(car,{forward:car.speed<speed?1:0,back:0,handbrake:car.speed>speed+.3,steer:Math.max(-1,Math.min(1,error*2.2))},boxes,1/60,obstacles,true)
   assert(clearPose(car,boxes,true,true))
   assert.equal(car.impact,0,setup.name+' contacted a curb or object at '+car.x.toFixed(1)+', '+car.z.toFixed(1))
  }
@@ -154,3 +157,32 @@ const end={...exit.door}
 movePlayer(end,-50-end.x,55-end.z,boxes)
 assert(Math.hypot(end.x+50,end.z-55)<2.1)
 console.log('Clock Court follow-up is reachable by vehicle and on foot through the live collision map.')
+
+const westArt=buildWestBank(model,add,surfaceMaps)
+assert(canWalk(garage.x,garage.z,boxes))
+assert(!canWalk(-138.85,36.4,boxes))
+assert(!atStation(garage.x,garage.z))
+const personal=newDrive(rigs['garage-touring'],rigs['garage-touring'].setup)
+const ownerDoor=safeExit(personal,boxes)
+assert(ownerDoor&&availableDoor(personal,ownerDoor.door,boxes))
+const band=drive(vehicles.touring,[[-68,8],[-68,23],[-110.5,23],[-129,23],[-129,34.7]])
+assert(band.car.z>33)
+const homeTraffic=traffic.filter(car=>car.x!==personal.x||car.z!==personal.z)
+const garageExit=drive(personal.setup,[[-129,41],[-129,23],[-110.5,23],[-68,23]],homeTraffic)
+assert(garageExit.car.x>-70)
+const southExit=drive(vehicles.sport,[[-68,85],[-68,100.5],[-110.5,100.5],[-146,100.5],[-146,81]])
+assert(southExit.car.x<-144)
+westArt.operate('PARK');westArt.update(.01,1,{x:-160});westArt.operate('WEST');westArt.update(.01,1,{x:-170})
+
+const strikes=createPedestrianImpacts()
+const base={...vehicles.touring,x:0,z:0,heading:0}
+const victim={pos:{x:0,z:-2.8},f:{hp:100}}
+let damage=0
+const strike=(resident,amount)=>{assert.equal(resident,victim);damage=amount}
+assert.equal(strikes(.12,{...base,speed:2},{...base,z:-.23,speed:2},[victim],strike),0)
+assert.equal(strikes(.12,{...base,speed:6},{...base,z:-.72,speed:6},[victim],strike),1)
+assert(damage>0&&damage<100)
+assert.equal(strikes(.04,{...base,speed:12},{...base,z:-.7,speed:12},[victim],strike),0)
+assert.equal(strikes(1,{...base,speed:13},{...base,z:-13,speed:13},[victim],strike),1)
+assert.equal(damage,100)
+console.log('Garage entrance, both West Bank driveways, landmark actions and vehicle damage thresholds passed.')

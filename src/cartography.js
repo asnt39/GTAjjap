@@ -6,7 +6,7 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
  const c=canvas.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h)
- const scale=overview? Math.min(w/142,h/251):1.78, cx=overview?-35:player.x,cz=overview?12:player.z
+ const scale=overview? Math.min(w/274,h/274):1.78, cx=overview?-99:player.x,cz=overview?20:player.z
  c.translate(w*.5,h*.5);c.scale(scale,scale);c.translate(-cx,-cz)
  const rect=(x,z,a,b,fill)=>{c.fillStyle=fill;c.fillRect(x,z,a,b)}
  rect(-400,-400,800,800,'#283534');rect(26,-400,400,800,'#294950')

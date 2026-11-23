@@ -1,3 +1,4 @@
+import {westBankLand,westBankRoads} from './west-bank-plan.js'
 // Rectangles use [west, east, north, south] in Docklands metres.
 export const marketEntrance=[-73.5,-62.5]
 export const oldTownRoads=[
@@ -6,11 +7,13 @@ export const oldTownRoads=[
  [-73.5,-29.5,26.5,37.5],      // North Row
  [-73.5,-29.5,103.5,114.5],    // South Row
  [-35,6,78.5,89.5],           // Breakwater link
- [-6,6,63,89.5]
+ [-6,6,63,89.5],
+ ...westBankRoads
 ]
 export const oldTownLand=[
  [-86,-23,17,126],[-29,-19,65,126],
- [-76.5,-59.5,-28,21],[-39,9,75.5,92.5],[-9,9,56,91]
+ [-76.5,-59.5,-28,21],[-39,9,75.5,92.5],[-9,9,56,91],
+ ...westBankLand
 ]
 export const clockCourt={x:-51.5,z:51}
 const contains=([a,b,c,d],x,z,r=0)=>x>=a+r&&x<=b-r&&z>=c+r&&z<=d-r
@@ -48,7 +51,7 @@ export function townTiles(rects,filter){
 }
 
 export const townRoadSurface=townTiles(oldTownRoads,(x,z)=>oldTownRoads.some(r=>contains(r,x,z)))
-const pavedLand=[...oldTownLand.slice(0,2),[-76.5,-59.5,-27,21],oldTownLand[3],[-9,9,63,92.5]]
+const pavedLand=[...oldTownLand.slice(0,2),[-76.5,-59.5,-27,21],oldTownLand[3],[-9,9,63,92.5],...westBankLand]
 export const townPavement=townTiles([...pavedLand,...oldTownRoads],(x,z)=>
  pavedLand.some(r=>contains(r,x,z))&&!oldTownRoads.some(r=>contains(r,x,z)))
 const roadBlend=[...oldTownRoads,[-6.05,6.05,-43,63],[-97,25.3,-43,-31]]
@@ -64,7 +67,7 @@ const dockPavement=[
 const drivePavement=[...dockPavement,...townPavement]
 const driveRoads=[[-6,6,-101,63],[-97,25.3,-43,-31],...oldTownRoads]
 const driveSurfaces=[...driveRoads,...drivePavement]
-export const pavedDriveBounds=[-97,25.3,-101,126]
+export const pavedDriveBounds=[-225,25.3,-101,144]
 export const unpavedDriveBlocks=townTiles([...driveSurfaces,pavedDriveBounds],
  (x,z)=>!driveSurfaces.some(rect=>contains(rect,x,z)))
 export const onDrivePavement=(x,z)=>drivePavement.some(rect=>contains(rect,x,z))

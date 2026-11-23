@@ -56,7 +56,8 @@ export async function createCharacter({variant,model='resident'}={}){
   const movingShape=pose.vehicle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
   lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
-  posture.rotation.set(-1.49*fall,0,side*.085*fall)
+  const prone=pose.prone??0
+  posture.rotation.set(-1.49*fall+1.47*prone,0,side*.085*fall)
   // Apply travelling lean to the spine, keeping feet at their planted height.
   if(movingShape){
    layer.offset('Spine1','x',lean)
@@ -64,7 +65,10 @@ export async function createCharacter({variant,model='resident'}={}){
    layer.offset('Neck','x',-lean*.52)
    layer.offset('Neck','z',bank*.46)
   }
-  posture.position.set(0,-.082*landing*landing+.21*fall,.51*fall)
+  posture.position.set(0,-.082*landing*landing+.21*fall+.40*prone,.51*fall-.69*prone)
+  layer.offset('Head','x',-.91*prone)
+  layer.offset('L Thigh','z',.17*prone)
+  layer.offset('R Thigh','z',-.17*prone)
   layer.jump(phase,landing)
   guardHold=pose.action==='punch'?.7:Math.max(0,guardHold-dt)
   const guarding=!pose.vehicle&&(pose.guard||pose.action==='guard'||guardHold>0)

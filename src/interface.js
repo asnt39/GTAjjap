@@ -1,5 +1,6 @@
 import {gear} from './equipment.js'
 import './equipment.css'
+import {inWestBank} from './west-bank-plan.js'
 import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
 import {drawMap} from './cartography.js'
@@ -78,7 +79,7 @@ export function createUI(game){
    pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
    equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'지급받기')).join('')+'<p class="smallnote">예비 탄약은 부두 정문 안내판에서 보급받을 수 있어. 온라인 방에서도 장비와 전투는 각자 진행해.</p>'],
    rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–4</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd>')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 오른쪽 버튼으로 점프하거나 공격해. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–5</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd>')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 오른쪽 버튼으로 점프하거나 공격해. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -88,6 +89,7 @@ export function createUI(game){
    menu.sight[2]+=row('잔액','₩'+journal.money.toLocaleString())+journal.items.map(i=>button('order-'+i.id,i.name,'₩'+i.price.toLocaleString())).join('')
   }
   if(name==='sight'&&near?.tag==='06')menu.sight[2]+=button('lamp-test','작업대 시험등 점등')
+  if(name==='sight'&&['HOME','PARK','WEST'].includes(near?.tag))menu.sight[2]+=button('west-bank',near.tag==='HOME'?'휴식 및 개인 차량 점검':'시설 작동')
   const content=menu[name];
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
@@ -145,6 +147,9 @@ export function createUI(game){
    return
   }
   if(action==='resupply'&&panel==='sight'&&near?.tag==='01'){game.loadout.resupply();close();toast('예비 탄약 보급 완료');return}
+  if(action==='west-bank'&&panel==='sight'&&['HOME','PARK','WEST'].includes(near?.tag)){
+   const tag=near.tag;close();toast(game.useWestBank(tag));return
+  }
   if(action==='lamp-test'&&panel==='sight'&&near?.tag==='06'){close();game.testSignal();toast('시험등 점등 · 6초 뒤 자동 소등');return}
   if(action.startsWith('order-')&&panel==='sight'&&near?.tag==='05'){toast(game.episode.buy(action.slice(6)).message);show('sight');return}
   if(action==='roomCreate'||action==='roomJoin'||action==='roomLeave'){
@@ -181,7 +186,10 @@ export function createUI(game){
   toggleAudio.engine(driving&&!panel,game.car)
   const equipped=game.loadout,gun=!!equipped.def.capacity,walking=game.mode()==='walk'&&!game.crowd.talking&&!panel
   $('#equipment-hud').hidden=!walking
-  $('#gear-reticle').hidden=!walking||!gun||!!game.player.f.action
+  const scoped=walking&&game.scoped()
+  $('#sniper-scope').hidden=!scoped
+  $('#gear-reticle').hidden=scoped||!walking||!gun||!!game.player.f.action
+  $('#gear-next').hidden=Object.keys(equipped.items).length<2
   $('#gear-aim').hidden=$('#gear-reload').hidden=!gun
   $('#gear-aim').setAttribute('aria-pressed',String(game.aiming()))
   $('#gear-reload').disabled=equipped.reloading||!equipped.item.reserve||equipped.item.mag===equipped.def.capacity
@@ -218,7 +226,7 @@ export function createUI(game){
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

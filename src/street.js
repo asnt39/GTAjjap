@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
+import {garage} from './west-bank-plan.js'
 import { createVehicleRig } from './vehicle-rig.js'
 import { touringSetup } from './vehicles.js'
 
@@ -292,7 +293,10 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
     pivot.traverse(mesh=>{if(mesh.isMesh){const geo=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);batch(geo,mesh.material);geo.dispose()}})
   }
   const touring=createTouring(models[1],touringSetup.x,touringSetup.z,touringSetup.length)
-  const vehicles={touring,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
+  const personal=createTouring(models[1],garage.car.x,garage.car.z,touringSetup.length)
+  personal.setup={...touringSetup,...garage.car,name:'내 Touring'}
+  personal.localOnly=true
+  const vehicles={touring,'garage-touring':personal,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
   const parking=[
     ['riverside-quay','touring',2,'Riverside',4.93,-5,4.35,PI],
     ['sprint-north','sport',5,'Sprint',-4.85,-57,4.22,0],

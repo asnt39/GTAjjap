@@ -26,3 +26,19 @@
  #equipment-hud {flex-wrap:wrap;justify-content:flex-end;max-width:158px}
  #gear-status {width:100%;text-align:right}
 }
+#sniper-scope {
+ position:absolute; inset:0; z-index:2; pointer-events:none;
+ display:grid; place-items:center; overflow:hidden;
+}
+#sniper-scope>div {
+ position:relative; width:80vmin; height:80vmin; border-radius:50%;
+ border:2px solid #c7bb934f; box-shadow:0 0 0 110vmax #080d10eb,inset 0 0 3vmin #0a1015b0;
+}
+#sniper-scope i {
+ position:absolute; inset:0; border-radius:inherit;
+ background:linear-gradient(#141a18cc,#141a18cc) center/64% 1px no-repeat,
+  linear-gradient(#141a18cc,#141a18cc) center/1px 64% no-repeat,
+  radial-gradient(circle at center,#e6c88d 0 1px,transparent 2px);
+}
+#sniper-scope small {position:absolute;bottom:13%;left:50%;transform:translateX(-50%);color:#e6c88d;font-weight:800}
+@media(pointer:fine) { #gear-next { display:none; } }

@@ -18,8 +18,8 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const impact=new Mesh(meshGeometry,new MeshBasicMaterial({color:0xffbf83,toneMapped:false}))
  impact.scale.setScalar(.055);scene.add(impact)
  impact.visible=false
- let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure=''
- const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
+ let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure='',pronePose=0
+ const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25-.73*pronePose)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
  function hit(n,point,amount){
   const zone=point.y>n.pos.y+n.height*.77?'upper':'body'
@@ -32,17 +32,18 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  }
  function fire(){
   const priorLevel=crowd.wanted.level
-  const shotgun=loadout.selected==='shotgun'
+  const shotgun=loadout.selected==='shotgun', sniper=loadout.def.lethal===true
+  const range=loadout.def.range, visualRange=Number.isFinite(range)?range:camera.far
   camera.getWorldDirection(direction)
-  const focus=trace(camera.position,direction,loadout.def.range+camera.position.distanceTo(player.pos))
-  aimPoint.copy(camera.position).addScaledVector(direction,focus.distance)
+  const focus=trace(camera.position,direction,range+camera.position.distanceTo(player.pos))
+  aimPoint.copy(camera.position).addScaledVector(direction,Number.isFinite(focus.distance)?focus.distance:visualRange)
   // A third-person camera can be behind a corner that is behind the avatar.
-  if(contact.subVectors(aimPoint,player.pos).dot(direction)<0)aimPoint.copy(player.pos).addScaledVector(worldUp,1.25).addScaledVector(direction,loadout.def.range)
+  if(contact.subVectors(aimPoint,player.pos).dot(direction)<0)aimPoint.copy(player.pos).addScaledVector(worldUp,1.25-.73*pronePose).addScaledVector(direction,visualRange)
   art.muzzlePosition(muzzle)
   const occlusion=segment(origin(),muzzle)
   if(occlusion.blocked||occlusion.target){
    contact.copy(chest).addScaledVector(direction,occlusion.distance);mark(contact)
-   if(occlusion.target)hit(occlusion.target,contact,shotgun?occlusion.target.f.hp:loadout.def.damage)
+   if(occlusion.target)hit(occlusion.target,contact,shotgun||sniper?occlusion.target.f.hp:loadout.def.damage)
   }else{
    direction.subVectors(aimPoint,muzzle).normalize()
    right.crossVectors(direction,worldUp).normalize();up.crossVectors(right,direction)
@@ -50,8 +51,8 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
    const hits=new Map()
    for(const [x,y] of pattern){
     shotDirection.copy(direction).addScaledVector(right,x).addScaledVector(up,y).normalize()
-    const result=trace(muzzle,shotDirection,loadout.def.range)
-    contact.copy(muzzle).addScaledVector(shotDirection,result.distance)
+    const result=trace(muzzle,shotDirection,range)
+    contact.copy(muzzle).addScaledVector(shotDirection,Number.isFinite(result.distance)?result.distance:visualRange)
     if(!shotgun||!x||!y)effects?.trace(muzzle,contact)
     if(result.target||result.blocked){
      if(!x&&!y){
@@ -59,7 +60,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
       if(result.blocked)effects?.emit('sparks',contact.x,contact.y,contact.z,3)
      }
      if(result.target){
-      const amount=shotgun?pelletDamage(result.distance,loadout.def.damage):loadout.def.damage
+      const amount=sniper?result.target.f.hp:shotgun?pelletDamage(result.distance,loadout.def.damage):loadout.def.damage
       const earlier=hits.get(result.target)
       if(earlier)earlier.amount+=amount
       else hits.set(result.target,{point:contact.clone(),amount})
@@ -68,10 +69,10 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
    }
    for(const [n,event] of hits){
     const close=shotgun&&Math.hypot(n.pos.x-player.pos.x,n.pos.z-player.pos.z)<=2.4
-    hit(n,event.point,close?n.f.hp:Math.max(1,Math.round(event.amount)))
+    hit(n,event.point,close||sniper?n.f.hp:Math.max(1,Math.round(event.amount)))
    }
   }
-  effects?.muzzle(muzzle,shotgun?5:2)
+  effects?.muzzle(muzzle,sniper?8:shotgun?5:2)
   art.flash()
   onShot(loadout.selected);crowd.hearShot(player.pos,crowd.wanted.level>priorLevel)
  }
@@ -88,22 +89,24 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  }
  return {
   interrupt,
-  attack(){
+  attack(ready=false){
+   if(loadout.def.lethal&&!ready){toast('조준을 누른 상태에서 발사해.');return}
    if(!art.ready(loadout.selected)){toast(art.failed(loadout.selected)?'장비 모델을 불러오지 못했어':'장비를 준비하는 중');return}
    if(loadout.def.capacity&&!loadout.item.mag){
-    toast(loadout.item.reserve?'탄창이 비었어 · 재장전':'탄약 없음 · 부두 정문 안내에서 보급');return
+    toast(loadout.reloading?'재장전 중':loadout.item.reserve?'탄창이 비었어 · 재장전':'탄약 없음 · 부두 정문 안내에서 보급');return
    }
    if(loadout.selected==='bat'){
     if(loadout.use()){batConnected=false;hasPrevious=false}
    }else queued=loadout.selected
   },
-  update(dt,{active,aiming,speed,pitch}){
+  update(dt,{active,aiming,speed,pitch,prone=0,ready=false}){
+   pronePose=prone
    if(!active)interrupt()
    loadout.tick(dt)
-   const firing=queued===loadout.selected&&active&&loadout.use()
+   const firing=queued===loadout.selected&&active&&(!loadout.def.lethal||ready)&&loadout.use()
    queued=false
    art.update({dt,weapon:loadout.selected,hidden:!active,aiming:aiming||firing||loadout.recoil>.15,speed,
-    pitch,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress})
+    pitch,prone,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
    if(art.failed(loadout.selected)&&lastFailure!==loadout.selected){lastFailure=loadout.selected;toast('장비 모델을 불러오지 못했어 · 맨손으로 전환');loadout.select('fists')}
    impactTime-=dt
    if(impactTime<=0)impact.visible=false
