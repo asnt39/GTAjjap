@@ -3,7 +3,7 @@ import {archive,buildArchive,archivePrint} from './chart-room.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 
-export async function buildArchitecture(scene,addCollider){
+export async function buildArchitecture(scene,addCollider,surfaceMaps){
  const loader=new T.TextureLoader(),root='/assets/architecture/'
  const files=['factory_brick','grey_plaster','blue_plaster_weathered','worn_corrugated_iron','district_graphics']
  const [bench,maps]=await Promise.all([
@@ -12,6 +12,7 @@ export async function buildArchitecture(scene,addCollider){
  ])
  for(const m of maps){m.colorSpace=T.SRGBColorSpace;m.anisotropy=4}
  for(const m of maps.slice(0,4))m.wrapS=m.wrapT=T.RepeatWrapping
+ if(surfaceMaps)surfaceMaps.architecture=maps
  const walls=maps.slice(0,4).map(map=>new T.MeshStandardMaterial({map,roughness:.89}))
  const mat=(color,roughness=.72,metalness=.16)=>new T.MeshStandardMaterial({color,roughness,metalness})
  const trim=mat(0x65615b),iron=mat(0x343c3e,.63,.53),ledge=mat(0xa49d8c),roof=mat(0x424742),brick=mat(0x956952)

@@ -1,10 +1,12 @@
 import {Vector3,Frustum,Matrix4,Sphere,MathUtils} from 'three'
 import {createWanted} from './wanted.js'
+import {ARREST_REACH} from './custody.js'
 import {createCharacter} from './character.js'
 import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
 import {fighter,swing,injure,revive,advance,combatPose,contact} from './melee.js'
 
+import {residentLife} from './resident-life.js'
 import {people,residentHealth} from './resident-profiles.js'
 const cell=.92,clamp=MathUtils.clamp
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
@@ -30,28 +32,31 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  const officers=all.filter(n=>n.officer),wanted=createWanted()
  const responders=new Set()
  let sensing=0,observed=false
- const responding=n=>responders.has(n)&&n.f.hp>0
+ const responding=n=>responders.has(n)&&n.f.hp>0&&!n.policeOrder
  function dispatch(point){
   const count=wanted.level===3?2:1
-  for(const n of responders)if(!n.f.hp)responders.delete(n)
+  for(const n of responders)if(!n.f.hp||n.policeOrder)responders.delete(n)
   if(responders.size>=count)return
-  const nearby=officers.filter(n=>n.f.hp>0&&!responders.has(n))
+  const nearby=officers.filter(n=>n.f.hp>0&&!n.policeOrder&&!responders.has(n))
    .sort((a,b)=>distance(a.pos,point)-distance(b.pos,point))
   for(const n of nearby.slice(0,count-responders.size)){responders.add(n);n.replan=0}
  }
  const playerList=[],visibleSphere=new Sphere(new Vector3(),1.3),frustum=new Frustum(),viewProjection=new Matrix4()
  let talking=null,lastTalk='',shadowDirty=false
  const free=(p)=>canWalk(p.x,p.z,boxes,.31)&&!carAt(p.x,p.z,.32)
- function lineClear(a,b){
+ function lineClear(a,b,pass=free){
   const count=Math.ceil(distance(a,b)/.25)
-  for(let k=1;k<count;k++){const t=k/count;if(!free({x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t}))return false}
+  for(let k=1;k<count;k++){const t=k/count;if(!pass({x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t}))return false}
   return true
  }
- const blockedBy=(n,x,z)=>all.some(other=>other!==n&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
+ const staticFree=p=>canWalk(p.x,p.z,boxes,.35)
+ const life=residentLife(all,(a,b)=>staticFree(a)&&staticFree(b)&&lineClear(a,b,staticFree),lineClear)
+ const blockedBy=(n,x,z)=>all.some(other=>other!==n&&!other.policeOrder?.aboard&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
  // Small, local eight-neighbour flood search. Choose the reachable cell closest to the goal.
- function plan(n,goal,lane){
+ function plan(n,goal,lane,avoidPeople=false){
+  const pass=avoidPeople?p=>free(p)&&!blockedBy(n,p.x,p.z):free
   const gap=distance(n.pos,goal)
-  if(gap<12&&(!lane||n.pos.x>=lane[0]&&n.pos.x<=lane[1]&&goal.x>=lane[0]&&goal.x<=lane[1])&&free(goal)&&lineClear(n.pos,goal)){
+  if(gap<12&&(!lane||n.pos.x>=lane[0]&&n.pos.x<=lane[1]&&goal.x>=lane[0]&&goal.x<=lane[1])&&pass(goal)&&lineClear(n.pos,goal,pass)){
    n.path=gap>.23?[goal]:[]
    return
   }
@@ -64,8 +69,8 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     if(seen.has(key)||Math.abs(i)>11||Math.abs(j)>20)continue
     const p={i,j,x:origin.x+i*cell,z:origin.z+j*cell,prev:at}
     if(lane&&(p.x<lane[0]||p.x>lane[1]))continue
-    if(!free(p)){seen.add(key);continue}
-    if(!lineClear(at,p))continue
+    if(!pass(p)){seen.add(key);continue}
+    if(!lineClear(at,p,pass))continue
     seen.add(key);queue.push(p)
     const d=distance(p,goal);if(d<bestDistance){best=p;bestDistance=d}
    }
@@ -113,7 +118,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   movePlayer(p,Math.sin(n.face)*step,Math.cos(n.face)*step,boxes,occupied)
   const actual=Math.hypot(oldX-p.x,oldZ-p.z)
   n.stepping=actual/dt
-  if(actual<step*.25){n.blocked+=dt;if(n.blocked>.55){n.path=[];n.wait=.4+Math.random();n.replan=0;n.blocked=0}}
+  if(actual<step*.25){n.blocked+=dt;if(n.blocked>.55){if(n.state==='routine')n.avoidUntil=n.age+1.1;n.path=[];n.wait=.4+Math.random();n.replan=0;n.blocked=0}}
   else n.blocked=0
  }
  function candidate(p){
@@ -123,7 +128,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  }
  function endTalk(){if(talking){talking.talk=0;talking.state='idle';talking.wait=1;talking=null}lastTalk=''}
  function beginTalk(n){
-  endTalk();talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
+  endTalk();life.cancelGreeting(n);talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
  }
  function hearShot(source,reported=false){
   // React once per game sound. Reuse the normal flee and patrol states.
@@ -139,7 +144,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
   if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
-  endTalk()
+  life.cancelGreeting(n);endTalk()
   if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
    wanted.report(source,n.officer||!n.f.hp?2:1)
    dispatch(source);sensing=0
@@ -147,6 +152,15 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   n.state='react';n.stunX=-Math.sin(angle);n.stunZ=-Math.cos(angle);n.alert=n.temper==='defend'?7:5;n.path=[];n.replan=0
   for(const other of all)if(other!==n&&distance(other.pos,n.pos)<5&&!other.f.action){other.alert=Math.max(other.alert,2);other.state='watch'}
   return true
+ }
+ function takePursuit(n){
+  const count=wanted.level===3?2:1
+  if(responders.has(n))return
+  if(responders.size>=count){
+   const far=[...responders].sort((a,b)=>distance(b.pos,n.pos)-distance(a.pos,n.pos))[0]
+   far.path=[];far.replan=0;responders.delete(far)
+  }
+  responders.add(n);n.replan=0
  }
  function update(dt,camera,player,hitPlayer,onOutcome){
   if(dt<=0)return
@@ -163,9 +177,11 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
      return lineClear(n.pos,end)
     })
    }
-   const near=player.available&&officers.some(n=>responding(n)&&!n.f.action&&distance(n.pos,player.pos)<1.65&&lineClear(n.pos,player.pos))
-   const outcome=wanted.tick(dt,player.pos,observed,near)
-   if(outcome)onOutcome?.(outcome)
+   const reach=wanted.level===1||player.legacyArrest?1.65:ARREST_REACH
+   const contact=player.available&&!player.inVehicle&&officers.find(n=>
+    responding(n)&&!n.f.action&&distance(n.pos,player.pos)<reach&&lineClear(n.pos,player.pos))
+   const outcome=wanted.tick(dt,player.pos,observed||player.squadObserver||!!contact,contact?.id,player.legacyArrest)
+   if(outcome)onOutcome?.(outcome,contact)
   }
   if(!wanted.level&&responders.size){
    for(const n of responders){n.alert=0;n.path=[];n.speed=0}
@@ -173,7 +189,9 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   }
   viewProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(viewProjection)
   shadowDirty=false
+  life.social(dt,player.pos,n=>fleet.some(vehicle=>Math.abs(vehicle.speed)>1&&distance(n.pos,vehicle)<5))
   for(const n of all){
+   if(n===player.custodyOfficer||n.policeOrder?.aboard)continue
    const p=n.pos,d=distance(p,player.pos),priorFace=n.face
    visibleSphere.center.set(p.x,p.y+1,p.z)
    const visible=frustum.intersectsSphere(visibleSphere)
@@ -185,14 +203,18 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     for(const mesh of n.shadowMeshes)mesh.castShadow=castsShadow
     shadowDirty=true
    }
-   if(n.officer&&d>44&&!responding(n)&&!n.f.action){
+   if(n.officer&&d>44&&!responding(n)&&!n.policeOrder&&!n.f.action){
     if(n.stepping){n.rig.update(.12,0);n.stepping=n.speed=0}
     continue
    }
    n.accum+=dt
-   const interval=d<7?0:visible?(d<25?1/30:.125):.45
+   const civilianRound=life.has(n)
+   const interval=d<7?0:visible?(civilianRound?(d<25?1/35:.065):d<25?1/30:.125):.45
    if(n.accum<interval*(n.age===0?.55+.45*n.stagger:1))continue
-   const tick=Math.min(n.accum,.45);n.accum=0;n.age+=tick;n.replan-=tick;n.stepping=0;n.alert=Math.max(0,n.alert-tick)
+   // Do not fast-forward a walking resident when a camera turn brings them into view.
+   const visibleRound=visible&&civilianRound&&!n.f.action&&!n.alert
+   const tick=Math.min(n.accum,visibleRound?.085:.45)
+   n.accum=0;n.age+=tick;n.replan-=tick;n.stepping=0;n.alert=Math.max(0,n.alert-tick)
    advance(n.f,tick)
    const traffic=fleet.find(vehicle=>Math.abs(vehicle.speed)>1&&distance(p,vehicle)<5)
    const blockingCar=carAt(p.x,p.z,.30)
@@ -205,12 +227,18 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     if(clear){p.x=clear.x;p.z=clear.z;n.path=[];n.replan=0}
    }
    const toward=Math.atan2(player.pos.x-p.x,player.pos.z-p.z)
+   let nod=0
    if(n.f.action==='down'){
     if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
     movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
-   else if(wanted.level&&responding(n)){
+   else if(n.policeOrder){
+    if(talking===n)endTalk()
+    n.state='guard'
+    if(n.replan<=0){plan(n,n.policeOrder.target,null);n.replan=.6}
+    walkPath(n,tick,2.7,player.pos)
+   }else if(wanted.level&&responding(n)){
     if(talking===n)endTalk()
     n.state='guard'
     if(n.replan<=0){
@@ -234,17 +262,42 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     if(n.replan<=0||!n.path.length)escape(n,traffic);walkPath(n,tick,3.9,player.pos)
    }else if(d<2.25&&player.available){
     n.state='look';turn(n,toward,tick);n.wait=1
+   }else if(civilianRound){
+    const greeting=life.greeting(n)
+    if(greeting){
+     n.state='greet';n.activity='greet';n.path=[]
+     turn(n,Math.atan2(greeting.partner.pos.x-p.x,greeting.partner.pos.z-p.z),tick)
+     nod=greeting.nod
+    }else{
+     const next=life.next(n,tick)
+     if(next?.target){
+      if(n.state!=='routine'||n.routeTarget!==next.target.id||!n.path.length&&n.replan<=0){
+       plan(n,next.target,null,n.avoidUntil>n.age)
+       n.replan=.65;n.routeTarget=next.target.id
+      }
+      n.state='routine';n.activity=next.activity
+      walkPath(n,tick,n.id==='regular'?1.24:n.pace,player.pos)
+     }else{
+      n.state='dwell';n.activity=next?.activity??'idle';n.path=[]
+      const look=next?.look??n.face
+      turn(n,look+Math.sin(n.age*1.3)*.16,tick)
+      if(next&&['work','check','inspect','shop'].includes(next.activity))nod=.32*(.5+.5*Math.sin(n.age*1.8))
+     }
+    }
    }else{
     if(n.state!=='idle'&&n.state!=='walk'){n.state='idle';n.path=[];n.wait=.8}
     if(n.state==='walk'&&n.path.length)walkPath(n,tick,n.pace,player.pos)
     else{if(n.state==='walk'){n.state='idle';n.wait=1.6+Math.random()*4}
      n.wait-=tick;turn(n,n.face+Math.sin(n.age*.85)*.13,tick);if(n.wait<=0)wander(n)}
    }
+   if(civilianRound&&!['routine','dwell','greet'].includes(n.state)){
+    life.suspend(n);n.activity=n.state
+   }
    if(!n.stepping&&n.state!=='walk'&&n.state!=='flee')n.speed=0
    p.y=surfaceHeight(p);n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
    if(visible||d<5){
     n.rig.update(tick,n.stepping,{...combatPose(n.f,n.state==='guard'||n.state==='watch'),
-     guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick})
+     guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick,nod})
     if(n.f.action==='punch'&&player.available){
      playerList[0]=player
      contact(n.f,n.rig,p,playerList,lineClear,(_,zone,point)=>hitPlayer(n,zone,point))
@@ -253,6 +306,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }
   }
  }
- return {all,officers,wanted,candidate,beginTalk,endTalk,receive,hearShot,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

@@ -2,7 +2,7 @@ import {createServer} from 'node:http'
 import {randomBytes} from 'node:crypto'
 import {WebSocketServer, WebSocket} from 'ws'
 import {vehicles} from '../src/vehicles.js'
-import {spawn,inDistrict} from '../src/navigation.js'
+import {spawn,inDocklands} from '../src/navigation.js'
 import {clearPose,doorPoint,overlapsCar} from '../src/driving.js'
 import {MAX_PLAYERS,TICK_MS,MESSAGE_BYTES,ROOM_PATH,ROOM_CODE,packPlayer,packVehicle,unpackPlayer,unpackVehicle,wrapAngle} from '../src/room-protocol.js'
 
@@ -10,7 +10,7 @@ const newToken=bytes=>randomBytes(bytes).toString('hex')
 const freshPlayer=(x=spawn.x,z=spawn.z)=>({x,z,y:0,face:Math.PI,speed:0,jump:null,land:0,visible:true,crouch:0,reach:0,side:0})
 const between=(value,min,max)=>typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max
 // Extend the existing coarse validation only where the new street joins Portside.
-const validMapPoint=(x,z)=>between(x,-97,26)&&between(z,-102,59)&&(x>=-36||inDistrict(x,z))
+const validMapPoint=(x,z)=>between(x,-97,26)&&between(z,-102,59)&&(x>=-36||inDocklands(x,z))
 const isSide=value=>value===1||value===-1
 const isOriginAllowed=(origin,allowed)=>{
  if(allowed.length)return allowed.includes(origin)
@@ -39,7 +39,7 @@ export function createRoomServer({origins=[],graceMs=25000}={}){
   car.owner=null;car.speed=car.accel=car.steer=car.door=0;car.braking=false
   if(placeOutside){
    const candidates=[doorPoint(car,player.side,.68),doorPoint(car,-player.side,.68)]
-   const door=candidates.find(p=>inDistrict(p.x,p.z,.32))??spawn
+   const door=candidates.find(p=>inDocklands(p.x,p.z,.32))??spawn
    player.pose=freshPlayer(door.x,door.z)
   }else Object.assign(player.pose,{visible:true,crouch:0,reach:0,side:0})
   player.car=null
@@ -122,7 +122,7 @@ export function createRoomServer({origins=[],graceMs=25000}={}){
   const next={...car,...v}
   if(Math.hypot(car.x-v.x,car.z-v.z)>car.top*elapsed+.55||
    Math.abs(wrapAngle(v.heading-car.heading))>2.7*elapsed+.19||
-   (!clearPose(next,[])&&clearPose(car,[]))||
+   (!clearPose(next,[],false)&&clearPose(car,[],false))||
    Object.values(room.cars).some(other=>other!==car&&overlapsCar(next,other)&&!overlapsCar(car,other))){
    send(ws,{t:'correction',car:player.car,pose:packVehicle(car)});return
   }

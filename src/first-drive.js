@@ -11,6 +11,7 @@ export function firstDrive(car){
   get active(){return stage>=-1},
   get completed(){return completed},
   start(isDriving){stage=isDriving?0:-1},
+  cancel(){stage=-2},
   board(){if(stage===-1)stage=0},
   tick(driving){
    if(!driving||stage<0||stage>=stops.length)return

@@ -4,7 +4,7 @@
 }
 #equipment-hud button,#gear-status {
  border:1px solid #bdc7c34d; border-radius:3px; padding:7px 10px;
- color:#f5f2e9; background:#15232be8; font:600 13px 'Barlow',sans-serif;
+ color:#f5f2e9; background:#15232be8; font:600 13px var(--game-font);
 }
 #gear-status {order:-1; font-variant-numeric:tabular-nums}
 #equipment-hud button:hover,#equipment-hud [aria-pressed=true] {border-color:#ff8147}

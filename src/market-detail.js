@@ -1,6 +1,7 @@
 import {loadPortProp} from './port-props.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
+import {marketEntrance} from './old-town-plan.js'
 import {premises,front} from './market-plan.js'
 
 // Batch fixed fittings by material; unloading releases district-owned GPU resources.
@@ -51,7 +52,9 @@ export async function marketDetail(){
  }
  const metal=mat(0x324041),wood=mat(0x916d4c),linen=mat(0xdcccad),stripe=mat(0xd7c093),glass=mat(0x718b90,{metalness:.55}),paper=mat(0xc6bd98)
  box(-68,-.008,-37,56,.018,12,mat(0xaaaaaa,{map:maps[3]}))
- for(const z of [-44.5,-29])box(-68,.045,z,56,.07,z===-29?4:3,mat(0xc3bab0,{map:maps[4]}))
+ const sidewalk=mat(0xc3bab0,{map:maps[4]})
+ box(-68,.045,-44.5,56,.07,3,sidewalk)
+ for(const [a,b] of [[-96,marketEntrance[0]],[marketEntrance[1],-40]])box((a+b)/2,.045,-29,b-a,.07,4,sidewalk)
  for(let x=-42;x>-95;x-=5)box(x,.012,-37,2,.018,.1,stripe)
  for(const [i,p] of premises.entries()){
   const facade=mat(0xffffff,{map:maps[i]}),glow=mat(p.light,{emissive:p.light,emissiveIntensity:.9})

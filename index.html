@@ -35,7 +35,11 @@
 </div><i id="gear-reticle" aria-hidden="true" hidden></i>
 <div id="touch"><div id="stick" aria-label="이동 조이스틱"><i></i></div><div id="pedals"><button data-pedal="hold">주차<br>브레이크</button><button data-pedal="brake">제동<br>후진</button><button data-pedal="gas">가속</button></div><button id="punch" class="foot-action" aria-label="주먹 공격">공격</button><button id="jump" class="foot-action" aria-label="점프">점프</button></div>
 <button id="interact" hidden><kbd>E</kbd><span></span></button><div id="toast" aria-live="polite"></div>
-<aside id="conversation" aria-live="polite" hidden><header><strong></strong><small></small></header><p class="spoken"></p></aside><div id="vitals" hidden><b></b><span></span></div>
+<aside id="conversation" aria-labelledby="speaker-name" hidden>
+ <header><div><strong id="speaker-name"></strong><small></small></div><button id="dialogue-close" type="button" aria-label="대화 마치기">×</button></header>
+ <p class="spoken" aria-live="polite"></p>
+ <div class="episode-choices" role="group" aria-label="대화 선택지"></div>
+</aside><div id="vitals" hidden><b></b><span></span></div>
 <div id="overlay" hidden><section id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title"><div class="panel-heading"><small id="eyebrow">HARBORLINE</small><button id="close" class="icon-button" aria-label="닫기">×</button></div><h1 id="panel-title"></h1><div id="panel-body"></div></section></div>
 </main>
 <div id="status" role="status" aria-hidden="true"><img src="/assets/intro/loading-logo.png" width="70" height="50" alt=""><b>부두를 불러오는 중</b></div>

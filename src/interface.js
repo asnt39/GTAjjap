@@ -1,5 +1,6 @@
 import {gear} from './equipment.js'
 import './equipment.css'
+import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
 import {drawMap} from './cartography.js'
 import {defaultRoomEndpoint} from './room-client.js'
@@ -55,7 +56,9 @@ export function createUI(game){
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
- const story=episodeUI(game,toast)
+ const story=episodeUI(game)
+ const conversation=$('#conversation'),dialogueClose=$('#dialogue-close')
+ dialogueClose.onclick=()=>game.crowd.endTalk()
  const missionGoal=()=>story.goal(game.driving()&&game.car.id==='touring')
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
@@ -90,7 +93,7 @@ export function createUI(game){
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
   if(name==='rooms')updateRoom()
   if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
-  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Barlow 글꼴','fonts/OFL-Barlow.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
+  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  let roomForm,code=''
@@ -187,10 +190,12 @@ export function createUI(game){
   $('#punch').setAttribute('aria-label',gun?'발사':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
   $('#jump').disabled=!game.canAct()||!!game.crowd.talking
   $('#punch').disabled=game.mode()!=='walk'||game.foot.air||game.player.f.action==='down'
-  const dialogue=game.crowd.dialogue,box=$('#conversation')
+  const dialogue=game.crowd.dialogue,box=conversation
+  const opened=!!dialogue&&!panel&&(box.hidden||box.inert)
   if(dialogue&&!panel){
    box.hidden=false;box.inert=false;box.classList.remove('leaving')
   }else if(!box.hidden&&!box.inert){
+   if(box.contains(document.activeElement))$('#world').focus({preventScroll:true})
    box.inert=true;box.classList.add('leaving')
    setTimeout(()=>{if(box.inert)box.hidden=true},140)
   }
@@ -199,6 +204,7 @@ export function createUI(game){
   }
   document.body.classList.toggle('speaking',!!dialogue&&!panel)
   story.dialogue(dialogue?.text)
+  if(opened)(box.querySelector('.episode-choices button')??dialogueClose).focus({preventScroll:true})
   const target=game.feedback(),health=$('#vitals')
   health.hidden=panel||driving||(!target&&game.player.f.hp===100)
   if(!health.hidden){
@@ -211,7 +217,7 @@ export function createUI(game){
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

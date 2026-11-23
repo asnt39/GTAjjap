@@ -1,4 +1,5 @@
 import {marketAccess,marketSights} from './market-plan.js'
+import {inOldTown} from './old-town-plan.js'
 import {archiveAccess} from './chart-room.js'
 export const spawn = { x:-3.4, z:25 }
 export const sights = [
@@ -6,13 +7,14 @@ export const sights = [
  {x:14,z:-16,tag:'02',title:'West Quay',name:'서부 부두 안내',body:'이곳에선 선박과 육상 야드를 잇는 주황색 갠트리 크레인을 가까이 볼 수 있어. 강 건너편으로는 항구의 오래된 산업 지대가 보여.'},
  {x:-8.6,z:-38,tag:'03',title:'Market Crossing',name:'시장 교차로 안내',body:'수산물 상점과 창고가 모이는 교차로야. 대로를 따라 남쪽으로 돌아가면 다시 부두 정문에 닿아.'}
 ].concat(marketSights)
-export function inDistrict(x,z,r=0){
+export function inDocklands(x,z,r=0){
  if(marketAccess(x,z,r))return true
  if(z < -101+r || z>58-r || x>25.3-r) return false
  if(x < -10.5+r && !archiveAccess(x,z,r) && (z < -42.7+r || z > -31.3-r || x < -36+r))return false
  if(x>10.7-r && (z< -63+r || z>35-r))return false
  return true
 }
+export const inDistrict=(x,z,r=0)=>inDocklands(x,z,r)||inOldTown(x,z,r)
 export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  if(!inDistrict(x,z,r))return false
  return !boxes.some(b=>{
@@ -22,10 +24,16 @@ export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  })
 }
 export function movePlayer(pos,dx,dz,boxes,occupied,feet=-Infinity){
+ if(!dx&&!dz)return
  const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.19))
+ const stepX=dx/n,stepZ=dz/n
+ const clear=(x,z)=>canWalk(x,z,boxes,.32,feet)&&!occupied?.(x,z)
  for(let i=0;i<n;i++){
-  if(canWalk(pos.x+dx/n,pos.z,boxes,.32,feet)&&!occupied?.(pos.x+dx/n,pos.z))pos.x+=dx/n
-  if(canWalk(pos.x,pos.z+dz/n,boxes,.32,feet)&&!occupied?.(pos.x,pos.z+dz/n))pos.z+=dz/n
+  if(clear(pos.x+stepX,pos.z+stepZ)){pos.x+=stepX;pos.z+=stepZ;continue}
+  if(stepX&&stepZ){
+   if(clear(pos.x+stepX,pos.z))pos.x+=stepX
+   if(clear(pos.x,pos.z+stepZ))pos.z+=stepZ
+  }
  }
 }
 // A shallow footprint lets a foot remain supported until it steps away from an edge.

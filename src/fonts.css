@@ -1,21 +1,16 @@
+/* The self-hosted subset covers the characters in the shipped HUD and dialogue. */
 @font-face {
-  font-family: 'Barlow';
+  font-family: 'Noto Sans KR';
   font-style: normal;
-  font-weight: 600;
+  font-weight: 400 800;
   font-display: swap;
-  src: url(/assets/fonts/Barlow-normal-600.ttf) format('truetype');
+  src: url(/assets/fonts/NotoSansKR-HUD.woff2) format('woff2');
 }
+:root { --game-font: 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif; }
 @font-face {
   font-family: 'Barlow Condensed';
   font-style: italic;
   font-weight: 900;
   font-display: swap;
   src: url(/assets/fonts/Barlow-Condensed-italic-900.ttf) format('truetype');
-}
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url(/assets/fonts/Barlow-Condensed-normal-600.ttf) format('truetype');
 }

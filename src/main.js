@@ -1,6 +1,12 @@
 import * as THREE from 'three'
 import {createLoadout} from './equipment.js'
 import {equipmentPlay} from './equipment-play.js'
+import {policeChase} from './police-chase.js'
+import {buildPoliceStation} from './police-station.js'
+import {createCustody,station,atStation} from './custody.js'
+import {custodyPresentation} from './custody-presentation.js'
+import {buildOldTown} from './old-town.js'
+import {useTownDriveMask,oldTownHeight} from './old-town-plan.js'
 import {buildMarket} from './market.js'
 import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
@@ -50,7 +56,8 @@ export async function start(onContextLost){
  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
  const sunlight=illumination(scene);beacons(scene,addCollider);districtGates(scene,addCollider)
- const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider),buildArchitecture(scene,addCollider),sky(scene,renderer)])
+ const surfaceMaps={}
+ const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
   const lines=[],point=(x,y,z)=>new THREE.Vector3(x,y,z)
@@ -64,6 +71,9 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
+ const updateStation=buildPoliceStation(scene,addCollider)
+ const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
  const surfaces=boxes.filter(box=>box[5])
  const updateVisibility=archiveVisibility(scene,camera)
@@ -75,15 +85,45 @@ export async function start(onContextLost){
  const playerMeshes=[]
  char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=false}})
  const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,vehicles[id]),id,door:0}]))
- const fleet=Object.values(cars),mission=firstDrive(cars.touring),pedals=new Set()
+ const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
- const crowd=await createResidents(scene,boxes,cars.touring,fleet,p=>groundHeight(p.x,p.z))
+ const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
+ const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode()
+ const custody=createCustody({
+  admit(){
+   const officer=custody.officer
+   officer.rig.root.rotation.y=officer.face
+   officer.rig.update(0,0)
+   player.custodyOfficer=null
+   revive(player.f)
+   resetWalk(station.cell.x,station.cell.z,0);yaw=Math.PI
+  },
+  release(){
+   const safe=[station.release,{x:-94.7,z:-43.5},{x:-91.7,z:-43.5},safeSpawn]
+    .find(point=>canWalk(point.x,point.z,boxes)&&!occupied(point.x,point.z))??safeSpawn
+   resetWalk(safe.x,safe.z,0);yaw=Math.PI
+   crowd.wanted.clear();ui.toast('석방 · 타이드 마켓 경찰서')
+  }
+ })
+ function beginCustody(officer){
+  if(room.phase!=='offline'||!officer){respawn(true);return}
+  if(!custody.begin(officer))return
+  custodyView.begin(officer,pos)
+  player.custodyOfficer=officer
+  officer.path=[];officer.speed=0;officer.rig.root.visible=true
+  clearControls();crowd.endTalk()
+  player.f.action='';player.f.elapsed=0;focus=null;feedbackTime=0
+  const failed=episode.fail('체포로 의뢰 중단')
+  if(mission.active||failed)ui.toast('의뢰 중단 · 석방 후 다시 시작할 수 있어')
+  mission.cancel()
+  mode='custody'
+ }
  let coffee=0
  function useItem(id){
   const result=episode.use(id,player.f)
@@ -97,7 +137,7 @@ export async function start(onContextLost){
  const loadout=createLoadout(storage)
  let aiming=false
  const armed=()=>loadout.selected!=='fists'
- const equipment=equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadout,
+ const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
  function selectEquipment(id){
   if(mode!=='walk'||crowd.talking||player.f.action||!loadout.select(id))return false
@@ -106,7 +146,7 @@ export async function start(onContextLost){
  function reloadEquipment(){
   if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action)loadout.reload()
  }
- const occupied=(x,z)=>fleet.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
+ const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
   for(const n of crowd.all){
@@ -119,7 +159,7 @@ export async function start(onContextLost){
   return nearest
  }
  function attack(){
-  if(mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
+  if(custody.active||mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
   crowd.endTalk()
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
@@ -131,7 +171,7 @@ export async function start(onContextLost){
  function hitPlayer(n,zone,point){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
-  if(!injure(player.f,16,side,zone,{responseWindow:.65}))return false
+  if(custody.active||!injure(player.f,16,side,zone,{responseWindow:.65}))return false
   equipment.interrupt();aiming=false;crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(arrested=false){
@@ -147,7 +187,7 @@ export async function start(onContextLost){
   clearControls();crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
- const canAct=()=>!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
+ const canAct=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
  function jump(){if(canAct()&&!crowd.talking)foot.jump()}
  const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
@@ -158,7 +198,7 @@ export async function start(onContextLost){
   if(candidate)return candidate.car.setup.name+' 탑승'
   const resident=talkCandidate();return resident?resident.name+' · 대화':''
  }
- const blockedByCar=(vehicle,x,z)=>fleet.some(other=>vehicle!==other&&nearBody(other,x,z))
+ const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function nearestDoor(){
   if(pos.y-groundHeight(pos.x,pos.z)>.16)return null
@@ -173,7 +213,7 @@ export async function start(onContextLost){
  }
  function startTransition(destination,next){
   mode=next;clearControls()
-  car.speed=car.travel=car.accel=0;car.braking=false
+  car.speed=car.travel=car.accel=car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
   lastSide=destination.side
   transition={time:0,from:{x:pos.x,z:pos.z},door:destination.door,side:lastSide,
    x:car.x,z:car.z,heading:car.heading,face}
@@ -309,16 +349,17 @@ export async function start(onContextLost){
   },
   correction(id,pose){
    if(localSeat!==id)return
-   Object.assign(cars[id],pose,{remainder:0,travel:0})
+   Object.assign(cars[id],pose,{remainder:0,travel:0,throttle:0,shiftDelay:0})
   }
  })
  function startRoom(endpoint,request){
+  if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
- window.addEventListener('keydown',e=>{if(crowd.talking||isPaused||document.querySelector('#game').inert)return;
+ window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
    const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat'}[e.code]
    if(slot){if(loadout.items[slot])selectEquipment(slot);else ui.show('equipment');return}
@@ -345,9 +386,9 @@ export async function start(onContextLost){
    clickOrigin=null
   }
  })
- canvas.onpointerdown=e=>{if(isPaused||crowd.talking)return;
+ canvas.onpointerdown=e=>{if(isPaused||crowd.talking||custody.locked)return;
   if(drag)return;canvas.focus();canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY}}
- canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
+ canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused||custody.locked)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
  window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===2)aiming=false});
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
@@ -358,7 +399,7 @@ export async function start(onContextLost){
   b.onlostpointercapture=e=>{ids.delete(e.pointerId);if(!ids.size){pedals.delete(b.dataset.pedal);b.classList.remove('held')}}
  }
  let stickId=null
- stick.onpointerdown=e=>{if(stickId!==null||crowd.talking)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
+ stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
  const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
@@ -372,10 +413,11 @@ export async function start(onContextLost){
   const arm=(aiming?Math.min(distance,2.7):distance)+cameraBlend*car.setup.camera,tilt=pitch+cameraBlend*.115-loadout.recoil*.012
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
-  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+car.setup.cameraHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
+  const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
+  anchor.set(pos.x+.26*cs*(1-cameraBlend),(followHeight+1.54)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+.26*sn*(1-cameraBlend))
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
-  for(const vehicle of fleet){
+  for(const vehicle of traffic){
    if(vehicle===car&&mode!=='walk')continue
    const a=localPoint(vehicle,anchor.x,anchor.z),b=localPoint(vehicle,eye.x,eye.z)
    fraction=Math.min(fraction,cameraFraction({...a,y:anchor.y},{...b,y:eye.y},[[-vehicle.width/2,vehicle.width/2,-vehicle.length/2,vehicle.length/2,vehicle.height]]))
@@ -383,9 +425,9 @@ export async function start(onContextLost){
   if(anchor.x<archive.front && archiveAccess(pos.x,pos.z,0) && eye.y>archive.ceiling-.16){
    fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
   }
-  if(insidePremises(pos.x,pos.z)&&eye.y>3.36&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,(3.36-anchor.y)/(eye.y-anchor.y)))
-  const room=arm*fraction
-  actualArm=initial?room:room<actualArm?room:damp(actualArm,room,8,dt)
+  if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
+  const availableArm=arm*fraction
+  actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
@@ -393,8 +435,10 @@ export async function start(onContextLost){
  }
  positionCamera(0,true)
  function groundHeight(x,z){
+  if(useTownDriveMask(x,z))return oldTownHeight(x,z)
+  if(atStation(x,z))return .092
   if(insidePremises(x,z))return .052
-  if(x< -40 && z< -43 && z> -46)return .082
+  if((x< -40 && z< -43 && z> -46)||(x< -40 && z> -31 && z< -27))return .082
   if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
   const lane=Math.abs(x)
   const edge=Math.min(lane-6,10.9-lane,Math.max(-43-z,z+31))
@@ -418,16 +462,22 @@ export async function start(onContextLost){
   })
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
+   if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
    coffee=Math.max(0,coffee-dt)
    advance(player.f,dt);feedbackTime=Math.max(0,feedbackTime-dt)
    if(player.f.action==='down'&&player.f.downTime>3.2)respawn()
    let speed=0
-   if(transition){updateTransition(dt)}
+   custody.update(dt);custodyView.update(custody)
+   if(custody.officer){
+    custodyView.pose(dt,custody,actor,custody.officer);walkSpeed=0
+    renderer.shadowMap.needsUpdate=true
+   }else if(custody.locked){walkSpeed=0}
+   else if(transition){updateTransition(dt)}
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
-    stepDrive(car,input,boxes,realDt,fleet);speed=Math.abs(car.speed)
+    stepDrive(car,input,boxes,dt,traffic,room.phase==='offline');speed=Math.abs(car.speed)
     pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
@@ -435,7 +485,7 @@ export async function start(onContextLost){
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=pace*(coffee>0&&pace>1.85?1.15:1)
+   const rate=(custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
@@ -449,7 +499,7 @@ export async function start(onContextLost){
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
    const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     insidePremises(pos.x,pos.z)?3.44:Infinity
+     atStation(pos.x,pos.z)?station.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
    foot.advance(dt,floor,roomCeiling-player.height)
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
@@ -470,27 +520,34 @@ export async function start(onContextLost){
    })
    }
    for(const vehicle of fleet){
-    rigs[vehicle.id].updatePose({...vehicle,dt})
+    rigs[vehicle.id].updatePose({...vehicle,dt,lift:room.phase==='offline'?vehicle.lift:0})
     vehicle.travel=0;vehicle.impact=0
    }
    if(!transition&&mode==='walk')walkSpeed=speed
    else if(driving())walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
-   player.available=mode==='walk'&&player.f.hp>0&&!foot.air
+   player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
    const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
-   crowd.update(dt,camera,player,hitPlayer,outcome=>{
-    if(outcome==='arrest')respawn(true)
+   player.legacyArrest=room.phase!=='offline'
+   const police=squads.update(dt,pos,player.inVehicle,crowd.wanted,!player.legacyArrest)
+   player.squadObserver=police.observed
+   remoteShadow ||= police.moving
+   crowd.update(dt,camera,player,hitPlayer,(outcome,officer)=>{
+    if(outcome==='arrest')beginCustody(officer)
     else ui.toast(outcome==='warning'?'항만 경찰 · 경고 후 조사 종료':'수배 해제')
    })
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.x-trackedX)>10||Math.abs(pos.z-trackedZ)>10){trackedX=pos.x;trackedZ=pos.z;sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
    const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
-   positionCamera(dt);const districtChanged=market.update(pos);if(updateVisibility()||districtChanged)renderer.shadowMap.needsUpdate=true
+   if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
+   else positionCamera(dt)
+   const districtChanged=market.update(pos),stationChanged=updateStation(pos)
+   if(updateVisibility()||districtChanged||stationChanged)renderer.shadowMap.needsUpdate=true
    camera.updateMatrixWorld()
-   equipment.update(dt,{active:mode==='walk'&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
+   equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
     speed,pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){
