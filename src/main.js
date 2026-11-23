@@ -13,6 +13,7 @@ import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
+import {firstWorkRoadblock} from './first-work-roadblock.js'
 import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,clearPath} from './driving.js'
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
@@ -97,7 +98,9 @@ export async function start(onContextLost){
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
- const episode=createEpisode()
+ const episode=createEpisode({canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
+ const setFirstWorkRoadblock=firstWorkRoadblock(scene,boxes)
+ setFirstWorkRoadblock(episode.roadClosed)
  const custody=createCustody({
   admit(){
    const officer=custody.officer
@@ -363,9 +366,10 @@ export async function start(onContextLost){
  function startRoom(endpoint,request){
   if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
+  if(episode.openingActive){ui.toast('첫 일거리를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
@@ -537,7 +541,7 @@ export async function start(onContextLost){
    else if(driving())walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
    player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
-   const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring})
+   const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring,speed})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
@@ -565,7 +569,8 @@ export async function start(onContextLost){
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
    const districtChanged=market.update(pos),stationChanged=updateStation(pos)
-   if(updateVisibility()||districtChanged||stationChanged)renderer.shadowMap.needsUpdate=true
+   const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
+   if(updateVisibility()||districtChanged||stationChanged||roadChanged)renderer.shadowMap.needsUpdate=true
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
     speed,pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})

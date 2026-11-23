@@ -15,6 +15,17 @@ const shop = person('merchant')
 const supervisor = person('foreman')
 const engineer = person('engineer')
 
+export const firstWork = {
+  id:'first-work', title:'첫 일거리', reward:2500, contact:dock,
+  steps:[
+    {goal:{vehicle:true,x:4.92,z:12}, objective:'Touring에 탑승해.', reply:'북부 하역장에 정차해서 봉인 상자를 받아.'},
+    {goal:{x:1.5,z:-82,radius:5}, stop:true, objective:'북부 하역장에 정차해 상자를 받아.', reply:'상자를 실었다. 브레이크워터 대로를 타고 구시가지로 가.'},
+    {goal:{x:0,z:60,radius:5}, objective:'브레이크워터 구시가지 진입로로 가.', reply:'항만 검문으로 대로가 막혔어. 타이드 마켓 남쪽 진입로로 돌아가.'},
+    {goal:{x:-68,z:-22,radius:5}, roadClosed:true, objective:'타이드 마켓을 통해 구시가지에 들어가.', reply:'검문을 우회했어. 구시가지 남쪽 거리에서 차를 세워.'},
+    {goal:{x:-52,z:109,radius:4.5}, stop:true, roadClosed:true, objective:'구시가지 남쪽 거리에 정차해 상자를 넘겨.', reply:'첫 일거리 완료. 상자의 봉인 번호가 출항 명부에서 통째로 지워져 있어.'}
+  ]
+}
+
 export const missions = [
   {
     id:'delivery', title:'물때표 배달', reward:3500,

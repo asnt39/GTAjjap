@@ -6,6 +6,7 @@ import {buildOldTown} from '../src/old-town.js'
 import {buildStreet} from '../src/street.js'
 import {buildArchitecture} from '../src/architecture.js'
 import {districtGates} from '../src/atmosphere.js'
+import {firstWorkRoadblock} from '../src/first-work-roadblock.js'
 import {marketCollision} from '../src/market-plan.js'
 import {stationColliders} from '../src/custody.js'
 import {clockCourt,oldTownHeight,townRoadSurface} from '../src/old-town-plan.js'
@@ -123,3 +124,25 @@ assert(!canWalk(-68,-27.7,boxes))
 town(true,{x:0,z:48})
 assert(clearPose({...northbound,z:56},boxes))
 assert(canWalk(-68,-27.7,boxes))
+
+const setRoadblock=firstWorkRoadblock(model,boxes)
+const barrier=model.getObjectByName('Breakwater temporary road closure')
+const noClosure=boxes.length
+const start={...vehicles.touring,x:0,z:65,heading:Math.PI}
+const direct={...start,z:74}
+assert(!barrier.visible)
+assert(clearPose(direct,boxes,true,true))
+assert(setRoadblock(true))
+assert(!setRoadblock(true))
+assert.equal(boxes.length,noClosure+1)
+assert(barrier.visible)
+assert(clearPose(start,boxes,true,true))
+for(const x of [-6,0,6])assert(!clearPose({...direct,x},boxes,true,true))
+const toCheckpoint=drive(vehicles.touring,[[0,-76],[0,60]])
+const detour=drive(vehicles.touring,[[0,60],[0,-37],[-68,-37],[-68,109],[-52,109]])
+assert(detour.car.x>-53.5&&safeExit(detour.car,boxes))
+assert(setRoadblock(false))
+assert(!barrier.visible)
+assert.equal(boxes.length,noClosure)
+assert(clearPose(direct,boxes,true,true))
+console.log('First Work physical checkpoint and detour passed in',Math.round(toCheckpoint.seconds+detour.seconds),'driving seconds.')

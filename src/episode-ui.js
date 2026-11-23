@@ -25,7 +25,7 @@ export function episodeUI(game) {
   const state=episode.snapshot(), options=episode.choices(npc)
   let text=defaultLine
   if(reply)text=reply
-  else if(npc.opening&&state.stage===1&&state.status==='available')text=npc.opening
+  else if(npc.opening&&state.missionId==='delivery'&&state.stage===1&&state.status==='available')text=npc.opening
   else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
   if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
@@ -52,11 +52,19 @@ export function episodeUI(game) {
  }
  function goal(driving) {
   const state=episode.tracking()
-  if(!state)return game.mission.goal(driving)
-  const {goal}=state
+  const practice=!state&&game.mission.goal(driving)
+  if(practice)return practice
+  const offer=!state&&episode.openingContact()
+  if(!state&&!offer)return null
+  const reboard=state?.firstWork&&!driving&&!state.goal.vehicle
+  const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
-  return {...goal,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label:state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')}
+  const label=offer?'첫 일거리 · '+offer.resident+'에게 가기':state.firstWork?
+   '첫 일거리 · '+(reboard?'Touring에 다시 탑승해.':state.objective):
+   state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')
+  return {...goal,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
+   y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}
  }
  return {dialogue,goal}
 }
