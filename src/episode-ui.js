@@ -60,8 +60,8 @@ export function episodeUI(game) {
   const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
-  const label=offer?'첫 일거리 · '+offer.resident+'에게 가기':state.firstWork?
-   '첫 일거리 · '+(reboard?'Touring에 다시 탑승해.':state.objective):
+  const label=offer?offer.jobTitle+' · '+offer.resident+'에게 가기':state.storyTitle?
+   state.storyTitle+' · '+(reboard?'Touring에 다시 탑승해.':state.objective):
    state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')
   return {...goal,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
    y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}

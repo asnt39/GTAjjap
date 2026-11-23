@@ -1,12 +1,15 @@
-import {firstWork,goods,missions} from './episode-data.js'
+import {firstWork,goods,missions,storyContracts} from './episode-data.js'
 
 const saveKey = 'harborline.episode.v1'
 const driveSeconds = 65
+const emptyRun=()=>({step:0,status:'available',reason:''})
 const initial = () => ({
   index:0, step:0, status:'available', money:5000,
-  inventory:{medkit:0,coffee:0,permit:0}, remaining:null, reason:'',
-  firstJob:{step:0,status:'available',reason:''}
+  inventory:Object.fromEntries(goods.map(item=>[item.id,0])), remaining:null, reason:'',
+  firstJob:emptyRun(),
+  followups:Object.fromEntries(storyContracts.slice(1).map(contract=>[contract.id,emptyRun()]))
 })
+const storyRun=(state,contract)=>contract===firstWork?state.firstJob:state.followups[contract.id]
 const natural = n => Number.isSafeInteger(n) && n >= 0
 const result = (ok,message,effect) => effect ? {ok,message,effect} : {ok,message}
 const wrong = message => result(false,message)
@@ -34,18 +37,21 @@ function read(storage) {
     if (state.status==='active' && missions[state.index].id==='drive' && state.step>0) {
       state.remaining=Number.isFinite(saved.remaining) ? Math.max(0,saved.remaining) : driveSeconds
     }
-    const opening=saved.firstJob
-    if (['active','failed','complete'].includes(opening?.status)) {
-      state.firstJob.status=opening.status
-      if (opening.status==='active' && natural(opening.step) && opening.step<firstWork.steps.length) state.firstJob.step=opening.step
-      if (typeof opening.reason==='string') state.firstJob.reason=opening.reason
-      if (state.firstJob.status==='active' && state.status==='active') {
-        state.firstJob.status='failed'
-        state.firstJob.step=0
+    for(const contract of storyContracts){
+      const savedRun=contract===firstWork?saved.firstJob:saved.followups?.[contract.id]
+      const run=storyRun(state,contract)
+      if (['active','failed','complete'].includes(savedRun?.status)) {
+        run.status=savedRun.status
+        if (run.status==='active'&&natural(savedRun.step)&&savedRun.step<contract.steps.length) run.step=savedRun.step
+        if (typeof savedRun.reason==='string') run.reason=savedRun.reason
       }
     }
-    if (state.firstJob.status==='active' ||
-        saved.selected===firstWork.id && state.firstJob.status==='failed' && state.status!=='active') state.selected=firstWork.id
+    const next=storyContracts.find(contract=>storyRun(state,contract).status!=='complete')
+    if (next) {
+      const run=storyRun(state,next)
+      if(run.status==='active'&&state.status==='active') Object.assign(run,{status:'failed',step:0,reason:'다시 시작하려면 의뢰 제공자에게 말을 걸어.'})
+      if(run.status==='active'||run.status==='failed'&&saved.selected===next.id&&state.status!=='active') state.selected=next.id
+    }
     return state
   } catch { return initial() }
 }
@@ -55,9 +61,10 @@ export function createEpisode(options={}) {
   if (storage===undefined) { try { storage=globalThis.localStorage } catch {} }
   const state=read(storage)
   let savedSecond=Math.ceil(state.remaining ?? 0)
-  const firstSelected=()=>state.selected===firstWork.id
-  const record=()=>firstSelected()?state.firstJob:state
-  const mission=()=>firstSelected()?firstWork:missions[state.index]
+  const selectedStory=()=>state.selected?storyContracts.find(contract=>contract.id===state.selected):null
+  const nextStory=()=>storyContracts.find(contract=>storyRun(state,contract).status!=='complete')
+  const record=()=>{const selected=selectedStory();return selected?storyRun(state,selected):state}
+  const mission=()=>selectedStory()??missions[state.index]
   const step=()=>mission().steps[record().step]
   const canStartOpening=()=>options.canStartOpening?.()??true
   function save() {
@@ -73,7 +80,7 @@ export function createEpisode(options={}) {
       state.money+=finished.reward
       message+=' +₩'+finished.reward.toLocaleString('ko-KR')
       run.step=0
-      if (firstSelected()) {
+      if (selectedStory()) {
         run.status='complete'
         delete state.selected
       } else {
@@ -87,7 +94,7 @@ export function createEpisode(options={}) {
   }
   function start() {
     const run=record()
-    if (run.status!=='available' || (firstSelected()&&!canStartOpening())) return wrong('현재 이 의뢰를 시작할 수 없어.')
+    if (run.status!=='available' || (selectedStory()&&!canStartOpening())) return wrong('현재 이 의뢰를 시작할 수 없어.')
     run.status='active'; run.reason=''
     save()
     return result(true,step().objective)
@@ -96,14 +103,14 @@ export function createEpisode(options={}) {
     const run=record()
     if (run.status!=='active') return null
     run.status='failed'; run.reason=String(reason); run.step=0
-    if (!firstSelected()) state.remaining=null
+    if (!selectedStory()) state.remaining=null
     save()
     return result(false,run.reason)
   }
   function retry() {
     const run=record()
-    if (run.status!=='failed' && !(!firstSelected()&&run.status==='available'&&state.index>0)) return wrong('다시 시도할 의뢰가 없어.')
-    if (firstSelected()&&!canStartOpening()) return wrong('싱글플레이에서 첫 일거리를 다시 시작할 수 있어.')
+    if (run.status!=='failed' && !(!selectedStory()&&run.status==='available'&&state.index>0)) return wrong('다시 시도할 의뢰가 없어.')
+    if (selectedStory()&&!canStartOpening()) return wrong('싱글플레이에서 이 스토리 의뢰를 다시 시작할 수 있어.')
     run.status='available'
     return start()
   }
@@ -111,29 +118,30 @@ export function createEpisode(options={}) {
     const run=record()
     if (run.status!=='active' && run.status!=='failed') return wrong('중단할 의뢰가 없어.')
     run.status='available'; run.step=0; run.reason=''
-    if (firstSelected()) delete state.selected
+    if (selectedStory()) delete state.selected
     else state.remaining=null
     save()
     return result(true,'의뢰를 중단했어. 지금까지 받은 보상은 보관돼.')
   }
   function choices(resident) {
     const matches=goal=>matchesResident(goal,resident)
-    if (record().status!=='active' && matches(firstWork.contact)) {
-      const offers=[]
-      if (state.index===0 && state.status==='available') offers.push({id:'accept',label:'물때표 배달 맡기'})
-      if (state.firstJob.status!=='complete' && canStartOpening()) offers.push({id:firstWork.id,label:'첫 일거리 맡기'})
+    if (record().status!=='active') {
+      const offers=[],next=nextStory()
+      if (state.index===0&&state.status==='available'&&matches(missions[0].steps[0].goal)) offers.push({id:'accept',label:'물때표 배달 맡기'})
+      if (next&&matches(next.contact)&&canStartOpening()) offers.push({id:next.id,label:next.title+' 맡기'})
       return offers
     }
-    if (state.status!=='active' || !matches(step().goal)) return []
+    if (!matches(step().goal)) return []
     return (step().choices ?? []).map(({id,label})=>({id,label}))
   }
   function interact({resident, name, choice, sight}={}) {
     const who=resident??name
-    if (choice===firstWork.id && choices(who).some(option=>option.id===firstWork.id)) {
-      state.selected=firstWork.id
-      state.firstJob.status='available'
+    const next=nextStory()
+    if (next&&choice===next.id&&choices(who).some(option=>option.id===next.id)) {
+      state.selected=next.id
+      storyRun(state,next).status='available'
       start()
-      return result(true,'Jack · 북부 하역장 봉인 상자 하나만 구시가지로 가져다줘. Touring을 써.')
+      return result(true,next.brief)
     }
     if (choice==='accept' && choices(who).some(option=>option.id==='accept')) {
       delete state.selected
@@ -148,10 +156,13 @@ export function createEpisode(options={}) {
     if (!answer) return null
     return answer.advance ? advance(answer.reply) : result(true,answer.reply)
   }
-  function update(dt,{x,z,driving,speed=0}={}) {
-    if (firstSelected()) {
-      if (record().status!=='active'||!driving) return null
+  function update(dt,{x,z,driving,speed=0,inVehicle=driving,onFoot=false}={}) {
+    const contract=selectedStory()
+    if (contract) {
+      if (record().status!=='active') return null
       const current=step(),goal=current.goal
+      const movingInMode=contract===firstWork?driving:current.mode==='walk'?onFoot:current.mode==='vehicle'&&inVehicle
+      if(!movingInMode)return null
       const reached=goal.vehicle||Math.hypot(x-goal.x,z-goal.z)<=goal.radius
       return reached&&(!current.stop||Math.abs(speed)<=.65)?advance(current.reply):null
     }
@@ -179,19 +190,36 @@ export function createEpisode(options={}) {
     save()
     return result(true,item.name+' 구매 완료')
   }
-  function use(id,{hp,maxHealth}={}) {
+  function use(id,{hp,maxHealth,armor=0,repairable=false,reserveSpace=()=>0}={}) {
     const item=goods.find(entry=>entry.id===id)
     if (!item || !state.inventory[id]) return wrong('가방에 이 물건이 없어.')
     let effect,message
-    if (id==='medkit') {
-      if (!Number.isFinite(hp) || !Number.isFinite(maxHealth) || hp<=0 || maxHealth<=hp) return wrong('지금은 체력을 회복할 수 없어.')
-      effect={heal:Math.min(maxHealth-hp,35)}
-      message='체력 '+effect.heal+' 회복'
-    } else if (id==='coffee') {
-      effect={sprintSeconds:30};message='달리기 속도 증가 · 30초'
-    } else {
-      if (state.status!=='active' || state.remaining===null) return wrong('시간제 운전 중에 사용할 수 있어.')
-      state.remaining+=20;effect={driveSeconds:20}; message='운행 시간 +20초'
+    switch(item.type){
+      case 'heal':
+        if (!Number.isFinite(hp) || !Number.isFinite(maxHealth) || hp<=0 || maxHealth<=hp) return wrong('지금은 체력을 회복할 수 없어.')
+        effect={heal:Math.min(maxHealth-hp,item.amount)};message='체력 '+effect.heal+' 회복'
+        break
+      case 'armor':
+        if(armor>0)return wrong('아직 보호 조끼가 남아 있어.')
+        effect={armor:item.amount};message='보호 조끼 착용 · 피해 '+item.amount+' 흡수'
+        break
+      case 'repair':
+        if(!repairable)return wrong('싱글플레이에서 파손된 차량을 정차시키거나 그 옆에 서야 해.')
+        effect={repair:true};message='차량 수리 완료'
+        break
+      case 'ammo': {
+        const amount=Math.min(item.amount,reserveSpace(item.weapon))
+        if(!amount)return wrong('해당 무기가 없거나 예비탄이 가득 찼어.')
+        effect={ammo:{weapon:item.weapon,amount}};message=item.name+' +'+amount
+        break
+      }
+      case 'sprint':
+        effect={sprintSeconds:item.amount};message='달리기 속도 증가 · '+item.amount+'초'
+        break
+      case 'permit':
+        if (state.status!=='active' || state.remaining===null) return wrong('시간제 운전 중에 사용할 수 있어.')
+        state.remaining+=item.amount;effect={driveSeconds:item.amount};message='운행 시간 +'+item.amount+'초'
+        break
     }
     state.inventory[id]--
     save()
@@ -202,23 +230,28 @@ export function createEpisode(options={}) {
     const {status,reason}=record()
     const current=mission()
     return {
-      title:current.title, missionId:current.id, stage:firstSelected()?1:index+1,status,reason,remaining,money,
+      title:current.title, missionId:current.id, stage:selectedStory()?storyContracts.indexOf(current)+1:index+1,status,reason,remaining,money,
       objective:status==='complete' ? '마지막 교대가 떠났다. 항구를 자유롭게 둘러봐.' : status==='failed' ? reason : step().objective,
       goal:status==='active' ? {...step().goal} : null,
       items:goods.map(item=>({...item,count:state.inventory[item.id]})),
       completed:missions.slice(0,state.status==='complete'?missions.length:index).map(item=>item.id),
-      firstJobCompleted:state.firstJob.status==='complete'
+      firstJobCompleted:state.firstJob.status==='complete',
+      storyCompleted:storyContracts.filter(contract=>storyRun(state,contract).status==='complete').map(contract=>contract.id)
     }
   }
   function tracking(){
     if(record().status!=='active')return null
     const {goal,objective}=step()
-    return {goal,objective,stage:state.index+1,remaining:state.remaining,firstWork:firstSelected()}
+    const contract=selectedStory()
+    return {goal,objective,stage:state.index+1,remaining:state.remaining,firstWork:contract===firstWork,storyTitle:contract?.title}
   }
   function openingContact(){
-    return state.index===0&&state.status==='available'&&state.firstJob.status==='available'&&canStartOpening()?firstWork.contact:null
+    if(state.status==='active'||record().status==='active'||selectedStory()||!canStartOpening())return null
+    const next=nextStory()
+    if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
+    return {...next.contact,jobTitle:next.title}
   }
   return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,
-    get openingActive(){return firstSelected()&&record().status==='active'},
-    get roadClosed(){return this.openingActive&&!!step().roadClosed}}
+    get openingActive(){return !!selectedStory()&&record().status==='active'},
+    get roadClosed(){return selectedStory()===firstWork&&this.openingActive&&!!step().roadClosed}}
 }

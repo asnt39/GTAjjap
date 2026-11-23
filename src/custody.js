@@ -1,5 +1,5 @@
 export const ARREST_REACH = 1.12
-export const custodyTimes = { arrest: 2.25, fade: .42, sentence: 14 }
+export const custodyTimes = { arrest: 2.25, fade: .42, sentence: 7 }
 export const station = {
  x: -93.2, left: -96.4, right: -90, front: -46, back: -56, ceiling: 3.32,
  cell: { x: -92.5, z: -53.4 }, release: { x: -93.2, z: -43.7 }

@@ -132,9 +132,20 @@ export async function start(onContextLost){
  }
  let coffee=0
  function useItem(id){
-  const result=episode.use(id,player.f)
-  if(result.effect?.heal)player.f.hp+=result.effect.heal
-  if(result.effect?.sprintSeconds)coffee=result.effect.sprintSeconds
+  if(custody.active||player.f.hp<=0)return {ok:false,message:'지금은 소지품을 사용할 수 없어.'}
+  const vehicle=id==='repair-kit'&&room.phase==='offline'?
+   driving()?car:mode==='walk'?nearestDoor(candidate=>!!candidate.dents)?.car:null:null
+  const repairable=!!vehicle?.dents&&Math.abs(vehicle.speed)<=.45
+  const result=episode.use(id,{...player.f,repairable,reserveSpace:loadout.reserveSpace})
+  const effect=result.effect
+  if(effect?.heal)player.f.hp+=effect.heal
+  if(effect?.armor)player.f.armor=effect.armor
+  if(effect?.sprintSeconds)coffee=effect.sprintSeconds
+  if(effect?.ammo)loadout.addReserve(effect.ammo.weapon,effect.ammo.amount)
+  if(effect?.repair){
+   vehicle.dents=undefined;vehicle.collision=null
+   renderer.shadowMap.needsUpdate=true
+  }
   return result
  }
  let focus=null,feedbackTime=0,knockX=0,knockZ=0
@@ -207,11 +218,12 @@ export async function start(onContextLost){
  }
  const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
- function nearestDoor(){
+ function nearestDoor(qualifies){
   if(pos.y-groundHeight(pos.x,pos.z)>.16)return null
   let nearest=null,distance=Infinity
   for(const vehicle of fleet){
    if(vehicle.localOnly&&room.phase!=='offline')continue
+   if(qualifies&&!qualifies(vehicle))continue
    const access=availableDoor(vehicle,pos,boxes,(x,z)=>blockedAtDoor(vehicle,x,z))
    if(!access||vehicle.owner!=null||Math.abs(vehicle.speed)>.45)continue
    const d=Math.hypot(pos.x-access.door.x,pos.z-access.door.z)
@@ -366,7 +378,7 @@ export async function start(onContextLost){
  function startRoom(endpoint,request){
   if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
-  if(episode.openingActive){ui.toast('첫 일거리를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
+  if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
  const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
@@ -541,7 +553,7 @@ export async function start(onContextLost){
    else if(driving())walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
    player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
-   const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring,speed})
+   const progress=episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:driving(),driving:driving()&&car===cars.touring,onFoot:player.available})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())

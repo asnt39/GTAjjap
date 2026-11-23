@@ -206,9 +206,10 @@ export function createUI(game){
   story.dialogue(dialogue?.text)
   if(opened)(box.querySelector('.episode-choices button')??dialogueClose).focus({preventScroll:true})
   const target=game.feedback(),health=$('#vitals')
-  health.hidden=panel||driving||(!target&&game.player.f.hp===100)
+  const armor=game.player.f.armor
+  health.hidden=panel||driving||(!target&&game.player.f.hp===100&&!armor)
   if(!health.hidden){
-   health.querySelector('b').textContent=game.player.f.hp===0?'다운':'체력 '+game.player.f.hp
+   health.querySelector('b').textContent=game.player.f.hp===0?'다운':'체력 '+game.player.f.hp+(armor?' · 보호 '+armor:'')
    const opponent=health.querySelector('span')
    opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
   }

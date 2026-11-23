@@ -17,6 +17,7 @@ const engineer = person('engineer')
 
 export const firstWork = {
   id:'first-work', title:'첫 일거리', reward:2500, contact:dock,
+  brief:'Jack · 북부 하역장 봉인 상자 하나만 구시가지로 가져다줘. Touring을 써.',
   steps:[
     {goal:{vehicle:true,x:4.92,z:12}, objective:'Touring에 탑승해.', reply:'북부 하역장에 정차해서 봉인 상자를 받아.'},
     {goal:{x:1.5,z:-82,radius:5}, stop:true, objective:'북부 하역장에 정차해 상자를 받아.', reply:'상자를 실었다. 브레이크워터 대로를 타고 구시가지로 가.'},
@@ -25,6 +26,32 @@ export const firstWork = {
     {goal:{x:-52,z:109,radius:4.5}, stop:true, roadClosed:true, objective:'구시가지 남쪽 거리에 정차해 상자를 넘겨.', reply:'첫 일거리 완료. 상자의 봉인 번호가 출항 명부에서 통째로 지워져 있어.'}
   ]
 }
+
+const clerk=person('tide-clerk')
+export const storyContracts = [
+  firstWork,
+  {
+    id:'missing-manifest', title:'지워진 출항표', reward:3200, contact:clerk,
+    brief:'Morgan · 지워진 번호를 항로등 정비소의 야간 기록과 대조해 보시겠어요?',
+    steps:[
+      {goal:sign('06'), objective:'항로등 정비소에서 야간 점검표를 확인해.', reply:'같은 봉인 번호가 서로 다른 화물 두 건에 찍혀 있다.'},
+      {goal:engineer, objective:'서부 부두의 Ellis Torres에게 점검표 내용을 알려 줘.', choices:[
+        {id:'compare-seals',label:'같은 봉인 번호가 두 건에 찍혔어요.',reply:'둘 중 하나는 위조예요. 구시가지 시계탑 쪽에 원본 사본이 남아 있을 겁니다.',advance:true}
+      ]}
+    ]
+  },
+  {
+    id:'clock-court-copy', title:'시계탑의 사본', reward:4200, contact:engineer,
+    brief:'Ellis · 구시가지에 사본을 숨겨 뒀어요. 누가 찾기 전에 Jack에게 갖다주세요.',
+    steps:[
+      {goal:{x:-35,z:56,radius:5}, mode:'vehicle',stop:true,objective:'아무 차량으로 시계탑 동쪽 거리에 가서 정차해.',reply:'여기서 내려. 사본은 시계탑 남쪽 모퉁이에 있어.'},
+      {goal:{x:-50,z:55,radius:2.1}, mode:'walk',objective:'내려서 시계탑 남쪽의 출항표 사본을 찾아.',reply:'사본을 찾았다. 새 화물의 인수란에 내 이름이 먼저 적혀 있다.'},
+      {goal:dock, objective:'Jack Bennett에게 출항표 사본을 보여 줘.', choices:[
+        {id:'deliver-copy',label:'누가 내 이름을 적어 놨어.',reply:'Jack · 네가 항구에 오기 전에 작성된 건데? 이건 미리 준비한 거야.',advance:true}
+      ]}
+    ]
+  }
+]
 
 export const missions = [
   {
@@ -68,7 +95,13 @@ export const missions = [
 ]
 
 export const goods = [
-  {id:'medkit', name:'구급팩', price:2500, description:'사용하면 체력을 최대 35 회복해.'},
-  {id:'coffee', name:'부두 커피', price:1800, description:'사용하면 30초 동안 더 빠르게 달려.'},
-  {id:'permit', name:'추가 운행권', price:3000, description:'시간제 운전 중 사용하면 남은 시간이 20초 늘어나.'}
+  {id:'bandage', name:'응급 붕대', price:900, type:'heal', amount:12, description:'체력을 최대 12 회복해.'},
+  {id:'medkit', name:'구급팩', price:2500, type:'heal', amount:35, description:'체력을 최대 35 회복해.'},
+  {id:'trauma-kit', name:'현장 구급 가방', price:4100, type:'heal', amount:60, description:'체력을 최대 60 회복해.'},
+  {id:'armor', name:'보호 조끼', price:1900, type:'armor', amount:35, description:'다음 피격 피해를 합계 35까지 흡수해. 중첩 불가.'},
+  {id:'repair-kit', name:'차량 정비 키트', price:1150, type:'repair', description:'싱글플레이에서 가까운 정차 차량의 찌그러짐과 파손 연기를 없애.'},
+  {id:'pistol-ammo', name:'권총 예비탄', price:500, type:'ammo', weapon:'pistol', amount:8, description:'보유한 권총에 예비탄을 최대 8발 보충해.'},
+  {id:'shotgun-ammo', name:'산탄총 예비탄', price:800, type:'ammo', weapon:'shotgun', amount:4, description:'보유한 산탄총에 예비탄을 최대 4발 보충해.'},
+  {id:'coffee', name:'부두 커피', price:1800, type:'sprint', amount:30, description:'30초 동안 더 빠르게 달려.'},
+  {id:'permit', name:'추가 운행권', price:3000, type:'permit', amount:20, description:'시간제 운전의 남은 시간을 20초 늘려.'}
 ]

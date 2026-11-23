@@ -1,7 +1,7 @@
 import {Vector3} from 'three'
 
 export function fighter(maxHealth){
- return {maxHealth,hp:maxHealth,action:'',elapsed:0,duration:0,recovery:0,immune:0,responseWindow:0,side:1,zone:'body',
+ return {maxHealth,hp:maxHealth,armor:0,action:'',elapsed:0,duration:0,recovery:0,immune:0,responseWindow:0,side:1,zone:'body',
   previousHand:new Vector3(),handReady:false,connected:false,queued:false,downTime:0}
 }
 export function swing(f,side=-f.side,{bufferHit=false}={}){
@@ -13,7 +13,9 @@ export function swing(f,side=-f.side,{bufferHit=false}={}){
 }
 export function injure(f,amount,side,zone,{responseWindow=0,weaponHit=false}={}){
  if(f.hp===0||(!weaponHit&&(f.action==='hit'||f.immune>0)))return false
- f.hp=Math.max(0,f.hp-amount)
+ const absorbed=Math.min(f.armor??0,amount)
+ if(absorbed)f.armor-=absorbed
+ f.hp=Math.max(0,f.hp-amount+absorbed)
  Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,responseWindow,recovery:0,
   queued:false,handReady:false,connected:false,downTime:0})
  return true

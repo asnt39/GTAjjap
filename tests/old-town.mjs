@@ -146,3 +146,11 @@ assert(!barrier.visible)
 assert.equal(boxes.length,noClosure)
 assert(clearPose(direct,boxes,true,true))
 console.log('First Work physical checkpoint and detour passed in',Math.round(toCheckpoint.seconds+detour.seconds),'driving seconds.')
+
+const clockDetour=drive(vehicles.sport,[[0,49],[0,84],[-35,84],[-35,56]])
+const exit=safeExit(clockDetour.car,boxes,-1)
+assert(exit)
+const end={...exit.door}
+movePlayer(end,-50-end.x,55-end.z,boxes)
+assert(Math.hypot(end.x+50,end.z-55)<2.1)
+console.log('Clock Court follow-up is reachable by vehicle and on foot through the live collision map.')

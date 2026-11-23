@@ -7,7 +7,7 @@ import {equipmentTrace} from '../src/equipment-contact.js'
 import {equipmentPlay} from '../src/equipment-play.js'
 import {createCharacter} from '../src/character.js'
 import {createResidents} from '../src/residents.js'
-import {fighter,advance} from '../src/melee.js'
+import {fighter,advance,injure} from '../src/melee.js'
 
 const values=new Map([['harborline.runMode.v3','hold']])
 const storage={getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value)}
@@ -128,3 +128,21 @@ const count=fired.length
 for(let i=0;i<60;i++)updatePolice()
 assert.equal(fired.length,count)
 console.log('A surviving officer returns fire after a casualty, respects live cover and stops when wanted clears.')
+
+assert.equal(bag.addReserve('shotgun',4),0)
+bag.select('shotgun')
+assert.equal(bag.reserveSpace('shotgun'),0)
+bag.items.shotgun.reserve=14
+assert.equal(bag.addReserve('shotgun',4),2)
+assert.equal(createLoadout(storage).items.shotgun.reserve,16)
+const shielded=fighter(100)
+shielded.armor=35
+assert(injure(shielded,18,1,'body'))
+assert.equal(shielded.hp,100)
+assert.equal(shielded.armor,17)
+assert(!injure(shielded,18,1,'body'))
+assert.equal(shielded.armor,17)
+advance(shielded,1)
+assert(injure(shielded,18,1,'body'))
+assert.equal(shielded.hp,99)
+assert.equal(shielded.armor,0)

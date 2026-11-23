@@ -18,6 +18,7 @@ export function createLoadout(storage){
  let selected=Object.hasOwn(items,saved?.selected)?saved.selected:'fists'
  let cooldown=0,reloading=0,swingLeft=0,kick=0
  function save(){try{storage?.setItem(saveKey,JSON.stringify({items,selected}))}catch{}}
+ function reserveSpace(id){return Object.hasOwn(items,id)?Math.max(0,(gear[id].stock??0)-items[id].reserve):0}
  return {
   items,get selected(){return selected},get def(){return gear[selected]},get item(){return items[selected]},
   get swing(){return swingLeft?1-swingLeft/gear.bat.delay:0},
@@ -31,6 +32,12 @@ export function createLoadout(storage){
   resupply(){
    for(const [id,item] of Object.entries(items))if(gear[id].stock)item.reserve=gear[id].stock
    save()
+  },
+  reserveSpace,
+  addReserve(id,rounds){
+   const amount=count(rounds,reserveSpace(id))
+   if(amount){items[id].reserve+=amount;save()}
+   return amount
   },
   interrupt(){reloading=swingLeft=kick=0},
   reload(){
