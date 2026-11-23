@@ -34,9 +34,11 @@ Touring은 균형형이며, Sprint는 가속과 조향이 빠르고, Dock Van은
 
 Open the pause menu's credits or inspect the notices under `public/assets/` for original sources, license conditions and adaptations. The included Three.js distribution is MIT licensed. Font licenses accompany the local Barlow font files.
 
-## 현재 진행 상황
+## 개발 기록 (2026-11-19 당시 기준)
 
-2026-11-19 기준 HARBORLINE은 Three.js와 Vite를 사용하는 싱글플레이 항구 도시 프로토타입이다. 현재 배포 버전은 Sites 버전 6이며 이 저장소의 게임 소스 기준 커밋은 `5c2c9006e889d46b659610f9a378287a71a48ff1`이다. 운영 주소는 https://harborline-docklands.asnt1.chatgpt.site 이다.
+**최신 배포 기록과 GitHub 소스의 대응 상태는 [DEPLOYMENT_TRACKING.md](DEPLOYMENT_TRACKING.md)를 참고해.** v19의 정확한 운영 소스 커밋은 현재 미확인이다.
+
+2026-11-19 당시 HARBORLINE은 Three.js와 Vite를 사용하는 싱글플레이 항구 도시 프로토타입으로 기록됐다. 그날의 Sites v6 배포 소스 기준 커밋은 `5c2c9006e889d46b659610f9a378287a71a48ff1`이었다. **이 버전은 현재 운영 버전을 의미하지 않는다.** 운영 주소는 https://harborline-docklands.asnt1.chatgpt.site 이다.
 
 - 도로, 부두, 상점, 차량, 하늘과 수면을 포함하는 항구 구역과 충돌, 지도, 안내판, 설정을 구현했다.
 - 걷기, 달리기 전환, 점프, 카메라와 터치 조작을 지원한다.
