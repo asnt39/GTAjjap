@@ -1,5 +1,6 @@
 import {loadPortProp} from './port-props.js'
 import {archive,buildArchive,archivePrint} from './chart-room.js'
+import {garage,buildGarage} from './garage.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 
@@ -42,6 +43,7 @@ export async function buildArchitecture(scene,addCollider,surfaceMaps){
   [11.1,48,18.5,10.8,0,4],[11.4,-72.7,16.7,9,3,3],[11,-90.2,17.6,15,1,9],[11.5,-104,9,11.4,0,11]]
  for(const [idx,[x,z,w,h,skin,shop]] of buildings.entries()){
   const dir=x<0?1:-1,depth=10+idx%4,tx=(offset)=>x+dir*offset
+  const home=x===garage.front&&z===garage.car.z
   if(x===archive.front && z===26.2){
    activeBatch=archiveBatches
    const chart=new T.CanvasTexture(archivePrint());chart.colorSpace=T.SRGBColorSpace
@@ -51,6 +53,8 @@ export async function buildArchitecture(scene,addCollider,surfaceMaps){
    add(new T.PlaneGeometry(2.1,1.05).rotateY(Math.PI/2).translate(x+.3,1.62,archive.door-2.43),paper)
    buildArchive({cube,rail,panel,addCollider,walls:walls[skin],iron,trim,ledge,lit,lamp,roof,benchModel:bench},h)
    activeBatch=batches
+  }else if(home){
+   buildGarage({cube,panel,addCollider,wall:walls[skin],iron,trim,ledge,lit},h)
   }else{
    cube(tx(-depth/2),h/2,z,depth,h,w,walls[skin])
    addCollider(Math.min(x,tx(-depth)),Math.max(x,tx(-depth)),z-w/2,z+w/2,h)
@@ -65,6 +69,7 @@ export async function buildArchitecture(scene,addCollider,surfaceMaps){
   for(let j=0;j<bays;j++){
    const zz=z-w/2+.45+span*(j+.5),door=j===bays-1
    if(x===archive.front && door)continue
+   if(home&&Math.abs(zz-z)<4.1)continue
    cube(tx(.13),1.48,zz,.18,2.77,span-.12,iron)
    panel(tx(.23),1.52,zz,span-.34,2.53,door&&idx%3===0?25:16+(idx+j)%4,dir,lit)
    cube(tx(.255),1.46,zz,.07,.08,span-.26,iron)

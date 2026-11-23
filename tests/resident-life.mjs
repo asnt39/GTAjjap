@@ -4,6 +4,8 @@ import {PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {createResidents} from '../src/residents.js'
 import {buildStreet} from '../src/street.js'
+import {buildOldTown} from '../src/old-town.js'
+import {buildWestBank} from '../src/west-bank.js'
 import {buildArchitecture} from '../src/architecture.js'
 import {stationColliders} from '../src/custody.js'
 import {beacons,districtGates} from '../src/atmosphere.js'
@@ -28,7 +30,9 @@ Math.random=()=>((seed=Math.imul(1664525,seed)+1013904223|0)>>>0)/4294967296
 const boxes=[],scene=new Scene()
 const add=(a,b,c,d,h=3)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h])}
 beacons(scene,add);districtGates(scene,add);marketCollision(add);stationColliders(add)
-const [,rigs]=await Promise.all([buildArchitecture(scene,add),buildStreet(scene,add)])
+const maps={}
+const [,rigs]=await Promise.all([buildArchitecture(scene,add,maps),buildStreet(scene,add,maps)])
+buildOldTown(scene,add,boxes,maps);buildWestBank(scene,add,maps)
 const fleet=Object.values(rigs).map(rig=>({...rig,speed:0}))
 const graph=walkingGraph((a,b)=>{
  const count=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.22)
@@ -74,6 +78,10 @@ assert(areas.get('courier').has('west')&&areas.get('courier').has('east'))
 assert(areas.get('regular').has('market')&&areas.get('regular').has('tide-office'))
 assert(areas.get('tide-clerk').has('provisions')&&areas.get('tide-clerk').has('tide-office'))
 assert(areas.get('tide-clerk').has('market')&&activities.get('tide-clerk').has('work'))
+for(const [id,activity] of [['clock-keeper','check'],['west-courier','deliver'],['foundry-gardener','inspect'],['ferry-keeper','check']]){
+ assert(activities.get(id).has(activity),id+' reaches a stop and '+activity)
+ assert(canWalk(citizen(id).pos.x,citizen(id).pos.z,boxes),id+' remains on accessible ground')
+}
 assert(greeting)
 const jack=citizen('courier'),episode=createEpisode({storage:null})
 assert(episode.choices(jack).some(option=>option.id==='accept'))
@@ -81,5 +89,5 @@ crowd.beginTalk(jack)
 assert.equal(crowd.dialogue.name,'Jack Bennett')
 assert(episode.interact({resident:jack,choice:'accept'}).ok)
 crowd.endTalk()
-assert.equal(crowd.officers.length,8)
+assert.equal(crowd.officers.length,9)
 console.log('Cross-district trips, interiors, role stops, greetings, spacing and quest dialogue passed.')

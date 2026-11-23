@@ -34,5 +34,6 @@ export function sniperModel(){
  bolt.add(handle);model.add(bolt)
  box(alloy,0,.198,-.049,.057,.031,.047)
  const end=new Group();end.name='End';end.position.copy(new Vector3(0,.035,.657));model.add(end)
+ const lens=new Group();lens.name='ScopeView';lens.position.set(0,.142,.135);model.add(lens)
  return model
 }

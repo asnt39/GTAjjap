@@ -99,7 +99,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
     if(loadout.use()){batConnected=false;hasPrevious=false}
    }else queued=loadout.selected
   },
-  update(dt,{active,aiming,speed,pitch,prone=0,ready=false}){
+  update(dt,{active,aiming,speed,pitch,prone=0,ready=false,alignScope}){
    pronePose=prone
    if(!active)interrupt()
    loadout.tick(dt)
@@ -107,6 +107,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
    queued=false
    art.update({dt,weapon:loadout.selected,hidden:!active,aiming:aiming||firing||loadout.recoil>.15,speed,
     pitch,prone,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
+   alignScope?.(art.scopePosition)
    if(art.failed(loadout.selected)&&lastFailure!==loadout.selected){lastFailure=loadout.selected;toast('장비 모델을 불러오지 못했어 · 맨손으로 전환');loadout.select('fists')}
    impactTime-=dt
    if(impactTime<=0)impact.visible=false

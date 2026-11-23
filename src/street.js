@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
-import {garage} from './west-bank-plan.js'
+import {garage} from './garage.js'
 import { createVehicleRig } from './vehicle-rig.js'
 import { touringSetup } from './vehicles.js'
 
@@ -295,6 +295,7 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   const touring=createTouring(models[1],touringSetup.x,touringSetup.z,touringSetup.length)
   const personal=createTouring(models[1],garage.car.x,garage.car.z,touringSetup.length)
   personal.setup={...touringSetup,...garage.car,name:'내 Touring'}
+  personal.heading=garage.car.heading
   personal.localOnly=true
   const vehicles={touring,'garage-touring':personal,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
   const parking=[

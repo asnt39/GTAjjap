@@ -49,7 +49,7 @@ export function createEquipmentArt(character) {
   if(loading.has(weapon)||shapes.has(weapon)||errors.has(weapon))return
   if(weapon==='sniper'){
    const scene=sniperModel();scene.visible=false;socket.add(scene)
-   shapes.set(weapon,{scene,end:scene.getObjectByName('End'),bolt:scene.getObjectByName('Bolt')});return
+   shapes.set(weapon,{scene,end:scene.getObjectByName('End'),lens:scene.getObjectByName('ScopeView'),bolt:scene.getObjectByName('Bolt')});return
   }
   loading.add(weapon)
   loader.loadAsync('/assets/equipment/'+weapon+'.glb').then(({scene})=>{
@@ -146,7 +146,7 @@ export function createEquipmentArt(character) {
   return active?active.end.getWorldPosition(out):character.handPosition(-1,out)
  }
  return {
-  update,muzzlePosition:endPosition,tipPosition:endPosition,
+  update,muzzlePosition:endPosition,tipPosition:endPosition,scopePosition:out=>active?.lens?.getWorldPosition(out),
   ready:weapon=>weapon==='fists'||shapes.has(weapon),
   failed:weapon=>errors.has(weapon),
   flash(){if(!active||selected==='bat')return;flash.rotation.z+=2.13;flashTime=selected==='sniper'?.093:.064;flash.scale.setScalar(selected==='sniper'?1.65:1);flash.visible=true},

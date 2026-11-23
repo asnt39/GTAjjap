@@ -4,7 +4,7 @@ import {Scene, Texture, TextureLoader} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {buildOldTown} from '../src/old-town.js'
 import {buildWestBank} from '../src/west-bank.js'
-import {garage} from '../src/west-bank-plan.js'
+import {garage} from '../src/garage.js'
 import {createPedestrianImpacts} from '../src/vehicle-pedestrians.js'
 import {buildStreet} from '../src/street.js'
 import {buildArchitecture} from '../src/architecture.js'
@@ -160,7 +160,7 @@ console.log('Clock Court follow-up is reachable by vehicle and on foot through t
 
 const westArt=buildWestBank(model,add,surfaceMaps)
 assert(canWalk(garage.x,garage.z,boxes))
-assert(!canWalk(-138.85,36.4,boxes))
+assert(!canWalk(garage.front-.1,36.4,boxes))
 assert(!atStation(garage.x,garage.z))
 const personal=newDrive(rigs['garage-touring'],rigs['garage-touring'].setup)
 const ownerDoor=safeExit(personal,boxes)
@@ -168,8 +168,18 @@ assert(ownerDoor&&availableDoor(personal,ownerDoor.door,boxes))
 const band=drive(vehicles.touring,[[-68,8],[-68,23],[-110.5,23],[-129,23],[-129,34.7]])
 assert(band.car.z>33)
 const homeTraffic=traffic.filter(car=>car.x!==personal.x||car.z!==personal.z)
-const garageExit=drive(personal.setup,[[-129,41],[-129,23],[-110.5,23],[-68,23]],homeTraffic)
-assert(garageExit.car.x>-70)
+const garageExit=drive(personal.setup,[[garage.car.x,garage.car.z],[0,42],[0,63]],homeTraffic)
+assert(garageExit.car.z>61)
+const walkOut={x:-14,z:40.4}
+movePlayer(walkOut,7.1,0,boxes)
+assert(walkOut.x>-7)
+for(const z of [23,100.5]){
+ const walk={x:-73,z}
+ movePlayer(walk,-18,0,boxes)
+ assert(walk.x<-90.99)
+ movePlayer(walk,18,0,boxes)
+ assert(walk.x>-73.01)
+}
 const southExit=drive(vehicles.sport,[[-68,85],[-68,100.5],[-110.5,100.5],[-146,100.5],[-146,81]])
 assert(southExit.car.x<-144)
 westArt.operate('PARK');westArt.update(.01,1,{x:-160});westArt.operate('WEST');westArt.update(.01,1,{x:-170})

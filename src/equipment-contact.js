@@ -2,13 +2,16 @@ import {Box3,Ray,Sphere,Vector3} from 'three'
 import {localPoint} from './driving.js'
 import {archive} from './chart-room.js'
 import {back,front,premises} from './market-plan.js'
+import {garage} from './garage.js'
 
 const bounds=(left,right,bottom,top,north,south)=>new Box3(new Vector3(left,bottom,north),new Vector3(right,top,south))
 
 // Snapshot stationary colliders once. Cars keep their live, oriented footprint.
 export function equipmentTrace(boxes,cars,residents){
  const staticBounds=new WeakMap()
- const solids=[bounds(-200,200,-2,0,-250,150),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south)]
+ const [garageBack,,garageNorth,garageSouth]=garage.bounds
+ const solids=[bounds(-225,200,-2,0,-250,150),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south),
+  bounds(garageBack,garage.front,garage.ceiling,8.8,garageNorth,garageSouth)]
  for(const p of premises)solids.push(bounds(p.x-5.5,p.x+5.5,3.44,4,back,front))
  const ray=new Ray(),localRay=new Ray(),hit=new Vector3(),carBox=new Box3(),sphere=new Sphere()
  return (origin,direction,limit,ignoreResident)=>{

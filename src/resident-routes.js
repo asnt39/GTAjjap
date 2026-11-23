@@ -34,6 +34,15 @@ for(const [id,interior,west,east] of [
  links.push([west,id+'Apron',east],[id+'Apron',id+'Door',interior])
 }
 
+Object.assign(points,{
+ clockBench:{x:-50.2,z:56.9},clockSouth:{x:-46.7,z:54.8},clockFront:{x:-47.2,z:49.8,look:-1.38},
+ westMail:{x:-116.55,z:46.8,look:1.6},westLane:{x:-116.55,z:53},westSteps:{x:-116.55,z:68.8},
+ gardenGate:{x:-163.3,z:49.5},gardenWalk:{x:-163.3,z:45.4},gardenNorth:{x:-167.2,z:43.8,look:-.4},
+ ferryDesk:{x:-212,z:106,look:3.1},ferryDoor:{x:-212,z:99},ferrySignal:{x:-208.4,z:99.4,look:.8}
+})
+links.push(['clockBench','clockSouth','clockFront'],['westMail','westLane','westSteps'],
+ ['gardenGate','gardenWalk','gardenNorth'],['ferryDesk','ferryDoor','ferrySignal'])
+
 // A stop includes a reason to pause and a dwell time. The four quest givers
 // have local rounds so they stay easy to locate and remain with the same quests.
 export const residentRounds={
@@ -42,7 +51,11 @@ export const residentRounds={
  courier:[['eastGateMeet',3,'check'],['westGateMeet',4,'deliver'],['courierHome',6,'wait']],
  engineer:[['quayLookout',6,'inspect'],['quaySupplies',5,'check'],['quayHome',7,'wait']],
  regular:[['promenade',7,'break'],['tideDesk',5,'visit'],['regularHome',9,'watch']],
- 'tide-clerk':[['supplyShelf',6,'shop'],['marketMiddle',4,'check'],['tideDesk',10,'work']]
+ 'tide-clerk':[['supplyShelf',6,'shop'],['marketMiddle',4,'check'],['tideDesk',10,'work']],
+ 'clock-keeper':[['clockBench',5,'break'],['clockFront',8,'check']],
+ 'west-courier':[['westMail',3,'deliver'],['westSteps',4,'wait']],
+ 'foundry-gardener':[['gardenNorth',6,'inspect'],['gardenGate',5,'work']],
+ 'ferry-keeper':[['ferryDesk',8,'work'],['ferrySignal',6,'check']]
 }
 
 const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)

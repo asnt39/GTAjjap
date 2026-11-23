@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import {createLoadout} from './equipment.js'
+import {createLoadout,gear} from './equipment.js'
+import {scopeStance} from './scope-stance.js'
 import {equipmentPlay} from './equipment-play.js'
 import {worldEffects} from './world-effects.js'
 import {policeChase} from './police-chase.js'
@@ -8,7 +9,7 @@ import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
 import {buildOldTown} from './old-town.js'
 import {buildWestBank} from './west-bank.js'
-import {garage} from './west-bank-plan.js'
+import {atGarage,garage} from './garage.js'
 import {createPedestrianImpacts} from './vehicle-pedestrians.js'
 import {useTownDriveMask,oldTownHeight} from './old-town-plan.js'
 import {buildMarket} from './market.js'
@@ -156,16 +157,20 @@ export async function start(onContextLost){
  let storage
  try{storage=window.localStorage}catch{}
  const loadout=createLoadout(storage)
- let aiming=false,proneProgress=0,shoulder=0
+ const stance=scopeStance()
+ let aiming=false,shoulder=0,scopeVisible=false,hideScopeBody=false
  const armed=()=>loadout.selected!=='fists'
  const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
  function selectEquipment(id){
-  if(mode!=='walk'||crowd.talking||player.f.action||!loadout.select(id))return false
-  aiming=false;proneProgress=0;return true
+  if(mode!=='walk'||crowd.talking||player.f.action||custody.active)return false
+  const previous=loadout.selected
+  if(!loadout.select(id))return false
+  if(previous!==id)aiming=false
+  return true
  }
  function reloadEquipment(){
-  if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action)loadout.reload()
+  if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&!custody.active)loadout.reload()
  }
  const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
@@ -215,7 +220,7 @@ export async function start(onContextLost){
   if(crowd.wanted.level)return '추격이 끝난 뒤 차고지에서 쉴 수 있어.'
   player.f.hp=player.f.maxHealth
   const personal=cars['garage-touring']
-  if(personal.z>29&&personal.z<49&&personal.x>-139&&personal.x<-119){
+  if(personal.x<garage.front-.35&&atGarage(personal.x,personal.z)){
    personal.dents=undefined;personal.collision=null;renderer.shadowMap.needsUpdate=true
    return '체력 회복 · 개인 차량 수리 완료'
   }
@@ -228,9 +233,9 @@ export async function start(onContextLost){
   clearControls();crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
- const scoped=()=>loadout.selected==='sniper'&&aiming&&mode==='walk'&&!isPaused&&!custody.active&&!foot.air&&!player.f.action
- const canAct=()=>!scoped()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
- const canJump=()=>!scoped()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
+ const sniperAiming=()=>loadout.selected==='sniper'&&aiming&&mode==='walk'&&!isPaused&&!custody.active&&!foot.air&&!player.f.action
+ const canAct=()=>!sniperAiming()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
+ const canJump=()=>!sniperAiming()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
  function jump(){if(canJump())foot.jump()}
  const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
@@ -406,7 +411,7 @@ export async function start(onContextLost){
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
@@ -453,33 +458,47 @@ export async function start(onContextLost){
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
  document.querySelector('#gear-next').onclick=()=>{
-  const ids=Object.keys(loadout.items)
+  const ids=Object.keys(gear)
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
  document.querySelector('#gear-aim').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=!aiming}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
+ const lens=new THREE.Vector3(),scopeStart=new THREE.Vector3()
+ function setZoom(zoom){
+  if(camera.zoom!==zoom){camera.zoom=zoom;camera.updateProjectionMatrix()}
+ }
+ function alignScope(position){
+  if(!stance.eye||!sniperAiming()||!position(lens))return
+  scopeStart.set(pos.x,pos.y+.56,pos.z)
+  if(cameraFraction(scopeStart,lens,boxes)<.98)return
+  const blend=THREE.MathUtils.smootherstep(stance.eye,0,1)
+  camera.position.lerp(lens,blend)
+  camera.position.y=Math.max(pos.y+.24,camera.position.y)
+  const flat=Math.cos(pitch)
+  aim.set(Math.sin(yaw)*flat,-Math.sin(pitch),-Math.cos(yaw)*flat).add(camera.position)
+  camera.lookAt(aim)
+  scopeVisible=stance.eye===1
+  hideScopeBody=blend>.50
+  if(scopeVisible)setZoom(4)
+  camera.updateMatrixWorld()
+ }
  let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0,followHeight=actor.position.y
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
-  const prone=THREE.MathUtils.smootherstep(proneProgress,0,1)
+  const prone=THREE.MathUtils.smootherstep(stance.prone,0,1)
   shoulder=damp(shoulder,aiming&&!driving()&&!prone?1:0,12,dt)
-  const zoom=1+3*prone
-  if(camera.zoom!==zoom&&(zoom===1||zoom===4||Math.abs(camera.zoom-zoom)>.001)){
-   camera.zoom=zoom;camera.updateProjectionMatrix()
-  }
   const viewDistance=THREE.MathUtils.lerp(distance,Math.min(distance,2.45),shoulder)
-  const arm=THREE.MathUtils.lerp(viewDistance,.22,prone)+cameraBlend*car.setup.camera
+  const arm=THREE.MathUtils.lerp(viewDistance,2.35,prone)+cameraBlend*car.setup.camera
   const tilt=pitch+cameraBlend*.115-loadout.recoil*(loadout.selected==='sniper'?.038:.021)
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
   const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
-  const sideOffset=(.26+.43*shoulder)*(1-prone)*(1-cameraBlend)
-  const scopeOffset=prone*.77
-  const height=THREE.MathUtils.lerp(1.54-.08*shoulder,.56,prone)
-  anchor.set(pos.x+sideOffset*cs+sn*scopeOffset,
-   (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn-cs*scopeOffset)
+  const sideOffset=(.26+.43*shoulder+.24*prone)*(1-cameraBlend)
+  const height=THREE.MathUtils.lerp(1.54-.08*shoulder,.86,prone)
+  anchor.set(pos.x+sideOffset*cs,
+   (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn)
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
   let fraction=cameraFraction(anchor,eye,boxes)
   for(const vehicle of traffic){
@@ -491,6 +510,9 @@ export async function start(onContextLost){
    fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
   }
   if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
+  if(atGarage(pos.x,pos.z)&&eye.y>garage.ceiling-.16&&eye.y>anchor.y){
+   fraction=Math.min(fraction,Math.max(.04,(garage.ceiling-.16-anchor.y)/(eye.y-anchor.y)))
+  }
   const availableArm=arm*fraction
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
@@ -502,6 +524,7 @@ export async function start(onContextLost){
  function groundHeight(x,z){
   if(useTownDriveMask(x,z))return oldTownHeight(x,z)
   if(atStation(x,z))return .092
+  if(atGarage(x,z))return .083
   if(insidePremises(x,z))return .052
   if((x< -40 && z< -43 && z> -46)||(x< -40 && z> -31 && z< -27))return .082
   if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
@@ -527,8 +550,8 @@ export async function start(onContextLost){
   })
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
-   proneProgress=clamp(proneProgress+(scoped()?dt/2:-dt/.44),0,1)
-   const prone=THREE.MathUtils.smootherstep(proneProgress,0,1)
+   stance.update(Math.min(realDt,.25),sniperAiming())
+   const prone=THREE.MathUtils.smootherstep(stance.prone,0,1)
    if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
@@ -561,7 +584,7 @@ export async function start(onContextLost){
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=(scoped()?0:custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
+   const rate=(sniperAiming()?0:custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
@@ -575,7 +598,7 @@ export async function start(onContextLost){
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
    const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     atStation(pos.x,pos.z)?station.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
+     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
    const landing=foot.advance(dt,floor,roomCeiling-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height
@@ -635,11 +658,17 @@ export async function start(onContextLost){
    const districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
    if(updateVisibility()||districtChanged||stationChanged||westChanged||roadChanged)renderer.shadowMap.needsUpdate=true
+   scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
-    speed,prone,ready:scoped(),pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+    speed,prone,ready:sniperAiming(),alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+   if(!scopeVisible)setZoom(1)
    effects.update(dt,canvas.height)
-   ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
+   ui.update(elapsed);updateGuide(ui.missionGoal(),pos)
+   const actorVisible=actor.visible
+   if(hideScopeBody)actor.visible=false
+   renderer.render(scene,camera)
+   actor.visible=actorVisible
    if(elapsed>1){
     frameSum+=realDt;frameCount++
     if(frameCount>=30||frameSum>3){const mean=frameSum/frameCount;recentFrameMs=mean*1000

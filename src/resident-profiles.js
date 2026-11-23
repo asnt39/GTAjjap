@@ -25,4 +25,17 @@ people.push(...districtPolice.map(person=>({
  lines:person.station?['이 구역은 제가 지키고 있습니다. 통행로만 비워 주세요.']:['순찰 중입니다. 작업 차량이 지나갈 때는 인도에서 기다려 주세요.']
 })))
 
+people.push(
+ {id:'clock-keeper',spawnWait:2,name:'Martha Bell',role:'시계탑 관리인',model:'crew',variant:2,height:1.71,x:-50.2,z:56.9,pace:.91,temper:'avoid',
+  lines:['시계가 1분 늦네요. 내가 오늘은 먼저 올라가 봐야겠어요.','정각에 울리는 소리는 건너편 골목에서도 들을 수 있어요.']},
+ {id:'west-courier',spawnWait:4,name:'Theo Mercer',role:'서편 배송 기사',model:'mariner',variant:4,x:-116.55,z:46.8,pace:1.35,temper:'flee',
+  lines:['박스는 정비소에 두고 왔어. 이제 남쪽 거리만 돌면 끝이야.','이쪽 차도에 차를 세우면 아래쪽 길로 빙 둘러 가야 해.']},
+ {id:'foundry-gardener',spawnWait:2,name:'Clara Webb',role:'정원 관리인',model:'crew',variant:5,height:1.68,x:-163.3,z:49.5,pace:.95,temper:'avoid',
+  lines:['분수는 시험 삼아 켜 보셔도 돼요. 금방 꺼지니까 걱정 마세요.','예전엔 여기서 쇳가루가 날렸어요. 요즘은 화단에 물 주는 게 일이죠.']},
+ {id:'ferry-keeper',spawnWait:3,name:'Caleb Frost',role:'선착장 시설 담당',model:'mariner',variant:2,x:-212,z:106,pace:1.04,temper:'defend',
+  lines:['여객선은 들어오지 않습니다. 안쪽 신호등은 아직 작동해요.','창문 두 장은 내일 갈 겁니다. 바람 불 때 안쪽까진 들어가지 마세요.']},
+ {id:'west-patrol',spawnWait:1,name:'Iris Walsh',role:'서편 거리 순찰',model:'patrol',variant:6,officer:true,x:-151.7,z:73,pace:1.16,temper:'defend',
+  patrol:[{x:-151.7,z:89},{x:-153.2,z:96.2}],lines:['교차로 코너에만 차를 세우지 말아 주십시오.','남쪽에서 선착장으로 가는 길은 열려 있습니다.']}
+)
+
 export const residentHealth = { civilian:108, officer:132, guard:144 }

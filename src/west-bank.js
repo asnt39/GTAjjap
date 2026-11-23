@@ -1,5 +1,4 @@
 import * as T from 'three'
-import {garage} from './west-bank-plan.js'
 
 export function buildWestBank(scene,addCollider,maps) {
  const district=new T.Group()
@@ -10,7 +9,6 @@ export function buildWestBank(scene,addCollider,maps) {
  const steel=new T.MeshStandardMaterial({color:0x4e5c55,metalness:.35,roughness:.65})
  const wood=new T.MeshStandardMaterial({color:0x7e5b43,roughness:.86})
  const paint=new T.MeshStandardMaterial({color:0xc6bb9c,roughness:.8})
- const fabric=new T.MeshStandardMaterial({color:0x56706e,roughness:1})
  const plants=new T.MeshStandardMaterial({color:0x566340,roughness:.95})
  const warm=new T.MeshStandardMaterial({color:0xffdf9e,emissive:0xc88641,emissiveIntensity:.65})
  const pieces=new Map()
@@ -31,7 +29,11 @@ export function buildWestBank(scene,addCollider,maps) {
   const mesh=new T.Mesh(new T.PlaneGeometry(width,width*.21),new T.MeshStandardMaterial({map,side:T.DoubleSide}))
   mesh.position.set(x,y,z);district.add(mesh)
  }
- for(const [a,b,n,s,h] of garage.walls){
+ for(const [a,b,n,s,h] of [
+  [-139,-138.7,29,49,3.8],[-119.3,-119,29,49,3.8],[-139,-119,48.7,49,3.8],
+  [-139,-132.2,29,29.32,3.8],[-125.8,-119,29,29.32,3.8],
+  [-137.5,-133.7,47.6,48.65,1.12],[-121.4,-119.32,45.4,48.65,1.8]
+ ]){
   addCollider(a,b,n,s,h)
   const mat=h>3?brick:h<.8?wood:steel
   box(mat,(a+b)/2,h*.5,(n+s)/2,b-a,h,s-n)
@@ -41,15 +43,12 @@ export function buildWestBank(scene,addCollider,maps) {
  box(stone,-129,3.51,29.15,6.4,.39,.35)
  box(warm,-129,3.53,35,3,.06,.15)
  box(warm,-134.5,3.53,44,2.8,.06,.15)
- box(fabric,-136.75,.71,45.15,2.3,.17,2.9)
- box(paint,-136.75,.83,46.09,1.65,.11,.62)
  box(wood,-135.65,1.17,48.1,4.05,.12,1.12)
  box(steel,-135.3,1.39,48.1,1.21,.39,.58)
  box(paint,-120.4,.98,47.6,1.78,1.96,1.38)
  box(steel,-121.25,1.29,47.51,.05,.33,.06)
  for(const x of [-130,-127.9])box(paint,x,.09,42,.095,.01,5.2)
- sign('WEST BANK GARAGE',-129,3.38,28.94,5)
- sign('REST  /  SERVICE',-136,2.42,48.6,3)
+ sign('WEST BANK WORKS',-129,3.38,28.94,5)
 
  // A garden with a diagonal walk, planted beds and the reclaimed pump.
  box(plants,-167,.10,47,14,.036,15)

@@ -65,7 +65,7 @@ for(let i=0;i<4000;i++){
 }
 for(const events of stages)for(const state of ['board','chase','stopping','exit','foot','return','parked'])assert(events.has(state),state)
 assert(ai.units.every(unit=>unit.stage==='parked'&&!unit.crew.policeOrder))
-assert(crowd.officers.length===8)
+assert(crowd.officers.length===9)
 ai.update(1/60,player.pos,null,law,false)
 assert.equal(traffic.length,1)
 assert(ai.units.every(u=>!u.rig.root.visible))

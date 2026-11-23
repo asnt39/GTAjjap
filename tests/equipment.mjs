@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {createLoadout,gear} from '../src/equipment.js'
+import {scopeStance} from '../src/scope-stance.js'
 import {equipmentTrace} from '../src/equipment-contact.js'
 import {equipmentPlay} from '../src/equipment-play.js'
 import {createCharacter} from '../src/character.js'
@@ -172,6 +173,16 @@ assert(rifle.use())
 assert.equal(gear.pistol.range,24)
 assert.equal(gear.shotgun.range,17)
 
+const stance=scopeStance()
+stance.update(1.99,true)
+assert(stance.prone<1&&stance.eye===0)
+stance.update(.12,true)
+assert(stance.prone===1&&stance.eye>0&&stance.eye<1)
+stance.update(.14,true)
+assert.equal(stance.eye,1)
+stance.update(.016,false)
+assert(stance.eye===0&&stance.prone<1)
+
 for(const n of crowd.all)n.pos.set(-35,0,10)
 target.pos.set(0,0,100)
 target.f=fighter(100)
@@ -185,4 +196,8 @@ assert.equal(loadout.item.mag,sniperRounds)
 sim.attack(true);sniperFrame()
 assert.equal(loadout.item.mag,sniperRounds-1)
 assert.equal(target.f.hp,0)
+const optic=new Vector3()
+char.update(1/60,0,{prone:1})
+sim.update(1/60,{active:true,aiming:true,speed:0,pitch:0,ready:true,prone:1,alignScope:position=>assert(position(optic))})
+assert(optic.z>.3&&optic.y>.24&&optic.y<1.4,'the lens is in front of the lowered avatar and above ground')
 console.log('Sniper fires on the first aiming frame, has no hit range cap, cycles rounds and waits two seconds between shots.')
