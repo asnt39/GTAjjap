@@ -1,6 +1,7 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import { vehicles } from './vehicles.js'
+import {deformBody} from './vehicle-damage.js'
 
 // The GLBs use metres, face -Z and contain a second shell at the same origin.
 // Clones share their decoded geometry, atlases and materials across the street.
@@ -21,36 +22,34 @@ function streetCar(model) {
   return { root, close }
 }
 
-export function parkStreetCar(group, model, x, z, length, angle, addCollider) {
+export function createVehicleRig(id, model, parking) {
+  let config = vehicles[id]
   const { root, close } = streetCar(model)
-  const bounds = new T.Box3().setFromObject(close)
-  const size = bounds.getSize(new T.Vector3())
-  const scale = length / size.z
-  root.scale.setScalar(scale)
-  root.rotation.y = angle
-  root.position.set(x, .015, z)
-  group.add(root)
-  const halfWidth = size.x * scale / 2
-  addCollider(x-halfWidth, x+halfWidth, z-length/2, z+length/2, size.y*scale)
-}
-
-export function createVehicleRig(id, model) {
-  const config = vehicles[id]
-  const { root, close } = streetCar(model)
+  if(parking){
+    const size=new T.Box3().setFromObject(close).getSize(new T.Vector3())
+    const scale=parking.length/size.z
+    root.scale.setScalar(scale)
+    config={...config,...parking,width:size.x*scale,height:size.y*scale,localOnly:true}
+  }
   root.name = config.name
   const body = new T.Group()
   close.add(body)
   const hull = close.getObjectByName('Hull')
   const leftDoor = close.getObjectByName('LeftDoor')
   const rightDoor = close.getObjectByName('RightDoor')
-  body.add(hull, leftDoor, rightDoor)
+  body.add(hull)
+  const hinged=!!(leftDoor&&rightDoor)
+  if(hinged)body.add(leftDoor,rightDoor)
   const wheels = ['FrontLeft', 'FrontRight', 'RearLeft', 'RearRight'].map(label => {
     const mesh = close.getObjectByName(label + 'Wheel')
-    mesh.rotation.order = 'YXZ'
+    if(mesh)mesh.rotation.order = 'YXZ'
     return mesh
-  })
+  }).filter(Boolean)
   // Wheel pivots are at the hub in the baked rest pose with the tread on y=0.
-  const radius = wheels[0].position.y
+  const radius = (wheels[0]?.position.y??1)*root.scale.y
+  const panels=[]
+  for(const part of [hull,leftDoor,rightDoor].filter(Boolean))part.traverse(node=>{if(node.isMesh)panels.push(node)})
+  const deform=deformBody(root,panels,config.width/root.scale.x,config.length/root.scale.z)
   let spin = 0, impactPitch = 0
   let brakeLight
   root.traverse(mesh => {
@@ -63,10 +62,11 @@ export function createVehicleRig(id, model) {
     mesh.material = brakeLight
   })
   return {
-    ...config, root, hinged: true,
-    updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,impact=0,lift=0}) {
+    ...config, setup:config, root, hinged,
+    updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,impact=0,lift=0,dents}) {
       root.position.set(x, dt ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
       root.rotation.y = -heading
+      deform(dents)
       spin = (spin - travel/radius) % (Math.PI*2)
       for (let i=0; i<wheels.length; i++) {
         wheels[i].rotation.y = i < 2 ? -steer : 0
@@ -75,9 +75,11 @@ export function createVehicleRig(id, model) {
       impactPitch = Math.max(impactPitch * Math.exp(-dt * 10), Math.min(1, impact / 7))
       body.rotation.x = T.MathUtils.damp(body.rotation.x, T.MathUtils.clamp(accel*.004,-.044,.036)-impactPitch*.045,9,dt)
       body.rotation.z = T.MathUtils.damp(body.rotation.z, T.MathUtils.clamp(steer*speed*speed*.0014,-.05,.05),8,dt)
-      leftDoor.rotation.y = Math.min(0,door)*1.18
-      rightDoor.rotation.y = Math.max(0,door)*1.18
-      brakeLight.emissiveIntensity = braking ? 1.8 : 0
+      if(hinged){
+        leftDoor.rotation.y = Math.min(0,door)*1.18
+        rightDoor.rotation.y = Math.max(0,door)*1.18
+      }
+      if(brakeLight)brakeLight.emissiveIntensity = braking ? 1.8 : 0
     }
   }
 }
@@ -168,6 +170,8 @@ export function createPoliceVehicleRig(id,{police=false}={}) {
  }
  batchPanels(body)
  for(const hinge of doors)batchPanels(hinge)
+ const panels=[...body.children,...doors.flatMap(hinge=>hinge.children)].filter(node=>node.isMesh)
+ const deform=deformBody(root,panels,w,l)
  const beacons=[]
  if(police)for(const [side,color] of [[-1,0xd83421],[1,0x4183d3]]){
   const beacon=material(color,.36);beacon.emissive.setHex(color)
@@ -177,8 +181,9 @@ export function createPoliceVehicleRig(id,{police=false}={}) {
  }
  let spin=0,impactPitch=0
  return {root,...config, hinged:true,
-  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0,impact=0,lift=0}){
+  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0,impact=0,lift=0,dents}){
    root.position.set(x,dt?T.MathUtils.damp(root.position.y,lift,15,dt):lift,z);root.rotation.y=-heading
+   deform(dents)
    spin=(spin-travel/tireRadius)%(Math.PI*2)
    for(const {pivot,axle,front} of wheels){pivot.rotation.y=front?-steer:0;axle.rotation.x=spin}
    impactPitch=Math.max(impactPitch*Math.exp(-dt*10),Math.min(1,impact/7))

@@ -188,7 +188,7 @@ export function createUI(game){
   $('#gear-status').hidden=equipped.selected==='fists'
   $('#gear-status').textContent=equipped.def.name+(gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):'')
   $('#punch').setAttribute('aria-label',gun?'발사':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
-  $('#jump').disabled=!game.canAct()||!!game.crowd.talking
+  $('#jump').disabled=!game.canJump()
   $('#punch').disabled=game.mode()!=='walk'||game.foot.air||game.player.f.action==='down'
   const dialogue=game.crowd.dialogue,box=conversation
   const opened=!!dialogue&&!panel&&(box.hidden||box.inert)

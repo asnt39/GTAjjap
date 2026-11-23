@@ -115,3 +115,15 @@ test('a player car on a sidewalk still stops at the edge of paved ground',()=>{
  assert(car.x>=8&&car.x+rig.length/2<=10.8)
  assert.equal(car.speed,0)
 })
+
+test('a hard collision dents the corresponding end and a low curb leaves the body intact',()=>{
+ const car=Object.assign(newDrive(rig),{speed:15,z:13.165})
+ stepDrive(car,control(1),[[-5,5,10,11,2]],1/120)
+ assert(car.dents['end-1']?.depth>0)
+ assert.equal(car.dents['end1'],undefined)
+ assert(car.collision.z<car.z)
+ const curb=Object.assign(newDrive({...rig,x:3.5,heading:Math.PI/2}),{speed:8})
+ for(let i=0;i<50;i++)stepDrive(curb,control(1),[],1/120,[],true)
+ assert(curb.lift>0)
+ assert.equal(curb.dents,undefined)
+})

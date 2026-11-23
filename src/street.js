@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
-import { createVehicleRig, parkStreetCar } from './vehicle-rig.js'
+import { createVehicleRig } from './vehicle-rig.js'
 import { touringSetup } from './vehicles.js'
 
 const ROOT = '/assets/street/'
@@ -293,10 +293,17 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   }
   const touring=createTouring(models[1],touringSetup.x,touringSetup.z,touringSetup.length)
   const vehicles={touring,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
-  for(const rig of Object.values(vehicles))group.add(rig.root)
-  for(const [model,x,z,length,turn] of [[2,4.93,-5,4.35,PI],[5,-4.85,-57,4.22,0],[4,4.86,-75,4.5,PI],[2,-4.83,46,4.3,0],[3,4.9,51,4.4,PI]]){
-    parkStreetCar(group,models[model],x,z,length,turn,addCollider)
+  const parking=[
+    ['riverside-quay','touring',2,'Riverside',4.93,-5,4.35,PI],
+    ['sprint-north','sport',5,'Sprint',-4.85,-57,4.22,0],
+    ['van-north','van',4,'Dock Van',4.86,-75,4.5,PI],
+    ['riverside-south','touring',2,'Riverside',-4.83,46,4.3,0],
+    ['fairheaven-south','touring',3,'Fairheaven',4.9,51,4.4,PI]
+  ]
+  for(const [id,base,model,name,x,z,length,heading] of parking){
+    vehicles[id]=createVehicleRig(base,models[model],{name,x,z,length,heading})
   }
+  for(const rig of Object.values(vehicles))group.add(rig.root)
   for(const [x,z,scale] of [[-8,15,1.2],[8,2,1.22],[-8,-10,1.1],[8,-27,1.28],[-8,-50,1.17],[8,-58,1.2],[-8,45,1.2],[8,36,1.1],[-8,-83,1.1]]){
     plantTree(models[0],x,z,4.3*scale)
     for(let ax=0;ax<2;ax++)for(let i=0;i<4;i++){

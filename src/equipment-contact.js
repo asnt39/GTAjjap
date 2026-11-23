@@ -7,13 +7,22 @@ const bounds=(left,right,bottom,top,north,south)=>new Box3(new Vector3(left,bott
 
 // Snapshot stationary colliders once. Cars keep their live, oriented footprint.
 export function equipmentTrace(boxes,cars,residents){
- const solids=boxes.map(([l,r,n,s,h])=>bounds(l,r,-.1,h,n,s))
- solids.push(bounds(-200,200,-2,0,-250,150),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south))
+ const staticBounds=new WeakMap()
+ const solids=[bounds(-200,200,-2,0,-250,150),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south)]
  for(const p of premises)solids.push(bounds(p.x-5.5,p.x+5.5,3.44,4,back,front))
  const ray=new Ray(),localRay=new Ray(),hit=new Vector3(),carBox=new Box3(),sphere=new Sphere()
- return (origin,direction,limit)=>{
-  ray.set(origin,direction);let distance=limit,target=null,blocked=false
-  function nearest(t,n=null){if(t>=0&&t<distance){distance=t;target=n;blocked=!n}}
+ return (origin,direction,limit,ignoreResident)=>{
+  ray.set(origin,direction);let distance=limit,target=null,blocked=false,vehicle=null
+  function nearest(t,n=null,car=null){if(t>=0&&t<distance){distance=t;target=n;blocked=!n;vehicle=car}}
+  for(const b of boxes){
+   let box=staticBounds.get(b)
+   if(!box){
+    box=bounds(b[0],b[1],-.1,b[4],b[2],b[3])
+    staticBounds.set(b,box)
+   }
+   if(box.containsPoint(origin)){nearest(0);break}
+   if(ray.intersectBox(box,hit))nearest(hit.distanceTo(origin))
+  }
   for(const box of solids){
    if(box.containsPoint(origin)){nearest(0);break}
    if(ray.intersectBox(box,hit))nearest(hit.distanceTo(origin))
@@ -22,18 +31,18 @@ export function equipmentTrace(boxes,cars,residents){
    const p=localPoint(car,origin.x,origin.z),c=Math.cos(car.heading),s=Math.sin(car.heading)
    localRay.origin.set(p.x,origin.y,p.z);localRay.direction.set(direction.x*c+direction.z*s,direction.y,-direction.x*s+direction.z*c)
    carBox.min.set(-car.width/2,0,-car.length/2);carBox.max.set(car.width/2,car.height,car.length/2)
-   if(carBox.containsPoint(localRay.origin))nearest(0)
-   else if(localRay.intersectBox(carBox,hit))nearest(hit.distanceTo(localRay.origin))
+   if(carBox.containsPoint(localRay.origin))nearest(0,null,car)
+   else if(localRay.intersectBox(carBox,hit))nearest(hit.distanceTo(localRay.origin),null,car)
   }
   for(const n of residents){
-   if(n.f.hp<=0||n.pos.distanceToSquared(origin)>(distance+2)**2)continue
+   if(n===ignoreResident||n.policeOrder?.aboard||n.f.hp<=0||n.pos.distanceToSquared(origin)>(distance+2)**2)continue
    // Overlapping spheres follow the game's upright resident volume.
    for(const [height,radius] of bodyVolumes){
     sphere.center.copy(n.pos);sphere.center.y+=height*n.height;sphere.radius=radius
     if(ray.intersectSphere(sphere,hit))nearest(hit.distanceTo(origin),n)
    }
   }
-  return {target,distance,blocked}
+  return {target,distance,blocked,vehicle}
  }
 }
 const bodyVolumes=[[.19,.27],[.39,.34],[.57,.32],[.72,.29],[.89,.20]]

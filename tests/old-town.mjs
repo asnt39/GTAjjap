@@ -9,7 +9,7 @@ import {districtGates} from '../src/atmosphere.js'
 import {marketCollision} from '../src/market-plan.js'
 import {stationColliders} from '../src/custody.js'
 import {clockCourt,oldTownHeight,townRoadSurface} from '../src/old-town-plan.js'
-import {clearPose,newDrive,safeExit,stepDrive} from '../src/driving.js'
+import {availableDoor,clearPose,newDrive,safeExit,stepDrive} from '../src/driving.js'
 import {spawn,canWalk,movePlayer} from '../src/navigation.js'
 import {vehicles} from '../src/vehicles.js'
 
@@ -25,8 +25,16 @@ const model=new Scene(),boxes=[],surfaceMaps={}
 const add=(...bounds)=>boxes.push(bounds)
 districtGates(model,add);marketCollision(add);stationColliders(add)
 const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildStreet(model,add,surfaceMaps)])
-const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,vehicles[id]))
+const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
+const parked=Object.values(rigs).filter(rig=>rig.localOnly)
+assert.equal(parked.length,5)
+for(const rig of parked){
+ const vehicle=newDrive(rig,rig.setup)
+ const space=safeExit(vehicle,boxes)
+ assert(space&&availableDoor(vehicle,space.door,boxes),rig.name)
+ assert(clearPose(vehicle,boxes,true,true),rig.name)
+}
 const textures=new Set()
 model.getObjectByName('Old Town').traverse(obj=>{if(obj.material?.map)textures.add(obj.material.map)})
 assert(textures.has(surfaceMaps.street[0])&&textures.has(surfaceMaps.architecture[4]))

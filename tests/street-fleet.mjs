@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
-import {Box3,Group,Texture,TextureLoader,Vector3} from 'three'
+import {Box3,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js'
-import {createVehicleRig,parkStreetCar} from '../src/vehicle-rig.js'
+import {createVehicleRig} from '../src/vehicle-rig.js'
 import {vehicles} from '../src/vehicles.js'
-import {availableDoor,cabinPoint,doorPoint,newDrive} from '../src/driving.js'
+import {availableDoor,cabinPoint,doorPoint,newDrive,stepDrive,clearPose} from '../src/driving.js'
+import {dentVehicle} from '../src/vehicle-damage.js'
 import {entryPose,entryTime} from '../src/vehicle-entry.js'
 
 globalThis.self=globalThis
@@ -14,11 +15,24 @@ const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
 for(const [asset,id] of [['dock-panel','van'],['sprint-coupe','sport'],['fairheaven'],['riverside']]){
  const data=await readFile(new URL('../public/assets/street/'+asset+'.glb',import.meta.url))
  const model=await loader.parseAsync(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength),'')
- const group=new Group()
- let obstacle
- parkStreetCar(group,model,0,0,4.4,Math.PI,(...args)=>{obstacle=args})
- assert.equal(group.children[0].levels.length,2)
- assert(Math.abs(obstacle[3]-obstacle[2]-4.4)<.001)
+ const parked=createVehicleRig(id??'touring',model,{name:asset,x:4.8,z:15,length:4.4,heading:0})
+ const local=newDrive(parked,parked.setup)
+ assert.equal(parked.root.levels.length,2)
+ assert(parked.localOnly)
+ assert.equal(parked.hinged,!!id)
+ assert(availableDoor(local,doorPoint(local,-1),[]))
+ for(let i=0;i<120;i++)stepDrive(local,{forward:1,back:0,steer:-.25,handbrake:false},[],1/60,[],true)
+ assert(local.speed>3&&local.z<12&&clearPose(local,[],true,true),asset)
+ const hull=parked.root.levels[0].object.getObjectByName('Hull')
+ let panel
+ hull.traverse(node=>{if(node.isMesh&&!panel)panel=node})
+ const original=panel.geometry
+ dentVehicle(local,0,-local.length*.5,12)
+ parked.updatePose(local)
+ assert.notEqual(panel.geometry,original)
+ assert(panel.geometry.attributes.position.array.some((value,i)=>value!==original.attributes.position.array[i]))
+ parked.updatePose({...local,dents:undefined})
+ assert.equal(panel.geometry,original)
  if(!id)continue
  const rig=createVehicleRig(id,model),config=vehicles[id],body=rig.root.levels[0].object
  const extent=new Box3().setFromObject(body,true).getSize(new Vector3())

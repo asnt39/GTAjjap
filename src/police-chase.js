@@ -196,10 +196,12 @@ export function policeChase(scene,boxes,traffic,civilianCount,crowd,height) {
     const interval=range<25?0:range<57?.06:.12
     if(unit.carry<interval)continue
     const tick=unit.carry;unit.carry=0
-    if(unit.stage==='parked'&&unit.hasPose){unit.retry=Math.max(0,unit.retry-tick);continue}
+    if(unit.stage==='parked'&&unit.hasPose&&unit.renderedDents===unit.car.dents){
+     unit.retry=Math.max(0,unit.retry-tick);continue
+    }
     simulate(unit,tick,player,target,law)
     const signal=law.level>=2&&unit.stage!=='parked'?(Math.floor(signalClock*5)%2)+1:0
-    unit.rig.updatePose({...unit.car,dt:tick,signal});unit.hasPose=true
+    unit.rig.updatePose({...unit.car,dt:tick,signal});unit.hasPose=true;unit.renderedDents=unit.car.dents
     moving ||= !!unit.car.travel||unit.stage==='board'||unit.stage==='exit'
     unit.car.travel=0;unit.car.impact=0
    }

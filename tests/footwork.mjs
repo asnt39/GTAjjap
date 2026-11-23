@@ -52,3 +52,16 @@ test('diagonal movement follows the intended line around a clear exterior corner
  assert(Math.abs(feet.x-.26)<1e-9)
  assert(Math.abs(feet.z-.20)<1e-9)
 })
+
+test('landing reports impact and allows another jump after a short recovery',()=>{
+ const foot=createFootwork()
+ foot.jump()
+ let landed
+ for(let i=0;i<60&&!landed;i++)landed=foot.advance(1/60)
+ assert(landed>4)
+ assert(!foot.jump())
+ foot.advance(.06)
+ assert(foot.land>.25,'landing animation can continue')
+ assert(foot.jump())
+ assert(!foot.jump())
+})

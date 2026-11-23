@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {createLoadout} from './equipment.js'
 import {equipmentPlay} from './equipment-play.js'
+import {worldEffects} from './world-effects.js'
 import {policeChase} from './police-chase.js'
 import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
@@ -55,6 +56,7 @@ export async function start(onContextLost){
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12
  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
+ const effects=worldEffects(scene,{capacity:coarse?72:120})
  const sunlight=illumination(scene);beacons(scene,addCollider);districtGates(scene,addCollider)
  const surfaceMaps={}
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
@@ -84,8 +86,9 @@ export async function start(onContextLost){
  // The contact decal follows every footstep. Reserve moving sun shadows for High.
  const playerMeshes=[]
  char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=false}})
- const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,vehicles[id]),id,door:0}]))
+ const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,rig.setup??vehicles[id]),id,localOnly:!!rig.localOnly,door:0}]))
  const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
+ const parkedSpawns=new Map(fleet.filter(vehicle=>vehicle.localOnly).map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
@@ -137,7 +140,7 @@ export async function start(onContextLost){
  const loadout=createLoadout(storage)
  let aiming=false
  const armed=()=>loadout.selected!=='fists'
- const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,
+ const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
  function selectEquipment(id){
   if(mode!=='walk'||crowd.talking||player.f.action||!loadout.select(id))return false
@@ -168,10 +171,10 @@ export async function start(onContextLost){
   }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
  }
- function hitPlayer(n,zone,point){
+ function hitPlayer(n,zone,point,amount=16){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
-  if(custody.active||!injure(player.f,16,side,zone,{responseWindow:.65}))return false
+  if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65}))return false
   equipment.interrupt();aiming=false;crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
  }
  function respawn(arrested=false){
@@ -188,7 +191,8 @@ export async function start(onContextLost){
  }
  const driving=()=>mode==='drive'
  const canAct=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
- function jump(){if(canAct()&&!crowd.talking)foot.jump()}
+ const canJump=()=>!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
+ function jump(){if(canJump())foot.jump()}
  const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
@@ -204,6 +208,7 @@ export async function start(onContextLost){
   if(pos.y-groundHeight(pos.x,pos.z)>.16)return null
   let nearest=null,distance=Infinity
   for(const vehicle of fleet){
+   if(vehicle.localOnly&&room.phase!=='offline')continue
    const access=availableDoor(vehicle,pos,boxes,(x,z)=>blockedAtDoor(vehicle,x,z))
    if(!access||vehicle.owner!=null||Math.abs(vehicle.speed)>.45)continue
    const d=Math.hypot(pos.x-access.door.x,pos.z-access.door.z)
@@ -314,10 +319,13 @@ export async function start(onContextLost){
  const room=createRoomClient({
   change(){ui.updateRoom();if(room.phase==='offline'&&room.message&&!ui.isOpen())ui.toast(room.message)},
   join(p,resumed){
-   if(!resumed)offline={x:pos.x,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle}))}
+   if(!resumed)offline={x:pos.x,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle,collision:null}))}
    localSeat=null
    const frame=room.sample(performance.now())
-   for(const vehicle of fleet)Object.assign(vehicle,frame.latest.cars.get(vehicle.id))
+   for(const vehicle of fleet){
+    if(vehicle.localOnly)Object.assign(vehicle,parkedSpawns.get(vehicle.id),{dents:undefined,collision:null})
+    else Object.assign(vehicle,frame.latest.cars.get(vehicle.id))
+   }
    // The server may return a former driver near a blocked side. Recheck
    // against the live client world before restoring their walk position.
    const safe=canWalk(p.x,p.z,boxes)&&!occupied(p.x,p.z)
@@ -325,7 +333,7 @@ export async function start(onContextLost){
    ui.toast(resumed?'방에 다시 연결됐어':'비공개 방에 연결됐어')
   },
   leave(){
-   for(const [index,vehicle] of fleet.entries())Object.assign(vehicle,offline.cars[index],{owner:null})
+   for(const [index,vehicle] of fleet.entries())Object.assign(vehicle,offline.cars[index],{owner:null,dents:offline.cars[index].dents,collision:null})
    yaw=offline.yaw;pitch=offline.pitch;distance=offline.distance
    resetWalk(offline.x,offline.z,offline.face);presence.clear();offline=null
   },
@@ -357,7 +365,7 @@ export async function start(onContextLost){
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
@@ -500,7 +508,8 @@ export async function start(onContextLost){
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
    const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
      atStation(pos.x,pos.z)?station.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
-   foot.advance(dt,floor,roomCeiling-player.height)
+   const landing=foot.advance(dt,floor,roomCeiling-player.height)
+   if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
    shadow.material.opacity=1-.65*clamp(pos.y-floor,0,1)
@@ -521,7 +530,8 @@ export async function start(onContextLost){
    }
    for(const vehicle of fleet){
     rigs[vehicle.id].updatePose({...vehicle,dt,lift:room.phase==='offline'?vehicle.lift:0})
-    vehicle.travel=0;vehicle.impact=0
+    effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))
+    vehicle.travel=0;vehicle.impact=0;vehicle.collision=null
    }
    if(!transition&&mode==='walk')walkSpeed=speed
    else if(driving())walkSpeed=0
@@ -530,13 +540,23 @@ export async function start(onContextLost){
    const progress=episode.update(dt,{x:pos.x,z:pos.z,driving:driving()&&car===cars.touring})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
+   player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    player.legacyArrest=room.phase!=='offline'
    const police=squads.update(dt,pos,player.inVehicle,crowd.wanted,!player.legacyArrest)
+   for(let i=fleet.length;i<traffic.length;i++){
+    const vehicle=traffic[i]
+    effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))
+    vehicle.collision=null
+   }
    player.squadObserver=police.observed
    remoteShadow ||= police.moving
    crowd.update(dt,camera,player,hitPlayer,(outcome,officer)=>{
     if(outcome==='arrest')beginCustody(officer)
     else ui.toast(outcome==='warning'?'항만 경찰 · 경고 후 조사 종료':'수배 해제')
+   },(officer,from,to,vehicle)=>{
+    effects.muzzle(from,2);effects.trace(from,to);ui.shot('pistol')
+    if(vehicle)effects.emit('sparks',to.x,to.y,to.z,4)
+    else if(player.exposed)hitPlayer(officer,'body',to,18)
    })
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.x-trackedX)>10||Math.abs(pos.z-trackedZ)>10){trackedX=pos.x;trackedZ=pos.z;sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
@@ -549,6 +569,7 @@ export async function start(onContextLost){
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
     speed,pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+   effects.update(dt,canvas.height)
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos);renderer.render(scene,camera)
    if(elapsed>1){
     frameSum+=realDt;frameCount++

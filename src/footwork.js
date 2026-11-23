@@ -4,13 +4,15 @@ export function createFootwork(){
  let preference='toggle'
  try{if(localStorage.getItem('harborline.runMode.v3')==='hold')preference='hold'}catch{}
  const state={
-  height:0,vertical:0,flight:0,air:false,land:0,sprint:false,
+  height:0,vertical:0,flight:0,air:false,land:0,sprint:false,jumpDelay:0,
+  get canJump(){return !state.air&&state.jumpDelay===0},
   get preference(){return preference},
   changePreference(){preference=preference==='toggle'?'hold':'toggle';state.sprint=false;try{localStorage.setItem('harborline.runMode.v3',preference)}catch{}},
   shift(){if(preference==='toggle')state.sprint=!state.sprint},
-  jump(){if(state.air||state.land>.25)return false;state.vertical=launch;state.flight=0;state.air=true;return true},
-  reset(floor){Object.assign(state,{height:floor,vertical:0,air:false,flight:0,land:0})},
+  jump(){if(!state.canJump)return false;state.vertical=launch;state.flight=0;state.air=true;state.land=0;return true},
+  reset(floor){Object.assign(state,{height:floor,vertical:0,air:false,flight:0,land:0,jumpDelay:0})},
   advance(dt,floor=0,maxHeight=Infinity){
+   state.jumpDelay=Math.max(0,state.jumpDelay-dt)
    if(!state.air && state.height-floor>.135){
     state.air=true;state.vertical=0;state.flight=.23
    }
@@ -18,7 +20,11 @@ export function createFootwork(){
    if(state.air){
     state.height+=state.vertical*dt-gravity*dt*dt/2;state.vertical-=gravity*dt;state.flight+=dt
     if(state.height>maxHeight){state.height=maxHeight;state.vertical=Math.min(0,state.vertical)}
-    if(state.vertical<=0&&state.height<=floor){state.height=floor;state.vertical=0;state.air=false;state.land=1}
+    if(state.vertical<=0&&state.height<=floor){
+     const force=-state.vertical
+     state.height=floor;state.vertical=0;state.air=false;state.land=1;state.jumpDelay=.055
+     return force
+    }
    }else{state.height=floor;state.land=Math.max(0,state.land-dt*5.7)}
   },
   get phase(){return state.air?Math.min(1,state.flight/(2*launch/gravity)):null},

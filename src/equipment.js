@@ -2,7 +2,7 @@
 export const gear = Object.freeze({
  fists: {name:'맨손'},
  pistol: {name:'권총', capacity:8, stock:32, delay:.32, reload:1.15, damage:29, range:44},
- shotgun: {name:'산탄총', capacity:4, stock:16, delay:.88, reload:1.65, damage:9, range:26},
+ shotgun: {name:'산탄총', capacity:4, stock:16, delay:.88, reload:1.65, damage:16, range:26},
  bat: {name:'야구방망이', delay:.78, damage:36}
 })
 const saveKey='harborline.equipment.v1'

@@ -48,8 +48,8 @@ for(const [i,n] of crowd.all.entries())n.pos.set(22+i*2,0,25)
 const target=crowd.all[0],officer=crowd.officers[0],witness=crowd.all[1]
 officer.pos.set(4,0,2);witness.pos.set(-3,0,4)
 const player={pos:char.root.position,f:fighter(100)}
-const loadout=createLoadout(),shots=[],hits=[],messages=[]
-const sim=equipmentPlay({scene,camera,char,boxes:[],fleet:[],crowd,player,loadout,onHit:n=>hits.push(n),onShot:id=>shots.push(id),toast:m=>messages.push(m)})
+const loadout=createLoadout(),shots=[],hits=[],messages=[],traces=[]
+const sim=equipmentPlay({scene,camera,char,boxes:[],fleet:[],crowd,player,loadout,effects:{trace:(a,b)=>traces.push(a.distanceTo(b)),muzzle(){},emit(){}},onHit:n=>hits.push(n),onShot:id=>shots.push(id),toast:m=>messages.push(m)})
 function frame(){
  char.update(1/60,0);advance(target.f,1/60)
  sim.update(1/60,{active:true,aiming:true,speed:0,pitch:0})
@@ -62,6 +62,7 @@ camera.position.set(.2,1.55,-3);camera.lookAt(0,1.3,4);camera.updateMatrixWorld(
 target.pos.set(0,0,4)
 await prepare('pistol');sim.attack();frame()
 assert.equal(shots[0],'pistol',messages.join(' '))
+assert(traces[0]>2&&traces[0]<5)
 assert.equal(target.f.hp,target.f.maxHealth-gear.pistol.damage);assert.equal(witness.state,'flee');assert.equal(crowd.wanted.level,1)
 for(let i=0;i<60;i++)frame()
 await prepare('shotgun');sim.attack();frame()
@@ -81,3 +82,49 @@ const remaining=loadout.item.mag
 sim.attack();loadout.select('fists');frame()
 assert.equal(loadout.items.pistol.mag,remaining)
 assert.equal(shots.length,2)
+
+// One clean close shot downs even a patrol officer; a distant hit barely hurts.
+const nearOfficer=crowd.officers[1]
+target.pos.set(40,0,40)
+officer.pos.set(35,0,38)
+witness.pos.set(-12,0,12)
+nearOfficer.pos.set(0,0,1.9)
+camera.lookAt(0,1.30,1.9);camera.updateMatrixWorld()
+await prepare('shotgun')
+sim.attack();frame()
+assert.equal(nearOfficer.f.hp,0)
+assert.equal(crowd.wanted.level,3)
+for(let i=0;i<62;i++)frame()
+target.pos.set(0,0,16)
+target.f=fighter(target.f.maxHealth)
+camera.lookAt(0,1.30,16);camera.updateMatrixWorld()
+const farHealth=target.f.hp
+sim.attack();frame()
+assert(farHealth-target.f.hp>0&&farHealth-target.f.hp<8)
+console.log('Close shotgun one-shot, distant falloff and immediate hits with cosmetic tracers passed.')
+
+const cover=[[-28,28,2.4,2.8,4]]
+const patrolCrowd=await createResidents(scene,cover,{x:90,z:90,width:2,length:4,heading:0})
+for(const [i,n] of patrolCrowd.all.entries())n.pos.set(39+i,0,52)
+const [casualty,shooter]=patrolCrowd.officers
+casualty.pos.set(-1,0,7)
+shooter.pos.set(0,0,5);shooter.face=Math.PI
+player.available=player.exposed=true
+const fired=[]
+const updatePolice=()=>patrolCrowd.update(1/30,camera,player,()=>{},()=>{},(npc,from,to)=>fired.push({npc,from:from.clone(),to:to.clone()}))
+patrolCrowd.receive(casualty,player.pos,'body',casualty.pos,20)
+for(let i=0;i<25;i++)updatePolice()
+assert.equal(fired.length,0)
+patrolCrowd.receive(casualty,player.pos,'body',casualty.pos,200)
+assert.equal(patrolCrowd.wanted.level,3)
+for(let i=0;i<30;i++)updatePolice()
+assert.equal(fired.length,0,'cover blocks retaliation')
+cover.pop()
+for(let i=0;i<85&&!fired.length;i++){updatePolice();await new Promise(resolve=>setTimeout(resolve,4))}
+assert.equal(fired[0]?.npc,shooter)
+assert(fired[0].to.distanceTo(new Vector3(0,1.28,0))<.01)
+patrolCrowd.wanted.clear()
+const count=fired.length
+for(let i=0;i<60;i++)updatePolice()
+assert.equal(fired.length,count)
+console.log('A surviving officer returns fire after a casualty, respects live cover and stops when wanted clears.')

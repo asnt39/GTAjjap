@@ -2,6 +2,7 @@
 import {canWalk} from './navigation.js'
 import {onDrivePavement,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpavedDriveBlocks,useTownDriveMask} from './old-town-plan.js'
 import {touringSetup} from './vehicles.js'
+import {dentVehicle} from './vehicle-damage.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 const approach=(a,b,step)=>a+clamp(b-a,-step,step)
 const step=1/120
@@ -19,7 +20,7 @@ export function nearBody(car,x,z,r=.32){
  const p=localPoint(car,x,z)
  return Math.hypot(Math.max(0,Math.abs(p.x)-car.width/2),Math.max(0,Math.abs(p.z)-car.length/2))<r
 }
-export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false){
+export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false,contact){
  const cs=Math.cos(car.heading),sn=Math.sin(car.heading),c=Math.abs(cs),s=Math.abs(sn)
  const w=car.width/2,l=car.length/2,rx=c*w+s*l,rz=s*w+c*l
  const inTown=allowOldTown&&useTownDriveMask(car.x,car.z)
@@ -30,7 +31,12 @@ export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false){
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z
   return Math.abs(dx*cs+dz*sn)<w+a*c+b*s && Math.abs(-dx*sn+dz*cs)<l+a*s+b*c
  }
- return !(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).some(overlaps)&&!boxes.some(overlaps)
+ const block=(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).find(overlaps)??boxes.find(overlaps)
+ if(contact&&block){
+  contact.x=clamp(car.x,block[0],block[1])
+  contact.z=clamp(car.z,block[2],block[3])
+ }
+ return !block
 }
 
 export function vehicleLift(car){
@@ -55,7 +61,13 @@ export function overlapsCar(a,b){
 }
 export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false){
  const setup=car.setup??touringSetup
- const clear=()=>clearPose(car,boxes,true,allowSidewalk)&&!others.some(other=>other!==car&&overlapsCar(car,other))
+ const clear=contact=>{
+  if(!clearPose(car,boxes,true,allowSidewalk,contact))return false
+  const other=others.find(other=>other!==car&&overlapsCar(car,other))
+  if(other&&contact)Object.assign(contact,{x:other.x,z:other.z,other})
+  return !other
+ }
+ const contact={}
  const command=input.forward-input.back
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
@@ -91,7 +103,8 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false)
   if(travel!==0){
    const x=car.x,z=car.z,h=car.heading
    car.x+=dx;car.z+=dz;car.heading+=turn
-   if(clear())car.travel+=travel
+   contact.x=contact.z=contact.other=undefined
+   if(clear(contact))car.travel+=travel
    else{
     const alongX=Math.abs(dx)>Math.abs(dz)
     const tangent=Math.abs(alongX?dx:dz)/Math.hypot(dx,dz)
@@ -114,6 +127,15 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false)
      }
      car.x=x+dx*safe;car.z=z+dz*safe;car.heading=h+turn*safe
      car.travel+=travel*safe
+     if(mag>=3.8){
+      const hit=localPoint(car,contact.x??x+dx*100,contact.z??z+dz*100)
+      const dent=dentVehicle(car,hit.x,hit.z,mag)
+      if(dent)car.collision=worldPoint(car,dent.x*car.width*.5,dent.z*car.length*.5)
+      if(contact.other){
+       const otherHit=localPoint(contact.other,car.x,car.z)
+       dentVehicle(contact.other,otherHit.x,otherHit.z,mag*.8)
+      }
+     }
      impact=Math.max(impact,mag);car.speed=0
     }
    }
@@ -157,7 +179,7 @@ export function safeExit(car,boxes,preferred=-1,blocked){
  return null
 }
 export function newDrive(rig,setup=touringSetup){
- const car={setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0}
+ const car={setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0,dents:undefined,collision:null}
  car.lift=vehicleLift(car)
  return car
 }

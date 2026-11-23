@@ -1,6 +1,7 @@
 import {Vector3,Frustum,Matrix4,Sphere,MathUtils} from 'three'
 import {createWanted} from './wanted.js'
 import {ARREST_REACH} from './custody.js'
+import {policeFire} from './police-fire.js'
 import {createCharacter} from './character.js'
 import {canWalk,movePlayer} from './navigation.js'
 import {nearBody,localPoint,worldPoint} from './driving.js'
@@ -30,6 +31,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   return n
  }))
  const officers=all.filter(n=>n.officer),wanted=createWanted()
+ const firearms=policeFire(boxes,fleet,all)
  const responders=new Set()
  let sensing=0,observed=false
  const responding=n=>responders.has(n)&&n.f.hp>0&&!n.policeOrder
@@ -145,6 +147,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
   if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
   life.cancelGreeting(n);endTalk()
+  if(n.officer&&!n.f.hp){firearms.escalate();wanted.report(source,3)}
   if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
    wanted.report(source,n.officer||!n.f.hp?2:1)
    dispatch(source);sensing=0
@@ -162,14 +165,16 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   }
   responders.add(n);n.replan=0
  }
- function update(dt,camera,player,hitPlayer,onOutcome){
+ function update(dt,camera,player,hitPlayer,onOutcome,onPoliceShot){
   if(dt<=0)return
+  firearms.update(dt,wanted.level)
   if(wanted.level){
    dispatch(wanted.lastKnown)
    sensing-=dt
    if(sensing<=0){
     sensing=.2
     observed=officers.some(n=>{
+     if(onPoliceShot&&firearms.aim(n,player,distance(n.pos,player.pos)))return true
      const d=distance(n.pos,player.pos),angle=Math.atan2(player.pos.x-n.pos.x,player.pos.z-n.pos.z)
      if(!responding(n)||d>20||(d>3&&Math.cos(n.face-angle)<-.15))return false
      // The occupied vehicle itself must not occlude its driver's position.
@@ -178,10 +183,10 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     })
    }
    const reach=wanted.level===1||player.legacyArrest?1.65:ARREST_REACH
-   const contact=player.available&&!player.inVehicle&&officers.find(n=>
+   const contact=!firearms.active&&player.available&&!player.inVehicle&&officers.find(n=>
     responding(n)&&!n.f.action&&distance(n.pos,player.pos)<reach&&lineClear(n.pos,player.pos))
    const outcome=wanted.tick(dt,player.pos,observed||player.squadObserver||!!contact,contact?.id,player.legacyArrest)
-   if(outcome)onOutcome?.(outcome,contact)
+   if(outcome){firearms.update(0,wanted.level);onOutcome?.(outcome,contact)}
   }
   if(!wanted.level&&responders.size){
    for(const n of responders){n.alert=0;n.path=[];n.speed=0}
@@ -228,12 +233,17 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }
    const toward=Math.atan2(player.pos.x-p.x,player.pos.z-p.z)
    let nod=0
+   const aiming=!!onPoliceShot&&firearms.aim(n,player,d)
    if(n.f.action==='down'){
     if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
     movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
-   else if(n.policeOrder){
+   else if(aiming){
+    if(talking===n)endTalk()
+    n.state='guard';n.speed=0;n.path=[];n.replan=0
+    turn(n,toward,tick)
+   }else if(n.policeOrder){
     if(talking===n)endTalk()
     n.state='guard'
     if(n.replan<=0){plan(n,n.policeOrder.target,null);n.replan=.6}
@@ -295,7 +305,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }
    if(!n.stepping&&n.state!=='walk'&&n.state!=='flee')n.speed=0
    p.y=surfaceHeight(p);n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
-   if(visible||d<5){
+   if(visible||d<5||aiming){
     n.rig.update(tick,n.stepping,{...combatPose(n.f,n.state==='guard'||n.state==='watch'),
      guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick,nod})
     if(n.f.action==='punch'&&player.available){
@@ -304,6 +314,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     }
     if(d<18&&(n.stepping>.05||n.f.action))shadowDirty=true
    }
+   if(onPoliceShot&&n.officer)firearms.pose(n,player,tick,aiming,onPoliceShot)
   }
  }
  return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,hearShot,lineClear,update,blockedBy, get talking(){return talking},
