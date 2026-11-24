@@ -1,5 +1,5 @@
-const CACHE = 'harborline-install-icons-v4';
-const ICONS = ['/icons/harborline-pwa-192-v4.png', '/icons/harborline-pwa-512-v4.png'];
+const CACHE = 'harborline-install-icons-v5';
+const ICONS = ['/icons/harborline-pwa-192-v5.png', '/icons/harborline-pwa-512-v5.png', '/icons/harborline-pwa-maskable-512-v5.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => Promise.all(ICONS.map(async path => {
