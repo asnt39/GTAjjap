@@ -9,7 +9,6 @@ const status = document.querySelector('#status')
 const canvas = game.querySelector('#world')
 const mediaEvents = new AbortController()
 const inputEvents = new AbortController()
-const motion = matchMedia('(prefers-reduced-motion: reduce)')
 const previewSource = window.harborPreviewAssets?.[video.getAttribute('src')]
 if (previewSource) video.src = previewSource
 
@@ -22,13 +21,8 @@ let enableGame
 let gameFailed = false
 let failureHandoff
 
-function waitForFade(ms) {
-  return motion.matches ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, ms))
-}
-
 function showGameFailure(text) {
   gameFailed = true
-  status.classList.remove('leaving')
   status.querySelector('b').textContent = text
   status.hidden = false
   game.inert = true
@@ -100,28 +94,17 @@ async function finish() {
   if (phase === 'exiting') return
   phase = 'exiting'
   clearTimeout(playbackTimeout)
+  clearTimeout(failureHandoff)
   mediaEvents.abort()
   video.pause()
-  play.disabled = true
-  intro.classList.add('ending')
-  await waitForFade(140)
   video.removeAttribute('src')
-  video.load()
-  if (enableGame && !gameFailed) status.hidden = true
+  status.hidden = Boolean(enableGame && !gameFailed)
   status.removeAttribute('aria-hidden')
-  intro.classList.add('revealing')
-  const preparing = prepareGame()
-  await waitForFade(240)
   intro.remove()
-  await preparing
+  video.load()
+  await prepareGame()
   if (!enableGame || gameFailed) return
-  if (!status.hidden) {
-    status.classList.add('leaving')
-    await waitForFade(350)
-  }
-  if (gameFailed) return
   status.hidden = true
-  status.classList.remove('leaving')
   game.inert = false
   inputEvents.abort()
   enableGame()

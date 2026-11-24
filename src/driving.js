@@ -68,6 +68,7 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false)
   return !other
  }
  const contact={}
+ const heldBrake=!!input.handbrake||input.forward>0&&input.back>0
  const command=input.forward-input.back
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
@@ -79,10 +80,10 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false)
   const steerRate=input.steer?setup.steerRate/(1+mag*.055):2.1
   car.steer=approach(car.steer,target,step*steerRate)
   const opposite=command*old<0
-  car.braking=!!input.handbrake||opposite
+  car.braking=heldBrake||opposite
   if(!command||car.braking||car.shiftDelay>0||command*car.throttle<0)car.throttle=0
-  if(input.handbrake||opposite){
-   car.speed=approach(old,0,(input.handbrake?setup.handbrake:setup.brake)*step)
+  if(heldBrake||opposite){
+   car.speed=approach(old,0,(heldBrake?setup.handbrake:setup.brake)*step)
    if(opposite&&car.speed===0)car.shiftDelay=setup.bike?.16:.13
   }else if(car.shiftDelay>0){
    car.shiftDelay-=step

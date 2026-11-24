@@ -51,6 +51,9 @@ export function characterPose(scene){
  const end=new Vector3(),direction=new Vector3(),pole=new Vector3(),bend=new Vector3()
  const custodyTarget=new Vector3()
  const target=new Vector3(),hint=new Vector3(),delta=new Quaternion(),parentQ=new Quaternion(),inverseParent=new Quaternion()
+ const legs=['R','L'].map(short=>({
+  upper:byName.get(short+' Thigh'),lower:byName.get(short+' Calf'),end:byName.get(short+' Foot')
+ }))
  const arms=['R','L'].map(short=>({
   upper:byName.get(short+' UpperArm'), lower:byName.get(short+' Forearm'),
   hand:byName.get(short+' Hand'), knuckle:byName.get(short+' Finger2')
@@ -65,14 +68,11 @@ export function characterPose(scene){
   remember(joint)
   joint.bone.quaternion.slerp(delta,weight)
  }
- function placeArm(sign,x,y,z,weight){
-  const arm=arms[sign>0?1:0]
-  arm.upper.bone.getWorldPosition(start)
-  arm.lower.bone.getWorldPosition(middle)
-  arm.hand.bone.getWorldPosition(end)
+ function placeLimb(upper,lower,tip,weight){
+  upper.bone.getWorldPosition(start)
+  lower.bone.getWorldPosition(middle)
+  tip.bone.getWorldPosition(end)
   const a=start.distanceTo(middle),b=middle.distanceTo(end)
-  scene.localToWorld(target.set(x,y,z))
-  scene.localToWorld(hint.set(sign*.60,1.04,-.14))
   direction.subVectors(target,start)
   const d=Math.max(Math.abs(a-b)+.001,Math.min(a+b-.003,direction.length()))
   direction.normalize()
@@ -80,8 +80,14 @@ export function characterPose(scene){
   const along=(a*a-b*b+d*d)/(2*d)
   bend.copy(start).addScaledVector(direction,along).addScaledVector(pole,Math.sqrt(Math.max(0,a*a-along*along)))
   target.copy(start).addScaledVector(direction,d)
-  aim(arm.upper,arm.lower,bend,weight)
-  aim(arm.lower,arm.hand,target,weight)
+  aim(upper,lower,bend,weight)
+  aim(lower,tip,target,weight)
+ }
+ function placeArm(sign,x,y,z,weight){
+  const arm=arms[sign>0?1:0]
+  scene.localToWorld(target.set(x,y,z))
+  scene.localToWorld(hint.set(sign*.60,1.04,-.14))
+  placeLimb(arm.upper,arm.lower,arm.hand,weight)
  }
  function curl(sign,weight){
   const prefix=sign>0?'L Finger':'R Finger'
@@ -110,18 +116,22 @@ export function characterPose(scene){
   }
   if(reach>.001){placeArm(side,side*.20,.98,.61,reach);curl(side,reach*.7)}
  }
- function motorcycle({seated,steer=0}){
+ function motorcycle({seated,rig}){
   offset('Spine','x',.25*seated)
   offset('Spine1','x',.16*seated)
   offset('Neck','x',-.16*seated)
   for(const side of [-1,1]){
-   const leg=side<0?'R':'L'
-   offset(leg+' Thigh','x',-1.1*seated)
-   offset(leg+' Thigh','z',side*.19*seated)
-   offset(leg+' Calf','x',1.24*seated)
-   offset(leg+' Foot','x',-.20*seated)
-   placeArm(side,side*.285+steer*.10,1.055,.46-side*steer*.16,seated)
+   const i=side>0?1:0
+   const arm=arms[i],leg=legs[i]
+   rig.gripPosition(side,target)
+   scene.localToWorld(hint.set(side*.60,1.04,-.14))
+   placeLimb(arm.upper,arm.lower,arm.hand,seated)
    curl(side,.82*seated)
+   rig.pegPosition(side,target)
+   // Move the ankle above the footrest; the knee bends ahead of the peg.
+   target.y+=.065
+   scene.localToWorld(hint.set(side*.37,.62,.82))
+   placeLimb(leg.upper,leg.lower,leg.end,seated)
   }
  }
  function custody({progress,wrist}){

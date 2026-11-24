@@ -18,8 +18,8 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const impact=new Mesh(meshGeometry,new MeshBasicMaterial({color:0xffbf83,toneMapped:false}))
  impact.scale.setScalar(.055);scene.add(impact)
  impact.visible=false
- let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure='',pronePose=0
- const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25-.73*pronePose)
+ let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure=''
+ const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
  function hit(n,point,amount){
   const zone=point.y>n.pos.y+n.height*.77?'upper':'body'
@@ -38,7 +38,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   const focus=trace(camera.position,direction,range+camera.position.distanceTo(player.pos))
   aimPoint.copy(camera.position).addScaledVector(direction,Number.isFinite(focus.distance)?focus.distance:visualRange)
   // A third-person camera can be behind a corner that is behind the avatar.
-  if(contact.subVectors(aimPoint,player.pos).dot(direction)<0)aimPoint.copy(player.pos).addScaledVector(worldUp,1.25-.73*pronePose).addScaledVector(direction,visualRange)
+  if(contact.subVectors(aimPoint,player.pos).dot(direction)<0)aimPoint.copy(player.pos).addScaledVector(worldUp,1.25).addScaledVector(direction,visualRange)
   art.muzzlePosition(muzzle)
   const occlusion=segment(origin(),muzzle)
   if(occlusion.blocked||occlusion.target){
@@ -99,15 +99,15 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
     if(loadout.use()){batConnected=false;hasPrevious=false}
    }else queued=loadout.selected
   },
-  update(dt,{active,aiming,speed,pitch,prone=0,ready=false,alignScope}){
-   pronePose=prone
+  update(dt,{active,aiming,speed,pitch,raise,ready=false,alignScope}){
    if(!active)interrupt()
    loadout.tick(dt)
-   const firing=queued===loadout.selected&&active&&(!loadout.def.lethal||ready)&&loadout.use()
+   const wantsShot=queued===loadout.selected&&active&&(!loadout.def.lethal||ready)
    queued=false
-   art.update({dt,weapon:loadout.selected,hidden:!active,aiming:aiming||firing||loadout.recoil>.15,speed,
-    pitch,prone,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
-   alignScope?.(art.scopePosition)
+   art.update({dt,weapon:loadout.selected,hidden:!active,aiming:aiming||wantsShot||loadout.recoil>.15,speed,
+    pitch,raise,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
+   const scoped=alignScope?.(art.scopePosition)
+   const firing=wantsShot&&(!loadout.def.lethal||!alignScope||scoped===true)&&loadout.use()
    if(art.failed(loadout.selected)&&lastFailure!==loadout.selected){lastFailure=loadout.selected;toast('장비 모델을 불러오지 못했어 · 맨손으로 전환');loadout.select('fists')}
    impactTime-=dt
    if(impactTime<=0)impact.visible=false

@@ -8,7 +8,7 @@ Use Node.js 22 or newer. Run `npm ci` and `npm run dev`. Use `npm run build` to 
 
 ## Controls
 
-Walk with WASD or the up/down arrows. Tap Shift to toggle running. The pause menu also offers hold-to-run. Press Space to jump on foot and F to punch. Drag or use left/right arrows to turn the camera. Scroll to change camera distance. Read nearby signs with E, open the map with M and pause with Escape. On touch screens, use the stick for walking or push it to the edge to run. Drag the open view to look around and use the jump and attack buttons. Sound starts muted.
+Run with WASD or the up/down arrows. Tap Shift to switch between walking and running. The pause menu also offers hold-to-walk. Press Space to jump on foot and F to punch. Drag or use left/right arrows to turn the camera. Scroll to change camera distance. Read nearby signs with E, open the map with M and pause with Escape. On touch screens, use the stick for walking or push it to the edge to run. Drag the open view to look around and use the jump and attack buttons. Sound starts muted.
 
 ## Project layout
 

@@ -66,3 +66,31 @@ assert.equal(entryPose(bikeBody,{...bikeDoor,from:bikeDoor.door,time:entryTime},
 bike.updatePose({...bikeBody,dt:.1,speed:8,steer:.38,travel:.48,mounted:true})
 assert(bike.bank<-.1&&bike.root.getObjectByName('fork').rotation.y<0)
 assert(bike.root.getObjectByName('wheel_F').rotation.x>0)
+
+const rider=new Vector3(), leanedSeat=new Vector3(0,-.10,.25)
+const lean=bike.root.children[0]
+for(const [speed,steer,lift] of [[0,0,.083],[8,.38,.04],[14,-.25,0],[0,-.25,.083]]){
+ bike.updatePose({...bikeBody,speed,steer,lift,dt:.1,mounted:true})
+ bike.riderPosition(rider)
+ assert(rider.distanceTo(lean.localToWorld(leanedSeat.clone()))<1e-6,'seat stays attached through roll and lift')
+}
+
+GLTFLoader.prototype.loadAsync=async function(url){
+ const asset=await readFile(new URL('../public'+url,import.meta.url))
+ return this.parseAsync(asset.buffer.slice(asset.byteOffset,asset.byteOffset+asset.byteLength),'')
+}
+const {createCharacter}=await import('../src/character.js')
+const driver=await createCharacter()
+const ankle=new Vector3(),grip=new Vector3(),peg=new Vector3()
+for(const [speed,steer] of [[0,0],[8,.5],[12,-.35],[0,-.25]]){
+ bike.updatePose({...bikeBody,speed,steer,dt:.1,lift:.083,mounted:true})
+ bike.riderPosition(driver.root.position)
+ bike.riderRotation(driver.root.quaternion)
+ driver.update(1/60,0,{motorcycle:{seated:1,rig:bike}})
+ for(const [side,bone] of [[-1,'R'],[1,'L']]){
+  driver.root.getObjectByName('Bip01_'+bone+'_Hand').getWorldPosition(grip)
+  assert(grip.distanceTo(bike.gripPosition(side,rider))<.085,'wrist should follow the steering grip')
+  driver.root.getObjectByName('Bip01_'+bone+'_Foot').getWorldPosition(ankle)
+  assert(ankle.distanceTo(bike.pegPosition(side,peg))<.09,'ankle should stay above the footrest')
+ }
+}

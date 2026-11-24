@@ -68,7 +68,7 @@ export function createEquipmentArt(character) {
  }
 
  function update({weapon='fists',aiming=false,recoil=0,swing=0,speed=0,
-                  hidden=false,reload=0,pitch=0,prone=0,bolt=0,dt=1/60}={}){
+                  hidden=false,reload=0,pitch=0,raise,bolt=0,dt=1/60}={}){
   if(disposed)return
   if(weapon!==selected){
    errors.delete(weapon) // Re-selecting a failed model retries its request.
@@ -96,7 +96,7 @@ export function createEquipmentArt(character) {
   const run=MathUtils.smoothstep(speed,1.2,5.4)
   stride=(stride+dt*Math.min(speed,7)*3.7)%(2*Math.PI)
   const bob=Math.sin(stride)*(.009+.014*run)
-  lift=MathUtils.damp(lift,aiming||recoil>0?1:0,22,dt)
+  lift=weapon==='sniper'&&aiming&&raise!=null?raise:MathUtils.damp(lift,aiming||recoil>0?1:0,22,dt)
   const reloadArc=Math.sin(Math.PI*MathUtils.clamp(reload,0,1))
   const exchange=MathUtils.smootherstep(reload,.12,.5)*(1-MathUtils.smootherstep(reload,.52,.91))
   const support=long?1:bat?0:Math.max(lift,MathUtils.smoothstep(reloadArc,0,.5))
@@ -122,12 +122,10 @@ export function createEquipmentArt(character) {
    y=(long?1.21:1.10)+(long?.185:.30)*lift+bob*(1-.83*lift)-.045*run*(1-lift)+.038*recoil
    z=(long?.17:.23)+(long?.102:.25)*lift-.058*recoil-.135*reloadArc
    y+=.19*Math.sin(-tilt)*lift
-   x=MathUtils.lerp(x,-.115,prone)
-   y=MathUtils.lerp(y,1.55-.045*reloadArc,prone)
-   z=MathUtils.lerp(z,.16-.065*recoil,prone)-.045*Math.sin(Math.PI*bolt)
+   z-=.045*Math.sin(Math.PI*bolt)
    rig.offset('Spine1','x',.07*lift-.054*recoil)
-   rig.offset('Spine2','y',(.16*lift-.21*reloadArc)*(1-prone))
-   rig.offset('Neck','z',-.10*lift*(1-prone))
+   rig.offset('Spine2','y',(.16*lift-.21*reloadArc))
+   rig.offset('Neck','z',-.10*lift)
   }
   rig.placeArm(-1,x,y,z,1)
   character.root.getWorldQuaternion(rootQ)

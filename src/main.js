@@ -21,7 +21,7 @@ import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
 import {firstWorkRoadblock} from './first-work-roadblock.js'
-import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,worldPoint,doorPoint,clearPath} from './driving.js'
+import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,clearPath} from './driving.js'
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
@@ -168,6 +168,7 @@ export async function start(onContextLost){
  const loadout=createLoadout(storage)
  const stance=scopeStance()
  let aiming=false,shoulder=0,scopeVisible=false,hideScopeBody=false
+ const cancelAim=()=>{aiming=false;stance.update(0,false);scopeVisible=false}
  const armed=()=>loadout.selected!=='fists'
  const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
@@ -175,7 +176,7 @@ export async function start(onContextLost){
   if(mode!=='walk'||crowd.talking||player.f.action||custody.active)return false
   const previous=loadout.selected
   if(!loadout.select(id))return false
-  if(previous!==id)aiming=false
+  if(previous!==id)cancelAim()
   return true
  }
  function reloadEquipment(){
@@ -201,15 +202,15 @@ export async function start(onContextLost){
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
    if(loadout.def.capacity)face=Math.PI-yaw
-   equipment.attack(aiming);foot.sprint=false;return
+   equipment.attack(loadout.def.lethal?sniperAiming()&&scopeVisible:aiming);return
   }
-  if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget();foot.sprint=false}
+  if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget()}
  }
  function hitPlayer(n,zone,point,amount=16){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
   if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65}))return false
-  equipment.interrupt();aiming=false;crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;foot.sprint=false;ui.impact(true);return true
+  equipment.interrupt();cancelAim();crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;ui.impact(true);return true
  }
  function returnToHome(){
   const base=room.phase==='offline'?garage:safeSpawn
@@ -241,7 +242,7 @@ export async function start(onContextLost){
  function converse(){
   if(crowd.talking){crowd.endTalk();return true}
   const n=talkCandidate();if(!n)return false
-  clearControls();crowd.beginTalk(n);foot.sprint=false;player.f.queued=false;return true
+  clearControls();crowd.beginTalk(n);player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
  const sniperAiming=()=>loadout.selected==='sniper'&&aiming&&mode==='walk'&&!isPaused&&!custody.active&&!foot.air&&!player.f.action
@@ -259,7 +260,7 @@ export async function start(onContextLost){
    for(const id of ids)releasePointer(button,id)
    ids.clear();button.classList.remove('held')
   }
-  aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear()
+  cancelAim();equipment.interrupt();resetInput();player.f.queued=false;pedals.clear()
  }
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
@@ -337,7 +338,7 @@ export async function start(onContextLost){
   vehiclePose=pose;walkSpeed=pose.speed
   pos.set(pose.x,0,pose.z);actor.position.set(pose.x,pose.y,pose.z)
   face=pose.face;actor.rotation.y=face;actor.visible=pose.visible;char.root.position.y=0
-  char.update(dt,pose.speed,car.setup.bike?{motorcycle:{seated:pose.ride,bank:rigs[car.id].bank*pose.ride}}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
+  if(!car.setup.bike||!pose.ride)char.update(dt,pose.speed,car.setup.bike?{}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
   renderer.shadowMap.needsUpdate=true
   if(transition.time<entryTime)return
   car.door=0
@@ -456,7 +457,7 @@ export async function start(onContextLost){
   if(e.button===0)clickOrigin={x:e.clientX,y:e.clientY}
  })
  canvas.addEventListener('mouseup',e=>{
-  if(e.button===2)aiming=false
+  if(e.button===2)cancelAim()
   if(e.button===0&&clickOrigin){
    if(Math.hypot(e.clientX-clickOrigin.x,e.clientY-clickOrigin.y)<7)attack()
    clickOrigin=null
@@ -465,7 +466,7 @@ export async function start(onContextLost){
  canvas.onpointerdown=e=>{if(isPaused||crowd.talking||custody.locked)return;
   if(drag)return;canvas.focus();canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY}}
  canvas.onpointermove=e=>{if(!drag||e.pointerId!==drag.id||isPaused||custody.locked)return;lookHold=2.2;yaw+=(e.clientX-drag.x)*.0045;pitch=clamp(pitch+(e.clientY-drag.y)*.004,-.19,.93);drag.x=e.clientX;drag.y=e.clientY}
- window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===2)aiming=false});
+ window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===2)cancelAim()});
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
@@ -482,7 +483,7 @@ export async function start(onContextLost){
   const ids=Object.keys(gear)
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
- document.querySelector('#gear-aim').onclick=()=>{if(aiming)aiming=false;else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=true}
+ document.querySelector('#gear-aim').onclick=()=>{if(aiming)cancelAim();else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=true}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
@@ -491,12 +492,12 @@ export async function start(onContextLost){
   if(camera.zoom!==zoom){camera.zoom=zoom;camera.updateProjectionMatrix()}
  }
  function alignScope(position){
-  if(!stance.eye||!sniperAiming()||!position(lens))return
-  scopeStart.set(pos.x,pos.y+.56,pos.z)
-  if(cameraFraction(scopeStart,lens,boxes)<.98)return
+  if(!stance.eye||!sniperAiming()||!position(lens))return false
+  scopeStart.set(pos.x,pos.y+1.46,pos.z)
+  if(cameraFraction(scopeStart,lens,boxes)<.98)return false
   const blend=THREE.MathUtils.smootherstep(stance.eye,0,1)
   camera.position.lerp(lens,blend)
-  camera.position.y=Math.max(pos.y+.24,camera.position.y)
+  camera.position.y=Math.max(pos.y+1.04,camera.position.y)
   const flat=Math.cos(pitch)
   aim.set(Math.sin(yaw)*flat,-Math.sin(pitch),-Math.cos(yaw)*flat).add(camera.position)
   camera.lookAt(aim)
@@ -504,22 +505,22 @@ export async function start(onContextLost){
   hideScopeBody=blend>.50
   if(scopeVisible)setZoom(4)
   camera.updateMatrixWorld()
+  return scopeVisible
  }
  let actualArm=distance,face=actor.rotation.y,elapsed=0,last=performance.now(),frameSum=0,frameCount=0,trackedX=0,trackedZ=spawn.z,shadowTick=0,followHeight=actor.position.y
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
-  const prone=THREE.MathUtils.smootherstep(stance.prone,0,1)
-  shoulder=damp(shoulder,aiming&&!driving()&&!prone?1:0,12,dt)
+  shoulder=damp(shoulder,aiming&&!driving()?1:0,12,dt)
   const localRoom=rowRoomAt(pos.x,pos.z)
   const roomDistance=localRoom?Math.min(distance,2.65):distance
   const viewDistance=THREE.MathUtils.lerp(roomDistance,Math.min(roomDistance,2.45),shoulder)
-  const arm=THREE.MathUtils.lerp(viewDistance,2.35,prone)+cameraBlend*car.setup.camera
+  const arm=viewDistance+cameraBlend*car.setup.camera
   const tilt=pitch+cameraBlend*.115-loadout.recoil*(loadout.selected==='sniper'?.038:.021)
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
   const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
-  const sideOffset=(.26+.43*shoulder+.24*prone)*(1-cameraBlend)
-  const height=THREE.MathUtils.lerp(1.54-.08*shoulder,.86,prone)
+  const sideOffset=(.26+.43*shoulder)*(1-cameraBlend)
+  const height=1.54-.08*shoulder
   anchor.set(pos.x+sideOffset*cs,
    (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn)
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
@@ -545,7 +546,7 @@ export async function start(onContextLost){
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
-  aim.set(anchor.x+sn*2.2,anchor.y+.12*(1-prone)-lift*2.2,anchor.z-cs*2.2)
+  aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
   camera.lookAt(aim)
  }
  positionCamera(0,true)
@@ -564,6 +565,22 @@ export async function start(onContextLost){
   foot.reset(groundHeight(x,z))
   pos.set(x,foot.height,z);actor.position.copy(pos);char.root.position.y=0;shadow.position.y=.014
  }
+ const bikeSeat=new THREE.Vector3(),bikeRotation=new THREE.Quaternion()
+ function poseMotorcycle(dt){
+  const rig=rigs[car.id],seated=driving()?1:vehiclePose.ride
+  rig.riderPosition(bikeSeat)
+  rig.riderRotation(bikeRotation)
+  if(driving()){
+   actor.position.copy(bikeSeat)
+   actor.quaternion.copy(bikeRotation)
+  }else{
+   const step=mode==='enter'?transition.from:transition.door
+   actor.position.set(step.x,groundHeight(step.x,step.z),step.z).lerp(bikeSeat,seated)
+   actor.position.y+=Math.sin(seated*Math.PI)*.13
+   actor.quaternion.slerp(bikeRotation,seated)
+  }
+  char.update(dt,driving()?0:vehiclePose.speed,{motorcycle:{seated,rig}})
+ }
  const draw=now=>{
   if(contextLost)return
   // After a long initialization or tab resume, rAF can carry an earlier frame timestamp.
@@ -579,7 +596,6 @@ export async function start(onContextLost){
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
    stance.update(Math.min(realDt,.25),sniperAiming())
-   const prone=THREE.MathUtils.smootherstep(stance.prone,0,1)
    if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
@@ -598,10 +614,10 @@ export async function start(onContextLost){
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     stepDrive(car,input,boxes,dt,traffic,room.phase==='offline')
     const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
-     if(crowd.vehicleHit(resident,car,damage,impact)){
-      effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,impact.knockout?7:4,impact.x,impact.z)
-      focus=resident;feedbackTime=2.5
-     }
+     if(!crowd.vehicleHit(resident,car,damage,impact))return false
+     effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,impact.knockout?7:4,impact.x,impact.z)
+     focus=resident;feedbackTime=2.5
+     return true
     })
     if(strikes)car.speed*=Math.pow(.85,strikes)
     speed=Math.abs(car.speed)
@@ -611,8 +627,8 @@ export async function start(onContextLost){
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
-   const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=sniperAiming()?(stance.prone===1?.72:0):
+   const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)*(player.f.action==='punch'?.36:player.f.action?0:1)
+   const rate=sniperAiming()?0:
     (custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
@@ -643,7 +659,7 @@ export async function start(onContextLost){
    const facing=player.f.action==='punch'?focus:crowd.talking
    if((armed()&&(aiming||loadout.recoil>.1))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.copy(pos)
-   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,prone:player.f.action==='down'?0:prone,
+   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
     turn:dt>0?(face-previousFace)/dt:0})
    if(!custody.active&&player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
@@ -656,11 +672,7 @@ export async function start(onContextLost){
     effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))
     vehicle.travel=0;vehicle.impact=0;vehicle.collision=null
    }
-   if(driving()&&car.setup.bike){
-    const seat=worldPoint(car,0,.25)
-    actor.position.set(seat.x,car.lift-.10,seat.z);actor.rotation.y=Math.PI-car.heading
-    char.update(dt,0,{motorcycle:{seated:1,steer:car.steer,bank:rigs[car.id].bank}})
-   }
+   if(car.setup.bike&&(driving()||vehiclePose?.ride))poseMotorcycle(dt)
    if(!transition&&mode==='walk')walkSpeed=speed
    else if(driving())walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
@@ -698,7 +710,7 @@ export async function start(onContextLost){
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
-    speed,prone,ready:sniperAiming(),alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
+    speed,raise:stance.raise,ready:sniperAiming()&&stance.eye===1,alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    if(!scopeVisible)setZoom(1)
    effects.update(dt,canvas.height)
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos)

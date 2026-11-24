@@ -127,3 +127,12 @@ test('a hard collision dents the corresponding end and a low curb leaves the bod
  assert(curb.lift>0)
  assert.equal(curb.dents,undefined)
 })
+
+test('both pedals stop a moving car and hold it at rest',()=>{
+ const car=Object.assign(newDrive(rig),{speed:6})
+ advance(car,1,control(1,1))
+ assert.equal(car.speed,0)
+ const stopped=car.z
+ advance(car,1,control(1,1))
+ assert.equal(car.z,stopped)
+})

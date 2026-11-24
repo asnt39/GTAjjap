@@ -2,11 +2,9 @@
  position:fixed;inset:0;z-index:20;transform:none;border:0;border-radius:0;
  display:grid;align-content:center;justify-items:center;gap:clamp(8px,2vh,22px);
  color:#e7e4de;background:#000;
- overflow:hidden;transition:opacity .35s ease;
+ overflow:hidden;
 }
 #status>*{position:relative}
 #status img{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));width:clamp(48px,7vmin,84px);height:auto}
 #status b{font-size:13px;letter-spacing:.09em;font-weight:500;padding:8px 16px}
-#status.leaving{opacity:0}
 #status[hidden]{display:none}
-@media(prefers-reduced-motion:reduce){#status{transition:none}}

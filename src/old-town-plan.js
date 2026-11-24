@@ -19,7 +19,27 @@ export const oldTownLand=[
 export const clockCourt={x:-51.5,z:51}
 const contains=([a,b,c,d],x,z,r=0)=>x>=a+r&&x<=b-r&&z>=c+r&&z<=d-r
 const walkableLand=[...oldTownLand,...westBankRoads]
-export const inOldTown=(x,z,r=0)=>walkableLand.some(rect=>contains(rect,x,z,r))
+// Adjacent land tiles share a surface. Check the combined footprint when
+// its centre lies on a tile seam, including gaps in concave outer edges.
+const landBreaks=[...new Set(walkableLand.flatMap(([left,right])=>[left,right]))].sort((a,b)=>a-b)
+const landSlices=landBreaks.slice(1).map((right,i)=>{
+ const left=landBreaks[i]
+ const spans=walkableLand.filter(([a,b])=>a<=left&&b>=right)
+  .map(([, , north,south])=>[north,south]).sort((a,b)=>a[0]-b[0])
+ const joined=[]
+ for(const span of spans){
+  const last=joined.at(-1)
+  if(last&&last[1]>=span[0])last[1]=Math.max(last[1],span[1])
+  else joined.push(span)
+ }
+ return {left,right,joined}
+})
+export function inOldTown(x,z,r=0){
+ if(walkableLand.some(rect=>contains(rect,x,z,r)))return true
+ if(!r||x-r<landBreaks[0]||x+r>landBreaks.at(-1))return false
+ return landSlices.every(({left,right,joined})=>x+r<=left||x-r>=right||
+  joined.some(([north,south])=>z-r>=north&&z+r<=south))
+}
 const approachRoads=[...oldTownRoads,[-6,6,52,63],[...marketEntrance,-34,-31]]
 export function oldTownHeight(x,z){
  // Blend the 7.5 cm curb over the same short run as the Docklands curbs.

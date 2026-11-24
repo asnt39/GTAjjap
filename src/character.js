@@ -32,7 +32,7 @@ export async function createCharacter({variant,model='resident'}={}){
  // Match the left-foot strike across the original walk and run clips.
  const runPhaseOffset=model==='crew'?.05:.14
  actions.Walk.paused=actions.Run.paused=true
- let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0,crawlCycle=0
+ let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0
  const layer=characterPose(scene)
  return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
@@ -53,11 +53,10 @@ export async function createCharacter({variant,model='resident'}={}){
   mixer.update(dt)
   const progress=MathUtils.clamp(pose.phase||0,0,1),side=pose.side<0?-1:1
   const fall=pose.action==='down'?MathUtils.smootherstep(progress,0,.93):0
-  const movingShape=pose.vehicle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
+  const movingShape=pose.vehicle||pose.motorcycle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
   lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
-  const prone=pose.prone??0
-  posture.rotation.set(-1.49*fall+1.47*prone,0,side*.085*fall+(pose.motorcycle?.bank??0))
+  posture.rotation.set(-1.49*fall,0,side*.085*fall)
   // Apply travelling lean to the spine, keeping feet at their planted height.
   if(movingShape){
    layer.offset('Spine1','x',lean)
@@ -65,28 +64,23 @@ export async function createCharacter({variant,model='resident'}={}){
    layer.offset('Neck','x',-lean*.52)
    layer.offset('Neck','z',bank*.46)
   }
-  posture.position.set(0,-.082*landing*landing+.21*fall+.40*prone,.51*fall-.69*prone)
-  layer.offset('Head','x',-.91*prone)
-  layer.offset('L Thigh','z',.17*prone)
-  layer.offset('R Thigh','z',-.17*prone)
-  if(prone){
-   crawlCycle=(crawlCycle+dt*stride*5.6)%(Math.PI*2)
-   const pull=Math.sin(crawlCycle)*Math.min(1,stride/.72)*prone
-   layer.offset('L Calf','x',.49*Math.max(0,pull))
-   layer.offset('R Calf','x',.49*Math.max(0,-pull))
-   layer.offset('L Thigh','z',.22*Math.max(0,pull))
-   layer.offset('R Thigh','z',-.22*Math.max(0,-pull))
-   layer.offset('Spine2','y',.075*pull)
-  }
+  posture.position.set(0,-.082*landing*landing+.21*fall,.51*fall)
   layer.jump(phase,landing)
   guardHold=pose.action==='punch'?.7:Math.max(0,guardHold-dt)
-  const guarding=!pose.vehicle&&(pose.guard||pose.action==='guard'||guardHold>0)
+  const guarding=!pose.vehicle&&!pose.motorcycle&&(pose.guard||pose.action==='guard'||guardHold>0)
   guard=MathUtils.damp(guard,guarding?1:0,12,dt)
   if(pose.action==='punch')layer.gesture('punch',progress,side,pose.zone,guard)
   else if(pose.action&&pose.action!=='guard')layer.gesture(pose.action,progress,side,pose.zone)
-  else if(!pose.vehicle&&guard>.015)layer.gesture('guard',guard*.2*(1-.7*airborne),side,pose.zone,0,run)
+  else if(!pose.vehicle&&!pose.motorcycle&&guard>.015)layer.gesture('guard',guard*.2*(1-.7*airborne),side,pose.zone,0,run)
   if(pose.vehicle)layer.vehicle(pose.vehicle)
-  if(pose.motorcycle)layer.motorcycle(pose.motorcycle)
+  if(pose.motorcycle){
+   const riderLean=.53*pose.motorcycle.seated
+   posture.rotation.x+=riderLean
+   // Rotate about the seated pelvis, so a forward reach does not slide on the seat.
+   posture.position.y+=.88*(1-Math.cos(riderLean))
+   posture.position.z-=.88*Math.sin(riderLean)
+   layer.motorcycle(pose.motorcycle)
+  }
   if(pose.custody)layer.custody(pose.custody)
   if(pose.nod){
    layer.offset('Head','x',.17*pose.nod)
