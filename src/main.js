@@ -18,7 +18,7 @@ import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
 import {firstWorkRoadblock} from './first-work-roadblock.js'
-import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,clearPath} from './driving.js'
+import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,worldPoint,doorPoint,clearPath} from './driving.js'
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
@@ -329,12 +329,12 @@ export async function start(onContextLost){
   vehiclePose=pose;walkSpeed=pose.speed
   pos.set(pose.x,0,pose.z);actor.position.set(pose.x,pose.y,pose.z)
   face=pose.face;actor.rotation.y=face;actor.visible=pose.visible;char.root.position.y=0
-  char.update(dt,pose.speed,{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
+  char.update(dt,pose.speed,car.setup.bike?{motorcycle:{seated:pose.ride,bank:rigs[car.id].bank*pose.ride}}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
   renderer.shadowMap.needsUpdate=true
   if(transition.time<entryTime)return
   car.door=0
   if(joining){
-   mode='drive';pos.set(car.x,0,car.z);actor.visible=false
+   mode='drive';pos.set(car.x,0,car.z);actor.visible=!!car.setup.bike
    if(!offline&&car===cars.touring)mission.board()
   }else{
    mode='walk';actor.visible=true;plantFeet(pos.x,pos.z)
@@ -582,22 +582,23 @@ export async function start(onContextLost){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     stepDrive(car,input,boxes,dt,traffic,room.phase==='offline')
-    const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage)=>{
-     if(crowd.receive(resident,car,'body',resident.pos,damage)){
-      effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,4)
+    const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
+     if(crowd.vehicleHit(resident,car,damage,impact)){
+      effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,impact.knockout?7:4,impact.x,impact.z)
       focus=resident;feedbackTime=2.5
      }
     })
     if(strikes)car.speed*=Math.pow(.85,strikes)
     speed=Math.abs(car.speed)
-    pos.x=car.x;pos.z=car.z;actor.visible=false;mission.tick(!offline&&car===cars.touring)
+    pos.x=car.x;pos.z=car.z;actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length())*(player.f.action==='punch'?.36:player.f.action?0:1)
-   const rate=(sniperAiming()?0:custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
+   const rate=sniperAiming()?(stance.prone===1?.72:0):
+    (custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
@@ -633,9 +634,15 @@ export async function start(onContextLost){
    })
    }
    for(const vehicle of fleet){
-    rigs[vehicle.id].updatePose({...vehicle,dt,lift:room.phase==='offline'?vehicle.lift:0})
+    const mounted=vehicle===car&&(driving()||(vehiclePose?.ride??0)>.6)
+    rigs[vehicle.id].updatePose({...vehicle,dt,mounted,lift:room.phase==='offline'?vehicle.lift:0})
     effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))
     vehicle.travel=0;vehicle.impact=0;vehicle.collision=null
+   }
+   if(driving()&&car.setup.bike){
+    const seat=worldPoint(car,0,.25)
+    actor.position.set(seat.x,car.lift-.10,seat.z);actor.rotation.y=Math.PI-car.heading
+    char.update(dt,0,{motorcycle:{seated:1,steer:car.steer,bank:rigs[car.id].bank}})
    }
    if(!transition&&mode==='walk')walkSpeed=speed
    else if(driving())walkSpeed=0

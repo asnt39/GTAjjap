@@ -13,7 +13,7 @@ import {firstWorkRoadblock} from '../src/first-work-roadblock.js'
 import {marketCollision} from '../src/market-plan.js'
 import {stationColliders,atStation} from '../src/custody.js'
 import {clockCourt,oldTownHeight,townRoadSurface} from '../src/old-town-plan.js'
-import {availableDoor,clearPose,newDrive,safeExit,stepDrive} from '../src/driving.js'
+import {availableDoor,clearPose,nearBody,newDrive,safeExit,stepDrive} from '../src/driving.js'
 import {spawn,canWalk,movePlayer} from '../src/navigation.js'
 import {vehicles} from '../src/vehicles.js'
 
@@ -32,7 +32,7 @@ const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildS
 const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
 const parked=Object.values(rigs).filter(rig=>rig.localOnly)
-assert.equal(parked.length,6)
+assert.equal(parked.length,7)
 for(const rig of parked){
  const vehicle=newDrive(rig,rig.setup)
  const space=safeExit(vehicle,boxes)
@@ -173,6 +173,9 @@ assert(garageExit.car.z>61)
 const walkOut={x:-14,z:40.4}
 for(let i=0;i<710;i++)movePlayer(walkOut,.01,0,boxes)
 assert(walkOut.x>-7)
+const freshSpawn={...garage}
+for(let i=0;i<95;i++)movePlayer(freshSpawn,Math.sin(garage.yaw)*.12,-Math.cos(garage.yaw)*.12,boxes,(x,z)=>traffic.some(car=>nearBody(car,x,z)))
+assert(freshSpawn.x>-9.9,'moving forward from the garage spawn exits through the bay')
 for(const z of [23,100.5]){
  const walk={x:-73,z}
  movePlayer(walk,-18,0,boxes)
@@ -187,12 +190,12 @@ westArt.operate('PARK');westArt.update(.01,1,{x:-160});westArt.operate('WEST');w
 const strikes=createPedestrianImpacts()
 const base={...vehicles.touring,x:0,z:0,heading:0}
 const victim={pos:{x:0,z:-2.8},f:{hp:100}}
-let damage=0
-const strike=(resident,amount)=>{assert.equal(resident,victim);damage=amount}
+let damage=0,hit
+const strike=(resident,amount,impact)=>{assert.equal(resident,victim);damage=amount;hit=impact}
 assert.equal(strikes(.12,{...base,speed:2},{...base,z:-.23,speed:2},[victim],strike),0)
 assert.equal(strikes(.12,{...base,speed:6},{...base,z:-.72,speed:6},[victim],strike),1)
 assert(damage>0&&damage<100)
 assert.equal(strikes(.04,{...base,speed:12},{...base,z:-.7,speed:12},[victim],strike),0)
 assert.equal(strikes(1,{...base,speed:13},{...base,z:-13,speed:13},[victim],strike),1)
-assert.equal(damage,100)
+assert(damage<100&&hit.knockout&&hit.z===-1)
 console.log('Garage entrance, both West Bank driveways, landmark actions and vehicle damage thresholds passed.')

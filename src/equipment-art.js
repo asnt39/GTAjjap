@@ -1,5 +1,5 @@
 import {
- ConeGeometry, Euler, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3
+ BoxGeometry, ConeGeometry, CylinderGeometry, Euler, Group, MathUtils, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, Vector3
 } from 'three'
 import {sniperModel} from './sniper-art.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
@@ -11,6 +11,9 @@ const rightGrip = new Quaternion(.5,.5,.5,-.5).normalize()
 const leftGrip = rightGrip.clone().multiply(new Quaternion().setFromEuler(new Euler(Math.PI,0,0)))
 leftGrip.premultiply(new Quaternion().setFromEuler(new Euler(0,-.79,0)))
 const batGrip = rightGrip.clone().premultiply(new Quaternion().setFromEuler(new Euler(0,.76,-.24)))
+const reloadMaterials=new MeshStandardMaterial({color:0x50595b,metalness:.68,roughness:.48})
+const magazineGeometry=new BoxGeometry(.035,.09,.045)
+const shellGeometry=new CylinderGeometry(.011,.011,.046,8)
 
 function release(scene) {
  const textures=new Set(), materials=new Set(), geometry=new Set()
@@ -39,6 +42,7 @@ export function createEquipmentArt(character) {
  const rotation=new Euler(0,0,0,'YXZ'), equipmentQ=new Quaternion(), handQ=new Quaternion()
  const rootQ=new Quaternion(), leftTarget=new Vector3()
  let selected='fists', active=null, disposed=false, flashTime=0, stride=0, lift=0
+ let reloadProp=null
  const flashGeometry=new ConeGeometry(.025,.085,5)
  flashGeometry.rotateX(Math.PI/2)
  flashGeometry.translate(0,0,.045)
@@ -79,6 +83,7 @@ export function createEquipmentArt(character) {
    active=next
    if(active){active.scene.visible=true;active.end.add(flash)}
   }
+  if(reloadProp)reloadProp.visible=false
   if(!active){flash.visible=false;return}
   if(active.bolt){
    const stroke=Math.sin(Math.PI*bolt)
@@ -92,8 +97,9 @@ export function createEquipmentArt(character) {
   stride=(stride+dt*Math.min(speed,7)*3.7)%(2*Math.PI)
   const bob=Math.sin(stride)*(.009+.014*run)
   lift=MathUtils.damp(lift,aiming||recoil>0?1:0,22,dt)
-  const support=long?1:bat?0:lift
   const reloadArc=Math.sin(Math.PI*MathUtils.clamp(reload,0,1))
+  const exchange=MathUtils.smootherstep(reload,.12,.5)*(1-MathUtils.smootherstep(reload,.52,.91))
+  const support=long?1:bat?0:Math.max(lift,MathUtils.smoothstep(reloadArc,0,.5))
   let x,y,z,tilt,yaw,roll
   if(bat){
    const pull=MathUtils.smoothstep(swing,0,.28)
@@ -128,7 +134,7 @@ export function createEquipmentArt(character) {
   equipmentQ.setFromEuler(rotation.set(tilt,yaw,roll,'YXZ'))
   if(support>.001){
    // Support point is derived from the same transform as the visible prop.
-   leftTarget.set(long?.075:.065,long?-.010:-.038,long?.19:-.012)
+   leftTarget.set((long?.075:.065)+.15*exchange,(long?-.010:-.038)-.11*reloadArc,long?.19-.11*reloadArc:-.012-.075*exchange)
    leftTarget.applyQuaternion(equipmentQ)
    rig.placeArm(1,x+leftTarget.x,y+leftTarget.y-.10*reloadArc,z+leftTarget.z+.02,support)
   }
@@ -139,6 +145,17 @@ export function createEquipmentArt(character) {
   if(support>.001){
    rig.orientHand(1,handQ.copy(equipmentQ).multiply(leftGrip),support)
    rig.curl(1,.65*support)
+  }
+  if(reload>.18&&reload<.78&&weapon!=='sniper'&&weapon!=='bat'){
+   if(!reloadProp){
+    reloadProp=new Mesh(magazineGeometry,reloadMaterials)
+    rig.supportHand.add(reloadProp);rig.supportHand.getWorldScale(scale)
+    reloadProp.scale.set(1/scale.x,1/scale.y,1/scale.z)
+    reloadProp.position.copy(rig.supportKnuckle.position).multiplyScalar(.76)
+   }
+   reloadProp.geometry=weapon==='shotgun'?shellGeometry:magazineGeometry
+   reloadProp.rotation.z=weapon==='shotgun'?Math.PI/2:.22
+   reloadProp.visible=true
   }
   socket.quaternion.copy(grip).invert()
  }
@@ -153,6 +170,7 @@ export function createEquipmentArt(character) {
   dispose(){
    disposed=true
    flash.removeFromParent();flash.geometry.dispose();flash.material.dispose()
+   reloadProp?.removeFromParent()
    socket.removeFromParent()
    for(const item of shapes.values())release(item.scene)
    shapes.clear()

@@ -11,6 +11,15 @@ export const entryTime=1.42
 // through the opening before the camera switches to the driving view.
 export function entryPose(car,transition,entering) {
  const {side,door,from,time}=transition
+ if(car.setup?.bike){
+  const seated=entering?ramp(time,.33,1.03):1-ramp(time,.20,.88)
+  const step=entering?from:door,seat=worldPoint(car,0,.25)
+  const pivot=entering?ramp(time,0,.68):ramp(time,.36,1.08)
+  const heading=Math.PI-car.heading
+  return {x:mix(step.x,seat.x,seated),z:mix(step.z,seat.z,seated),face:heading+side*.64*(entering?1-pivot:pivot),
+   y:(car.lift??0)-.10*seated+Math.sin(seated*Math.PI)*.13,crouch:0,reach:0,opening:0,visible:true,
+   speed:(1-seated)*Math.sin(Math.PI*pivot)*1.2,ride:seated}
+ }
  const approach=entering?ramp(time,0,.35):1
  const passage=entering?ramp(time,.69,1.13):1-ramp(time,.32,.87)
  const opening=entering?ramp(time,.35,.68)*(1-ramp(time,1.10,entryTime)):

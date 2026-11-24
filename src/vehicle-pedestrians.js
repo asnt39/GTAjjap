@@ -1,6 +1,6 @@
 import {nearBody} from './driving.js'
 
-export const lethalVehicleSpeed=12
+export const knockoutVehicleSpeed=12
 
 // The rigid body already sweeps the road at 120 Hz. Check its actual movement
 // between the last clear poses against nearby game pedestrians.
@@ -11,12 +11,13 @@ export function createPedestrianImpacts(){
   clock+=dt
   const travel=Math.hypot(car.x-before.x,car.z-before.z)
   const speed=Math.min(Math.max(Math.abs(before.speed),Math.abs(car.speed)),travel/Math.max(dt,.001)+.6)
-  if(speed<3.6||travel<.055)return 0
+  if(speed<3.6||travel<.028)return 0
   const headingDelta=car.heading-before.heading
+  const x=(car.x-before.x)/travel,z=(car.z-before.z)/travel
   let hits=0
   sweep.width=car.width;sweep.length=car.length
   for(const resident of residents){
-   if(resident.f.hp<=0||resident.policeOrder?.aboard||resident===car.driver||
+   if(resident.f.hp<=0||resident.f.action==='knockdown'||resident.policeOrder?.aboard||resident===car.driver||
       Math.hypot(resident.pos.x-car.x,resident.pos.z-car.z)>car.length+travel||
       clock-(lastContact.get(resident)??-10)<.85)continue
    if(nearBody(before,resident.pos.x,resident.pos.z,.30))continue
@@ -27,8 +28,9 @@ export function createPedestrianImpacts(){
     sweep.heading=before.heading+headingDelta*part
     if(!nearBody(sweep,resident.pos.x,resident.pos.z,.30))continue
     lastContact.set(resident,clock)
-    const damage=speed>=lethalVehicleSpeed?resident.f.hp:Math.round(13+(speed-3.6)*5.4)
-    onHit(resident,damage);hits++
+    const knockout=speed>=knockoutVehicleSpeed
+    const damage=Math.min(resident.f.hp-1,Math.round(13+(speed-3.6)*5.4))
+    onHit(resident,damage,{x,z,speed,knockout});hits++
     break
    }
   }

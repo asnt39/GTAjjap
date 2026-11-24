@@ -83,7 +83,7 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false)
   if(!command||car.braking||car.shiftDelay>0||command*car.throttle<0)car.throttle=0
   if(input.handbrake||opposite){
    car.speed=approach(old,0,(input.handbrake?setup.handbrake:setup.brake)*step)
-   if(opposite&&car.speed===0)car.shiftDelay=.19
+   if(opposite&&car.speed===0)car.shiftDelay=setup.bike?.16:.13
   }else if(car.shiftDelay>0){
    car.shiftDelay-=step
   }else if(command){

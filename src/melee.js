@@ -36,6 +36,7 @@ export function revive(f){
  Object.assign(f,fighter(health));f.immune=2
 }
 export function combatPose(f,guard=false){
+ if(f.action==='knockdown')return {action:'down',side:f.side,zone:f.zone,phase:Math.min(1,f.elapsed/.56,(f.duration-f.elapsed)/.62)}
  return {action:f.action||(guard?'guard':''),phase:guard&&!f.action?1:f.duration?Math.min(1,f.elapsed/f.duration):0,side:f.side,zone:f.zone}
 }
 const hand=new Vector3(),point=new Vector3()

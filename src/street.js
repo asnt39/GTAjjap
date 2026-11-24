@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createTouring } from './touring.js'
 import {garage} from './garage.js'
+import {createMotorcycle} from './motorcycle.js'
 import { createVehicleRig } from './vehicle-rig.js'
 import { touringSetup } from './vehicles.js'
 
@@ -124,7 +125,7 @@ function floorGeometry(x1, x2, z1, z2, y, scale) {
 export async function buildStreet(scene, addCollider, surfaceMaps) {
   const texLoader=new T.TextureLoader(), modelLoader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
   const files=['asphalt_04-Diffuse.webp','asphalt_04-nor_gl.webp','concrete_pavement_02-Diffuse.webp','concrete_pavement_02-nor_gl.webp','tree-leaves.webp']
-  const modelNames=['tree-wood','touring','riverside','fairheaven','dock-panel','sprint-coupe']
+  const modelNames=['tree-wood','touring','riverside','fairheaven','dock-panel','sprint-coupe','harbor-motorcycle']
   const [maps,models]=await Promise.all([
     Promise.all(files.map(f=>texLoader.loadAsync(ROOT+f))),
     Promise.all(modelNames.map(f=>modelLoader.loadAsync(ROOT+f+'.glb')))
@@ -297,7 +298,7 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   personal.setup={...touringSetup,...garage.car,name:'내 Touring'}
   personal.heading=garage.car.heading
   personal.localOnly=true
-  const vehicles={touring,'garage-touring':personal,sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
+  const vehicles={touring,'garage-touring':personal,'breakwater-650':createMotorcycle(models[6]),sport:createVehicleRig('sport',models[5]),van:createVehicleRig('van',models[4])}
   const parking=[
     ['riverside-quay','touring',2,'Riverside',4.93,-5,4.35,PI],
     ['sprint-north','sport',5,'Sprint',-4.85,-57,4.22,0],

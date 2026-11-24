@@ -6,6 +6,8 @@ const palettes={
  smoke:{color:0x555756,size:.25,growth:.82,opacity:.47,life:[.55,1.24],spread:.29,rise:.84,gravity:-.55},
  dust:{color:0xc3ad91,size:.15,growth:.52,opacity:.34,life:[.22,.47],spread:1.65,rise:.27,gravity:.7},
  sparks:{color:0xffba54,size:.045,growth:-.08,opacity:.94,life:[.13,.34],spread:3.1,rise:2.1,gravity:9.8},
+ rubber:{color:0x9a9b98,size:.16,growth:.41,opacity:.26,life:[.32,.70],spread:.53,rise:.23,gravity:-.31},
+ burst:{color:0xff9b49,size:.72,growth:.72,opacity:.82,life:[.13,.23],spread:.94,rise:.46,gravity:.7},
  flash:{color:0xffd18a,size:.28,growth:.65,opacity:.9,life:[.075,.13],spread:.6,rise:.06,gravity:0}
 }
 
@@ -45,6 +47,11 @@ export function worldEffects(scene,{capacity=120}={}){
  trailGeometry.setAttribute('position',new BufferAttribute(trailPositions,3))
  const line=new LineSegments(trailGeometry,new LineBasicMaterial({color:0xffc765,transparent:true,opacity:.72,depthWrite:false,toneMapped:false}))
  line.frustumCulled=false;line.visible=false;scene.add(line)
+ const maxMarks=144,marks=new BufferGeometry(),markCoords=new Float32Array(maxMarks*6)
+ marks.setAttribute('position',new BufferAttribute(markCoords,3));marks.setDrawRange(0,0)
+ const tyreLines=new LineSegments(marks,new LineBasicMaterial({color:0x242520,transparent:true,opacity:.36,depthWrite:false}))
+ tyreLines.frustumCulled=false;tyreLines.visible=false;scene.add(tyreLines)
+ let markIndex=0,markCount=0
  const particles=[],trails=[],timers=new WeakMap()
  const color=new Color()
  const variation=(min,max)=>min+(max-min)*Math.random()
@@ -69,12 +76,29 @@ export function worldEffects(scene,{capacity=120}={}){
  }
  function vehicle(car,dt,distance){
   if(distance>42)return
-  const timer=timers.get(car)??{exhaust:0,smoke:0}
+  const timer=timers.get(car)??{exhaust:0,smoke:0,skid:0,burst:false}
   const speed=Math.abs(car.speed)
-  timer.exhaust-=dt;timer.smoke-=dt
+  timer.exhaust-=dt;timer.smoke-=dt;timer.skid-=dt
   if(car.collision){
    emit('sparks',car.collision.x,.45+(car.lift??0),car.collision.z,7)
    emit('dust',car.collision.x,.18,car.collision.z,3)
+   if(!timer.burst&&car.impact>10&&car.dents&&Object.values(car.dents).some(dent=>dent.depth>=.35)){
+    const {x,z}=car.collision
+    emit('burst',x,.54,z,3);emit('sparks',x,.54,z,8);emit('smoke',x,.55,z,5);timer.burst=true
+   }
+  }
+  if(!car.dents)timer.burst=false
+  if(timer.skid<=0&&Math.abs(car.travel)>.055&&speed>4.2&&(car.braking||Math.abs(car.steer)*speed>2.05)){
+   const sides=car.setup?.bike?[0]:[-.36,.36]
+   for(const side of sides){
+    const track=worldPoint(car,side*car.width,car.length*.33),y=.014+(car.lift??0)
+    const tail=Math.min(.8,speed*.042)*Math.sign(car.travel)
+    markCoords.set([track.x,y,track.z,track.x-Math.sin(car.heading)*tail,y,track.z+Math.cos(car.heading)*tail],markIndex*6)
+    markIndex=(markIndex+1)%maxMarks;markCount=Math.min(maxMarks,markCount+1)
+    emit('rubber',track.x,y+.035,track.z)
+   }
+   marks.setDrawRange(0,markCount*2);marks.attributes.position.needsUpdate=true;tyreLines.visible=true
+   timer.skid=.045
   }
   if(speed>1.25&&timer.exhaust<=0){
    const at=worldPoint(car,-car.width*.26,car.length*.51)

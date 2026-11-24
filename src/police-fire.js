@@ -1,6 +1,7 @@
 import {Vector3} from 'three'
 import {createEquipmentArt} from './equipment-art.js'
 import {equipmentTrace} from './equipment-contact.js'
+import {gear} from './equipment.js'
 
 export function policeFire(boxes,traffic,residents){
  const trace=equipmentTrace(boxes,traffic,residents)
@@ -23,6 +24,7 @@ export function policeFire(boxes,traffic,residents){
  }
  return {
   get active(){return armed},
+  reloading:officer=>states.get(officer)?.reload>0,
   escalate(){armed=true},
   update(dt,wanted){if(!wanted)armed=false;spacing=Math.max(0,spacing-dt)},
   aim(officer,player,distance){
@@ -34,23 +36,31 @@ export function policeFire(boxes,traffic,residents){
    let state=states.get(officer)
    if(!state&&!aiming)return
    if(!state){
-    state={art:createEquipmentArt(officer.rig),aim:0,cooldown:0,recoil:0}
+    state={art:createEquipmentArt(officer.rig),aim:0,cooldown:0,recoil:0,mag:gear.pistol.capacity,reload:0,hold:0}
     states.set(officer,state)
+   }
+   const drawn=armed&&!officer.f.action&&(aiming||state.reload>0||state.hold>0||officer.state==='guard')
+   state.hold=aiming?3.4:Math.max(0,state.hold-dt)
+   if(drawn&&state.reload>0){
+    state.reload=Math.max(0,state.reload-dt)
+    if(!state.reload)state.mag=gear.pistol.capacity
    }
    state.cooldown=Math.max(0,state.cooldown-dt)
    state.recoil=Math.max(0,state.recoil-dt*8)
    state.aim=aiming?state.aim+dt:0
    targetPoint(player)
    const pitch=Math.atan2(target.y-officer.pos.y-officer.height*.76,Math.hypot(target.x-officer.pos.x,target.z-officer.pos.z))
-   state.art.update({dt,weapon:'pistol',aiming,hidden:!aiming,recoil:state.recoil,pitch})
-   if(!aiming||spacing||state.cooldown||state.aim<.36+officer.stagger*.35)return
+   state.art.update({dt,weapon:'pistol',aiming:aiming&&!state.reload,hidden:!drawn,recoil:state.recoil,pitch,
+    speed:officer.stepping??0,reload:state.reload?1-state.reload/gear.pistol.reload:0})
+   if(!aiming||!drawn||!state.mag||spacing||state.cooldown||state.aim<.36+officer.stagger*.35)return
    const toward=Math.atan2(target.x-officer.pos.x,target.z-officer.pos.z)
    if(Math.cos(toward-officer.face)<.96)return
    const ready=state.art.ready('pistol')
    if(!ready&&!state.art.failed('pistol'))return
    state.art.muzzlePosition(start)
    if(!clear(officer,player,start))return
-   spacing=.33;state.cooldown=1.05+officer.stagger*.46;state.recoil=.9
+   spacing=.33;state.cooldown=.73+officer.stagger*.35;state.recoil=.9
+   if(--state.mag===0)state.reload=gear.pistol.reload
    state.art.flash()
    shot(officer,start,end,player.inVehicle)
   }

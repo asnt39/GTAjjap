@@ -32,7 +32,7 @@ export async function createCharacter({variant,model='resident'}={}){
  // Match the left-foot strike across the original walk and run clips.
  const runPhaseOffset=model==='crew'?.05:.14
  actions.Walk.paused=actions.Run.paused=true
- let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0
+ let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0,crawlCycle=0
  const layer=characterPose(scene)
  return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
@@ -57,7 +57,7 @@ export async function createCharacter({variant,model='resident'}={}){
   lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
   const prone=pose.prone??0
-  posture.rotation.set(-1.49*fall+1.47*prone,0,side*.085*fall)
+  posture.rotation.set(-1.49*fall+1.47*prone,0,side*.085*fall+(pose.motorcycle?.bank??0))
   // Apply travelling lean to the spine, keeping feet at their planted height.
   if(movingShape){
    layer.offset('Spine1','x',lean)
@@ -69,6 +69,15 @@ export async function createCharacter({variant,model='resident'}={}){
   layer.offset('Head','x',-.91*prone)
   layer.offset('L Thigh','z',.17*prone)
   layer.offset('R Thigh','z',-.17*prone)
+  if(prone){
+   crawlCycle=(crawlCycle+dt*stride*5.6)%(Math.PI*2)
+   const pull=Math.sin(crawlCycle)*Math.min(1,stride/.72)*prone
+   layer.offset('L Calf','x',.49*Math.max(0,pull))
+   layer.offset('R Calf','x',.49*Math.max(0,-pull))
+   layer.offset('L Thigh','z',.22*Math.max(0,pull))
+   layer.offset('R Thigh','z',-.22*Math.max(0,-pull))
+   layer.offset('Spine2','y',.075*pull)
+  }
   layer.jump(phase,landing)
   guardHold=pose.action==='punch'?.7:Math.max(0,guardHold-dt)
   const guarding=!pose.vehicle&&(pose.guard||pose.action==='guard'||guardHold>0)
@@ -77,6 +86,7 @@ export async function createCharacter({variant,model='resident'}={}){
   else if(pose.action&&pose.action!=='guard')layer.gesture(pose.action,progress,side,pose.zone)
   else if(!pose.vehicle&&guard>.015)layer.gesture('guard',guard*.2*(1-.7*airborne),side,pose.zone,0,run)
   if(pose.vehicle)layer.vehicle(pose.vehicle)
+  if(pose.motorcycle)layer.motorcycle(pose.motorcycle)
   if(pose.custody)layer.custody(pose.custody)
   if(pose.nod){
    layer.offset('Head','x',.17*pose.nod)

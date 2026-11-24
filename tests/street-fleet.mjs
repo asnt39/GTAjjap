@@ -4,6 +4,7 @@ import {Box3,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js'
 import {createVehicleRig} from '../src/vehicle-rig.js'
+import {createMotorcycle} from '../src/motorcycle.js'
 import {vehicles} from '../src/vehicles.js'
 import {availableDoor,cabinPoint,doorPoint,newDrive,stepDrive,clearPose} from '../src/driving.js'
 import {dentVehicle} from '../src/vehicle-damage.js'
@@ -55,3 +56,13 @@ for(const [asset,id] of [['dock-panel','van'],['sprint-coupe','sport'],['fairhea
  assert(lenses.every(m=>m.emissiveIntensity===0))
 }
 console.log('Four decoded street GLBs, close/distant LOD, footprint, wheels, steering, both doors, cab alignment and brake lights passed.')
+const bikeBytes=await readFile(new URL('../public/assets/street/harbor-motorcycle.glb',import.meta.url))
+const bike=createMotorcycle(await loader.parseAsync(bikeBytes.buffer.slice(bikeBytes.byteOffset,bikeBytes.byteOffset+bikeBytes.length),''))
+const bikeBody=newDrive(bike,bike.setup),bikeDoor=availableDoor(bikeBody,doorPoint(bikeBody,-1),[])
+assert(bikeDoor&&bike.localOnly&&!bike.hinged)
+const mounted=entryPose(bikeBody,{...bikeDoor,from:bikeDoor.door,time:entryTime},true)
+assert(mounted.visible&&mounted.ride===1&&mounted.opening===0)
+assert.equal(entryPose(bikeBody,{...bikeDoor,from:bikeDoor.door,time:entryTime},false).ride,0)
+bike.updatePose({...bikeBody,dt:.1,speed:8,steer:.38,travel:.48,mounted:true})
+assert(bike.bank<-.1&&bike.root.getObjectByName('fork').rotation.y<0)
+assert(bike.root.getObjectByName('wheel_F').rotation.x>0)

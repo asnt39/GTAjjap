@@ -22,3 +22,7 @@ The Sprint, Dock Van, Riverside saloon and Fairheaven station wagon use vehicle 
 | fairheaven.glb | [Fairheaven SW '84](https://sketchfab.com/models/aa0becb6e854422596cac6b21bf79787) |
 
 Adaptations include a new paint palette, combined color and material atlases, reduced geometry, a distance mesh, and model-space alignment to the existing vehicle fleet. The two playable vehicles retain separate front doors, glazing, hubs and rear brake lenses. Downloaded GLBs were obtained from the [Objaverse distribution](https://huggingface.co/datasets/allenai/objaverse) and matched to the original Sketchfab model IDs and individual licenses.
+
+## Breakwater 650
+
+[Sport Motorcycle, v1 LOD2](https://tevy.dev/models/sport-motorcycle) by tevy, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). HARBORLINE preserves the articulated fork and wheels and converts embedded Basis textures to JPEG for the existing mobile GLB loader. The adjusted dark visor uses opaque PBR shading.

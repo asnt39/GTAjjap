@@ -1,5 +1,5 @@
 export const garage={
- x:-17.35,z:37.75,yaw:Math.PI/2,
+ x:-17.35,z:37.75,yaw:Math.atan2(8.35,-4.47),
  bounds:[-21.1,-9.9,35,49], doorway:[-12.4,-9.2,39.24,44.76], front:-11.1, ceiling:3.36, forecourt:[-21.1,-6,37.9,46.1],
  car:{x:-16.05,z:42,heading:Math.PI/2}
 }

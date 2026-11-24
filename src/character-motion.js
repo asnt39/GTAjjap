@@ -110,6 +110,20 @@ export function characterPose(scene){
   }
   if(reach>.001){placeArm(side,side*.20,.98,.61,reach);curl(side,reach*.7)}
  }
+ function motorcycle({seated,steer=0}){
+  offset('Spine','x',.25*seated)
+  offset('Spine1','x',.16*seated)
+  offset('Neck','x',-.16*seated)
+  for(const side of [-1,1]){
+   const leg=side<0?'R':'L'
+   offset(leg+' Thigh','x',-1.1*seated)
+   offset(leg+' Thigh','z',side*.19*seated)
+   offset(leg+' Calf','x',1.24*seated)
+   offset(leg+' Foot','x',-.20*seated)
+   placeArm(side,side*.285+steer*.10,1.055,.46-side*steer*.16,seated)
+   curl(side,.82*seated)
+  }
+ }
  function custody({progress,wrist}){
   const turn=MathUtils.smoothstep(progress,.13,.55)
   if(wrist){
@@ -171,6 +185,7 @@ export function characterPose(scene){
    curl(sign,guard)
   }
  }
- return {reset,jump,offset,gesture,vehicle,custody,handPosition,
-  equipment:{placeArm,curl,orientHand,offset,hand:arms[0].hand?.bone,knuckle:arms[0].knuckle?.bone}}
+ return {reset,jump,offset,gesture,vehicle,motorcycle,custody,handPosition,
+  equipment:{placeArm,curl,orientHand,offset,hand:arms[0].hand?.bone,knuckle:arms[0].knuckle?.bone,
+   supportHand:arms[1].hand?.bone,supportKnuckle:arms[1].knuckle?.bone}}
 }

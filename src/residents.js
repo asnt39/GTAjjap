@@ -53,7 +53,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  }
  const staticFree=p=>canWalk(p.x,p.z,boxes,.35)
  const life=residentLife(all,(a,b)=>staticFree(a)&&staticFree(b)&&lineClear(a,b,staticFree),lineClear)
- const blockedBy=(n,x,z)=>all.some(other=>other!==n&&!other.policeOrder?.aboard&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
+ const blockedBy=(n,x,z)=>all.some(other=>other!==n&&other.f.hp>0&&other.f.action!=='knockdown'&&!other.policeOrder?.aboard&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
  // Small, local eight-neighbour flood search. Choose the reachable cell closest to the goal.
  function plan(n,goal,lane,avoidPeople=false){
   const pass=avoidPeople?p=>free(p)&&!blockedBy(n,p.x,p.z):free
@@ -156,6 +156,16 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   for(const other of all)if(other!==n&&distance(other.pos,n.pos)<5&&!other.f.action){other.alert=Math.max(other.alert,2);other.state='watch'}
   return true
  }
+ function vehicleHit(n,source,damage,impact){
+  if(!receive(n,source,'body',n.pos,damage))return false
+  if(impact.speed>=5.4){
+   const force=Math.min(8,impact.speed*.50)
+   n.slide={x:impact.x*force,z:impact.z*force,lift:impact.knockout?.72:.19}
+   n.f.side=impact.x*Math.cos(n.face)-impact.z*Math.sin(n.face)<0?1:-1
+   Object.assign(n.f,{action:'knockdown',elapsed:0,duration:impact.knockout?5.5:1.9})
+  }
+  return true
+ }
  function takePursuit(n){
   const count=wanted.level===3?2:1
   if(responders.has(n))return
@@ -220,10 +230,12 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    const visibleRound=visible&&civilianRound&&!n.f.action&&!n.alert
    const tick=Math.min(n.accum,visibleRound?.085:.45)
    n.accum=0;n.age+=tick;n.replan-=tick;n.stepping=0;n.alert=Math.max(0,n.alert-tick)
-   advance(n.f,tick)
+   if(n.f.action==='knockdown'&&carAt(p.x,p.z,.26)&&n.f.elapsed>=n.f.duration-.68){
+    n.f.elapsed=n.f.duration-.68
+   }else advance(n.f,tick)
    const traffic=fleet.find(vehicle=>Math.abs(vehicle.speed)>1&&distance(p,vehicle)<5)
    const blockingCar=carAt(p.x,p.z,.30)
-   if(blockingCar){
+   if(blockingCar&&n.f.hp>0&&n.f.action!=='knockdown'){
     const car=blockingCar
     const local=localPoint(car,p.x,p.z)
     const exits=[worldPoint(car,-car.width/2-.4,local.z),worldPoint(car,car.width/2+.4,local.z),
@@ -234,14 +246,31 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    const toward=Math.atan2(player.pos.x-p.x,player.pos.z-p.z)
    let nod=0
    const aiming=!!onPoliceShot&&firearms.aim(n,player,d)
-   if(n.f.action==='down'){
+   let lift=0
+   if(n.f.action==='knockdown'){
+    n.state='react';n.path=[];n.speed=0
+    if(n.slide&&n.f.elapsed<.55){
+     const slide=n.slide,multiplier=Math.exp(-5*tick)
+     movePlayer(p,slide.x*tick,slide.z*tick,boxes,(x,z)=>blockedBy(n,x,z))
+     slide.x*=multiplier;slide.z*=multiplier
+     lift=slide.lift*Math.sin(Math.PI*n.f.elapsed/.55)
+    }
+   }else if(n.f.action==='down'){
     if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
     movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z));turn(n,toward,tick)
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
    else if(aiming){
     if(talking===n)endTalk()
-    n.state='guard';n.speed=0;n.path=[];n.replan=0
+    n.state='guard'
+    if(d>10||firearms.reloading(n)&&d>5){
+     if(n.replan<=0){
+      const step=Math.min(6,d-4)
+      plan(n,{x:p.x+Math.sin(toward)*step,z:p.z+Math.cos(toward)*step},null,true)
+      n.replan=.65
+     }
+     walkPath(n,tick,firearms.reloading(n)?1.75:1.22,player.pos)
+    }else {n.speed=0;n.path=[];n.replan=0}
     turn(n,toward,tick)
    }else if(n.policeOrder){
     if(talking===n)endTalk()
@@ -304,7 +333,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
     life.suspend(n);n.activity=n.state
    }
    if(!n.stepping&&n.state!=='walk'&&n.state!=='flee')n.speed=0
-   p.y=surfaceHeight(p);n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
+   p.y=surfaceHeight(p)+lift;n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
    if(visible||d<5||aiming){
     n.rig.update(tick,n.stepping,{...combatPose(n.f,n.state==='guard'||n.state==='watch'),
      guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick,nod})
@@ -317,6 +346,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(onPoliceShot&&n.officer)firearms.pose(n,player,tick,aiming,onPoliceShot)
   }
  }
- return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,hearShot,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,vehicleHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

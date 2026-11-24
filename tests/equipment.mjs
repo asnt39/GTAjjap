@@ -4,6 +4,7 @@ import {PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {createLoadout,gear} from '../src/equipment.js'
 import {scopeStance} from '../src/scope-stance.js'
+import {policeFire} from '../src/police-fire.js'
 import {equipmentTrace} from '../src/equipment-contact.js'
 import {equipmentPlay} from '../src/equipment-play.js'
 import {createCharacter} from '../src/character.js'
@@ -201,3 +202,18 @@ char.update(1/60,0,{prone:1})
 sim.update(1/60,{active:true,aiming:true,speed:0,pitch:0,ready:true,prone:1,alignScope:position=>assert(position(optic))})
 assert(optic.z>.3&&optic.y>.24&&optic.y<1.4,'the lens is in front of the lowered avatar and above ground')
 console.log('Sniper fires on the first aiming frame, has no hit range cap, cycles rounds and waits two seconds between shots.')
+
+shooter.pos.set(0,0,5);shooter.face=Math.PI;shooter.stagger=0;shooter.f=fighter(130)
+shooter.rig.root.position.copy(shooter.pos);shooter.rig.root.rotation.y=shooter.face
+player.pos.set(0,0,0);player.exposed=true;player.inVehicle=null
+const volley=policeFire([],[],[]),times=[]
+volley.escalate();let sawReload=false
+for(let i=0;i<255;i++){
+ const dt=.05
+ volley.update(dt,3);shooter.rig.update(dt,1.5)
+ volley.pose(shooter,player,dt,true,()=>times.push(i*dt))
+ if(volley.reloading(shooter)){assert.equal(times.length%8,0);sawReload=true}
+ if(!times.length)await new Promise(resolve=>setTimeout(resolve,1))
+}
+assert(sawReload&&times.length>=9,JSON.stringify(times))
+assert(times[8]-times[7]>=1.14&&times[7]-times[6]<.90)
