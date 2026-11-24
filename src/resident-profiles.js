@@ -1,3 +1,5 @@
+import {weaponVendor} from './weapon-shop-plan.js'
+
 export const people=[
  {id:'foreman',name:'Daniel Cole',legacyName:'강 반장',role:'부두 반장',x:-7.4,z:21.4,pace:.94,temper:'defend',lines:['지금은 하역 중입니다. 선박을 보시려면 부두길로 돌아가시죠.','교대 명단을 맞춰 보는 중입니다. 무슨 일이십니까?']},
  {id:'merchant',name:'Elena Reed',legacyName:'윤서',model:'crew',height:1.68,epilogue:'교대 배는 제시간에 떠났어요. 그런데 이 도장 좀 보세요. 우리 사무실 것이 아니에요.',purchase:'여기 있어요. 조심히 다녀오세요.',insufficient:'잔액이 조금 모자라세요.',role:'시장 점원',x:-8.9,z:5.4,pace:1.18,temper:'flee',lines:['어서 오세요. 오늘 배에 실을 물건이면 지금 챙겨 드릴게요.','커피는 아직 따뜻해요. 천천히 보고 가세요.']},
@@ -37,5 +39,7 @@ people.push(
  {id:'west-patrol',spawnWait:1,name:'Iris Walsh',role:'서편 거리 순찰',model:'patrol',variant:6,officer:true,x:-151.7,z:73,pace:1.16,temper:'defend',
   patrol:[{x:-151.7,z:89},{x:-153.2,z:96.2}],lines:['교차로 코너에만 차를 세우지 말아 주십시오.','남쪽에서 선착장으로 가는 길은 열려 있습니다.']}
 )
+
+people.push(weaponVendor)
 
 export const residentHealth = { civilian:108, officer:132, guard:144 }

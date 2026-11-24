@@ -1,3 +1,5 @@
+import {insideWeaponShop} from './weapon-shop-plan.js'
+import {buildWeaponShop} from './weapon-shop.js'
 import * as THREE from 'three'
 import {createLoadout,gear} from './equipment.js'
 import {scopeStance} from './scope-stance.js'
@@ -81,6 +83,7 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const updateWeaponShop=buildWeaponShop(scene,addCollider)
  const storeFloor=new THREE.MeshStandardMaterial({color:0xa99c85,roughness:.86,map:surfaceMaps.street[2],normalMap:surfaceMaps.street[3]})
  const rowBoards=new THREE.MeshStandardMaterial({color:0x877665,roughness:.82})
  surfaceMaps.storeFloor=storeFloor;surfaceMaps.rowBoards=rowBoards
@@ -165,7 +168,7 @@ export async function start(onContextLost){
  let focus=null,feedbackTime=0,knockX=0,knockZ=0
  let storage
  try{storage=window.localStorage}catch{}
- const loadout=createLoadout(storage)
+ const loadout=createLoadout(storage,episode)
  const stance=scopeStance()
  let aiming=false,shoulder=0,scopeVisible=false,hideScopeBody=false
  const cancelAim=()=>{aiming=false;stance.update(0,false);scopeVisible=false}
@@ -480,7 +483,7 @@ export async function start(onContextLost){
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
  document.querySelector('#gear-next').onclick=()=>{
-  const ids=Object.keys(gear)
+  const ids=Object.keys(gear).filter(id=>loadout.items[id])
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
  document.querySelector('#gear-aim').onclick=()=>{if(aiming)cancelAim();else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=true}
@@ -533,7 +536,7 @@ export async function start(onContextLost){
   if(anchor.x<archive.front && archiveAccess(pos.x,pos.z,0) && eye.y>archive.ceiling-.16){
    fraction=Math.min(fraction,(archive.ceiling-.16-anchor.y)/(eye.y-anchor.y))
   }
-  if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
+  if((atStation(pos.x,pos.z)||insidePremises(pos.x,pos.z)||insideWeaponShop(pos.x,pos.z))&&eye.y>3.19&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,((atStation(pos.x,pos.z)?3.19:3.36)-anchor.y)/(eye.y-anchor.y)))
   if(atGarage(pos.x,pos.z)&&eye.y>garage.ceiling-.16&&eye.y>anchor.y){
    fraction=Math.min(fraction,Math.max(.04,(garage.ceiling-.16-anchor.y)/(eye.y-anchor.y)))
   }
@@ -554,7 +557,7 @@ export async function start(onContextLost){
   if(useTownDriveMask(x,z))return oldTownHeight(x,z)
   if(atStation(x,z))return .092
   if(atGarage(x,z))return .083
-  if(insidePremises(x,z))return .052
+  if(insidePremises(x,z)||insideWeaponShop(x,z))return .052
   if((x< -40 && z< -43 && z> -46)||(x< -40 && z> -31 && z< -27))return .082
   if(archiveAccess(x,z,0)&&x<archive.front+.7)return .07
   const lane=Math.abs(x)
@@ -645,7 +648,7 @@ export async function start(onContextLost){
    const base=localRoom?rowFloor(localRoom,pos.x,pos.z,foot.height,foot.air):groundHeight(pos.x,pos.z)
    const floor=supportHeight(pos.x,pos.z,foot.height,base,surfaces)
    const roomCeiling=localRoom?rowCeiling(localRoom,pos.x,foot.height):pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insideWorks(pos.x,pos.z)?3.75:insidePremises(pos.x,pos.z)?3.44:Infinity
+     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insideWorks(pos.x,pos.z)?3.75:(insidePremises(pos.x,pos.z)||insideWeaponShop(pos.x,pos.z))?3.44:Infinity
    const landing=foot.advance(dt,floor,roomCeiling-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height
@@ -704,9 +707,9 @@ export async function start(onContextLost){
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
-   const districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos),rowChanged=updateRow(pos,dt)
+   const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos),rowChanged=updateRow(pos,dt)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||districtChanged||stationChanged||westChanged||rowChanged||roadChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,

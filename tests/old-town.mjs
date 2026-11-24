@@ -1,3 +1,4 @@
+import {buildWeaponShop} from '../src/weapon-shop.js'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
 import {Scene, Texture, TextureLoader} from 'three'
@@ -32,9 +33,19 @@ GLTFLoader.prototype.loadAsync=async function(url){
 const model=new Scene(),boxes=[],surfaceMaps={}
 const add=(...bounds)=>boxes.push(bounds)
 districtGates(model,add);marketCollision(add);stationColliders(add)
+const updateArms=buildWeaponShop(model,add)
 const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildStreet(model,add,surfaceMaps)])
 const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
+const armsCustomer={x:-56,z:-37}
+movePlayer(armsCustomer,0,-14.6,boxes)
+assert(Math.abs(armsCustomer.z+51.6)<.02,'the weapons counter remains accessible in the full scene')
+assert(updateArms(armsCustomer))
+assert(!updateArms(armsCustomer))
+movePlayer(armsCustomer,0,14.6,boxes)
+assert(Math.abs(armsCustomer.z+37)<.02)
+assert(updateArms(armsCustomer))
+
 
 function takeRoute(room,waypoints){
  const current={...rowPoint(room,...waypoints[0]),y:.083},foot=createFootwork()

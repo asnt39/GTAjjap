@@ -18,10 +18,11 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  c.setLineDash([2.5,4]);c.lineWidth=.5;c.strokeStyle='#abb19a';c.beginPath();c.moveTo(0,-105);c.lineTo(0,67);c.stroke();c.setLineDash([])
  for(const [a,b,n,s] of townPavement)rect(a,n,b-a,s-n,'#6c6352')
  for(const [a,b,n,s] of townRoadSurface)rect(a,n,b-a,s-n,'#57534b')
+ rect(-58.9,-56,5.8,10,'#776c5b')
  rect(clockCourt.x-1.7,clockCourt.z-1.5,3.4,3,'#e1c18c')
  for(const x of [-47,-65,-83])rect(x-5.5,-56,11,10,'#797967')
  for(const building of premises)rect(building.x-5.5,-56,11,10,'#776c5b')
- for(const s of sights){c.save();c.translate(s.x,s.z);c.rotate(Math.PI/4);c.strokeStyle='#f4af77';c.fillStyle='#283937';c.lineWidth=1/scale;c.fillRect(-2.2,-2.2,4.4,4.4);c.strokeRect(-2.2,-2.2,4.4,4.4);c.restore();if(overview){c.fillStyle='#f9d2ad';c.font='600 5px "Noto Sans KR", sans-serif';c.fillText(s.tag,s.x+3,s.z-2)}}
+ for(const s of sights){c.save();c.translate(s.x,s.z);c.rotate(Math.PI/4);c.strokeStyle=s.tag==='ARM'?'#ffe2a0':'#f4af77';c.fillStyle=s.tag==='ARM'?'#5b4627':'#283937';c.lineWidth=1/scale;c.fillRect(-2.2,-2.2,4.4,4.4);c.strokeRect(-2.2,-2.2,4.4,4.4);c.restore();if(overview){c.fillStyle='#f9d2ad';c.font='600 5px "Noto Sans KR", sans-serif';c.fillText(s.tag,s.x+3,s.z-2)}}
  for(const car of (Array.isArray(cars)?cars:cars?[cars]:[]))if(Math.hypot(car.x-player.x,car.z-player.z)>1.5){
   c.save();c.translate(car.x,car.z);c.rotate(car.heading);c.fillStyle='#dbe2cf';c.fillRect(-1.6,-3.3,3.2,6.6);c.fillStyle='#566963';c.fillRect(-1.2,-1.45,2.4,2.5);c.restore()
  }

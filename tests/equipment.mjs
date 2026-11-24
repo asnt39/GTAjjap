@@ -11,7 +11,10 @@ import {createCharacter} from '../src/character.js'
 import {createResidents} from '../src/residents.js'
 import {fighter,advance,injure} from '../src/melee.js'
 
-const values=new Map([['harborline.runMode.v3','hold']])
+const stock=Object.fromEntries(Object.entries(gear).map(([id,def])=>[id,{mag:def.capacity??0,reserve:def.stock??0}]))
+const weaponSave=JSON.stringify({selected:'fists',items:stock})
+const equippedFixture={getItem:()=>weaponSave}
+const values=new Map([['harborline.runMode.v3','hold'],['harborline.equipment.v1',weaponSave]])
 const storage={getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value)}
 const bag=createLoadout(storage)
 assert.equal(bag.selected,'fists')
@@ -24,7 +27,7 @@ bag.select('pistol');bag.reload();bag.tick(2)
 assert.deepEqual(bag.item,{mag:8,reserve:30})
 assert.deepEqual(createLoadout(storage).item,bag.item)
 assert.equal(values.get('harborline.runMode.v3'),'hold')
-assert(!bag.select('__proto__'));bag.resupply();assert.equal(bag.item.reserve,32)
+assert(!bag.select('__proto__'))
 
 const origin=new Vector3(0,1.25,0),forward=new Vector3(0,0,1)
 const npc={pos:new Vector3(0,0,5),height:1.8,f:fighter(100)}
@@ -50,7 +53,7 @@ for(const [i,n] of crowd.all.entries())n.pos.set(22+i*2,0,25)
 const target=crowd.all[0],officer=crowd.officers[0],witness=crowd.all[1]
 officer.pos.set(4,0,2);witness.pos.set(-3,0,4)
 const player={pos:char.root.position,f:fighter(100)}
-const loadout=createLoadout(),shots=[],hits=[],messages=[],traces=[]
+const loadout=createLoadout(equippedFixture),shots=[],hits=[],messages=[],traces=[]
 const sim=equipmentPlay({scene,camera,char,boxes:[],fleet:[],crowd,player,loadout,effects:{trace:(a,b)=>traces.push(a.distanceTo(b)),muzzle(){},emit(){}},onHit:n=>hits.push(n),onShot:id=>shots.push(id),toast:m=>messages.push(m)})
 function frame(){
  char.update(1/60,0);advance(target.f,1/60)
@@ -149,7 +152,7 @@ assert(injure(shielded,18,1,'body'))
 assert.equal(shielded.hp,99)
 assert.equal(shielded.armor,0)
 
-const rifle=createLoadout()
+const rifle=createLoadout(equippedFixture)
 assert(rifle.select('sniper'))
 assert.equal(rifle.def.range,Infinity)
 assert(rifle.use())

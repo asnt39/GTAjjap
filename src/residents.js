@@ -25,7 +25,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   const health=residentHealth[profile.officer?(profile.station?'guard':'officer'):'civilian']
   const shadowMeshes=[]
   rig.root.traverse(mesh=>{if(mesh.isMesh&&mesh.castShadow)shadowMeshes.push(mesh)})
-  const n={...profile,rig,pos,shadowMeshes,castsShadow:true,patrolStop:1,height:profile.height??1.8,state:'idle',face:i*.97,path:[],speed:0,wait:profile.spawnWait??3+i*1.7,age:0,
+  const n={...profile,rig,pos,shadowMeshes,castsShadow:true,patrolStop:1,height:profile.height??1.8,state:'idle',face:profile.face??i*.97,path:[],speed:0,wait:profile.spawnWait??3+i*1.7,age:0,
    f:fighter(health),alert:0,talk:0,line:0,accum:0,stagger:(i%7)/7,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
   return n

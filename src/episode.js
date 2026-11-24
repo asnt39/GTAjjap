@@ -20,12 +20,13 @@ const matchesResident = (goal, resident) => {
   return name === goal.resident || name === goal.legacyName
 }
 
-function read(storage) {
+function read(raw) {
   try {
-    const saved=JSON.parse(storage?.getItem(saveKey) ?? 'null')
+    const saved=JSON.parse(raw ?? 'null')
     if (!saved || saved.version!==1 || !natural(saved.index) || !missions[saved.index]) return initial()
     const state=initial()
     state.index=saved.index
+    if(saved.equipment?.items&&typeof saved.equipment.items==='object')state.equipment=saved.equipment
     state.status=['available','active','failed','complete'].includes(saved.status) ? saved.status : 'available'
     if (state.status==='complete' && state.index!==missions.length-1) state.status='available'
     if (state.status==='active' && natural(saved.step) && saved.step<missions[state.index].steps.length) state.step=saved.step
@@ -59,7 +60,9 @@ function read(storage) {
 export function createEpisode(options={}) {
   let storage=options.storage
   if (storage===undefined) { try { storage=globalThis.localStorage } catch {} }
-  const state=read(storage)
+  let lastSave
+  try { lastSave=storage?.getItem(saveKey) } catch {}
+  const state=read(lastSave)
   let savedSecond=Math.ceil(state.remaining ?? 0)
   const selectedStory=()=>state.selected?storyContracts.find(contract=>contract.id===state.selected):null
   const nextStory=()=>storyContracts.find(contract=>storyRun(state,contract).status!=='complete')
@@ -67,9 +70,35 @@ export function createEpisode(options={}) {
   const mission=()=>selectedStory()??missions[state.index]
   const step=()=>mission().steps[record().step]
   const canStartOpening=()=>options.canStartOpening?.()??true
+  function write(fields){
+    if(!storage)return wrong('저장소를 사용할 수 없어.')
+    try {
+      if(storage.getItem(saveKey)!==lastSave)return wrong('다른 탭에서 진행 상황이 바뀌었어. 새로고침해 줘.')
+      const next=JSON.stringify({version:1,...state,...fields})
+      storage.setItem(saveKey,next)
+      lastSave=next
+      return result(true,'저장 완료')
+    } catch { return wrong('저장할 수 없어.') }
+  }
   function save() {
-    try { storage?.setItem(saveKey,JSON.stringify({version:1,...state})) } catch {}
+    write()
     savedSecond=Math.ceil(state.remaining ?? 0)
+  }
+  // Save wallet and equipment in the same write on a purchase. The old
+  // equipment record remains readable until the first purchase succeeds.
+  function purchaseEquipment(price,equipment){
+    if(!natural(price) || !price)return wrong('가격을 확인할 수 없어.')
+    if(state.money<price)return wrong('돈이 부족해.')
+    const money=state.money-price
+    const saved=write({money,equipment})
+    if(!saved.ok)return wrong(saved.message+' 돈은 차감되지 않았어.')
+    state.money=money
+    state.equipment=equipment
+    return result(true,'구매 완료')
+  }
+  function saveEquipment(equipment){
+    state.equipment=equipment
+    save()
   }
   function advance(message) {
     const run=record()
@@ -251,7 +280,8 @@ export function createEpisode(options={}) {
     if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
     return {...next.contact,jobTitle:next.title}
   }
-  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,
+  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,purchaseEquipment,saveEquipment,
+    get savedEquipment(){return state.equipment},
     get openingActive(){return !!selectedStory()&&record().status==='active'},
     get roadClosed(){return selectedStory()===firstWork&&this.openingActive&&!!step().roadClosed}}
 }
