@@ -30,6 +30,7 @@ import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
+import {createCheckpoint,resolveCheckpoint} from './play-checkpoint.js'
 import {uprightRider} from './rider-pose.js'
 import {entryPose,entryTime} from './vehicle-entry.js'
 import {vehicles} from './vehicles.js'
@@ -242,6 +243,9 @@ export async function start(onContextLost){
  function reloadEquipment(){
   if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&!custody.active)loadout.reload()
  }
+ const checkpoint=createCheckpoint(storage)
+ const canRestore=(x,z,y)=>canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&
+  (y>2.4||!occupied(x,z))
  const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
@@ -346,6 +350,7 @@ export async function start(onContextLost){
   return nearest
  }
  function startTransition(destination,next){
+  if(next==='enter')saveCheckpoint()
   mode=next;clearControls()
   car.speed=car.travel=car.accel=car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
   lastSide=destination.side
@@ -422,9 +427,9 @@ export async function start(onContextLost){
   localSeat=null
   if(!room.send({t:'release',p:playerPacket()}))room.interrupt()
  }
- function resetWalk(x,z,direction){
+ function resetWalk(x,z,direction,floor){
   pendingSeat=localSeat=transition=vehiclePose=null;mode='walk';car=cars.touring
-  face=direction;plantFeet(x,z)
+  face=direction;plantFeet(x,z,floor)
   actor.visible=true
   crowd.endTalk();clearControls();walkSpeed=0
   renderer.shadowMap.needsUpdate=true
@@ -449,7 +454,7 @@ export async function start(onContextLost){
   change(){ui.updateRoom();if(room.phase==='offline'&&room.message&&!ui.isOpen())ui.toast(room.message)},
   join(p,resumed){
    civilians.clear()
-   if(!resumed)offline={x:pos.x,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle,collision:null}))}
+   if(!resumed)offline={x:pos.x,y:pos.y,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle,collision:null}))}
    localSeat=null
    const frame=room.sample(performance.now())
    for(const vehicle of fleet){
@@ -465,7 +470,7 @@ export async function start(onContextLost){
   leave(){
    for(const [index,vehicle] of fleet.entries())Object.assign(vehicle,offline.cars[index],{owner:null,dents:offline.cars[index].dents,collision:null})
    yaw=offline.yaw;pitch=offline.pitch;distance=offline.distance
-   resetWalk(offline.x,offline.z,offline.face);presence.clear();offline=null
+   resetWalk(offline.x,offline.z,offline.face,floorAt(offline.x,offline.z,offline.y));presence.clear();offline=null
   },
   suspend(){
    pendingSeat=localSeat=null;presence.clear();clearControls()
@@ -494,7 +499,7 @@ export async function start(onContextLost){
   if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
-  civilians.clear();room.start(endpoint,request)
+  saveCheckpoint();civilians.clear();room.start(endpoint,request)
  }
  const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
@@ -511,7 +516,11 @@ export async function start(onContextLost){
    if(e.code==='Space')jump()
   }}})
  window.addEventListener('keyup',e=>keys.delete(e.code))
- window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{clearControls();last=performance.now()})
+ window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)saveCheckpoint()
+  clearControls();last=performance.now()
+ })
+ window.addEventListener('pagehide',saveCheckpoint)
  canvas.addEventListener('mousedown',e=>{
   if(isPaused||crowd.talking||mode!=='walk'||!armed()&&!custody.canPunch)return
   if(e.button===2)aiming=!custody.active&&!!loadout.def.capacity&&!foot.air&&!player.f.action
@@ -611,6 +620,16 @@ export async function start(onContextLost){
   if(shake){camera.position.x+=Math.sin(elapsed*63)*.1*shake;camera.position.y+=Math.cos(elapsed*80)*.075*shake}
   camera.lookAt(aim)
  }
+ const saved=checkpoint.current
+ const restored=resolveCheckpoint(saved,[garage,...dockSpawnPoints],floorAt,canRestore)
+ if(restored){
+  if(saved){yaw=saved.yaw;pitch=saved.pitch;distance=saved.distance;face=saved.face}
+  plantFeet(restored.x,restored.z,restored.y)
+ }
+ updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
+ trackedX=pos.x;trackedZ=pos.z
+ sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
+ sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
  positionCamera(0,true)
  function groundHeight(x,z){
   if(useTownDriveMask(x,z))return oldTownHeight(x,z)
@@ -629,11 +648,27 @@ export async function start(onContextLost){
    atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
    (insidePremises(x,z)||insideWeaponShop(x,z))?3.44:Infinity
  }
- function plantFeet(x,z){
-  foot.reset(groundHeight(x,z))
+ function floorAt(x,z,feet,airborne=false){
+  const localRoom=rowRoomAt(x,z)
+  const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):groundHeight(x,z)
+  return supportHeight(x,z,feet,base,surfaces)
+ }
+ function plantFeet(x,z,floor=groundHeight(x,z)){
+  foot.reset(floor)
   pos.set(x,foot.height,z);actor.position.copy(pos);shadow.position.y=.014
   uprightRider(actor,char,face)
  }
+ let saveClock=0,sampleClock=0,checkpointEnabled=false
+ function rememberCheckpoint(){
+  if(!checkpointEnabled||room.phase!=='offline'||offline||custody.active||transition||player.f.hp<=0)return
+  const point=driving()?safeExit(car,boxes,lastSide,(x,z)=>blockedAtDoor(car,x,z))?.door:pos
+  if(!point||(!driving()&&foot.air))return
+  const {x,z}=point,y=floorAt(x,z,driving()?groundHeight(x,z):foot.height)
+  checkpoint.sample({x,y,z,face:driving()?Math.PI-car.heading:face,yaw,pitch,distance},{
+   offline:true,grounded:driving()||Math.abs(y-foot.height)<.08,safe:canRestore(x,z,y)
+  })
+ }
+ function saveCheckpoint(){rememberCheckpoint();checkpoint.flush()}
  const bikeSeat=new THREE.Vector3(),bikeRotation=new THREE.Quaternion()
  function poseMotorcycle(dt){
   const rig=rigs[car.id],seated=driving()?1:vehiclePose.ride
@@ -710,9 +745,7 @@ export async function start(onContextLost){
    const ox=pos.x,oz=pos.z
    const stagger=player.f.action==='hit'?.55:0
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
-   const localRoom=rowRoomAt(pos.x,pos.z)
-   const base=localRoom?rowFloor(localRoom,pos.x,pos.z,foot.height,foot.air):groundHeight(pos.x,pos.z)
-   const floor=supportHeight(pos.x,pos.z,foot.height,base,surfaces)
+   const floor=floorAt(pos.x,pos.z,foot.height,foot.air)
    const landing=foot.advance(dt,floor,ceilingHeight(pos.x,pos.z,foot.height)-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height
@@ -787,6 +820,8 @@ export async function start(onContextLost){
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,
     speed,raise:stance.raise,ready:sniperAiming()&&stance.eye===1,alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    if(!scopeVisible)setZoom(1)
+   if((sampleClock+=dt)>=.5){sampleClock=0;rememberCheckpoint()}
+   if((saveClock+=dt)>=4){saveClock=0;checkpoint.flush()}
    effects.update(dt,canvas.height)
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos)
    const actorVisible=actor.visible
@@ -806,6 +841,6 @@ export async function start(onContextLost){
  if(contextLost)return
  renderer.render(scene,camera);ui.update(0)
  return ()=>{
-  last=performance.now();requestAnimationFrame(draw)
+  checkpointEnabled=true;saveCheckpoint();last=performance.now();requestAnimationFrame(draw)
  }
 }
