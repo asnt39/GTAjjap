@@ -326,5 +326,6 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
     for(const g of geometries)g.dispose()
   }
   scene.add(group)
+  Object.defineProperty(vehicles,'civilianRig',{value:()=>createVehicleRig('sport',models[5])})
   return vehicles
 }

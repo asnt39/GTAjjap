@@ -27,7 +27,10 @@ export function policeChase(scene,boxes,traffic,civilianCount,crowd,height) {
  function enable(allow,player){
   if(allow===enabled)return
   enabled=allow
-  traffic.length=civilianCount
+  for(const {car} of units){
+   const index=traffic.indexOf(car,civilianCount)
+   if(index!==-1)traffic.splice(index,1)
+  }
   for(const unit of units){
    const {car,home,crew,rig}=unit
    if(crew.policeOrder?.aboard){

@@ -83,6 +83,19 @@ function route(start,goal){
  return []
 }
 
+// The civilian routes use the same lane geometry and junction turns.
+export const civilianEntries=roads.slice(0,3).flatMap(road=>road.in.filter((node,index)=>index>=3&&index%3===0))
+export function civilianNext(node,turn){
+ if(node.edges.length===1)return node.edges[0]
+ const allowed=node.edges.filter(next=>{
+  // The eastern arm serves the cargo yard and remains patrol-only.
+  let end=next
+  while(end.curve)end=end.edges[0]
+  return end!==roads[3].out[0]
+ })
+ return allowed[turn%allowed.length]
+}
+
 export function policeRoute(start,target){
  return route(nearest(start,5,true),nearest(target,2.6))
 }

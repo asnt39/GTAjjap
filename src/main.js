@@ -7,6 +7,7 @@ import {createLoadout,gear} from './equipment.js'
 import {scopeStance} from './scope-stance.js'
 import {equipmentPlay} from './equipment-play.js'
 import {worldEffects} from './world-effects.js'
+import {civilianTraffic} from './civilian-traffic.js'
 import {policeChase} from './police-chase.js'
 import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
@@ -117,6 +118,21 @@ export async function start(onContextLost){
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={}
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
+ const trafficRigs=Array.from({length:coarse?2:4},()=>rigs.civilianRig())
+ await Promise.all(trafficRigs.map(async(rig,index)=>{
+  const driver=await createCharacter({variant:[1,4,7,2][index]})
+  driver.update(0,0)
+  driver.root.scale.setScalar(.76)
+  driver.root.position.set(-.39,-.18,-.11)
+  driver.root.rotation.y=Math.PI
+  driver.root.traverse(node=>{if(node.isMesh)node.castShadow=false})
+  rig.cabin.add(driver.root)
+  rig.driver=driver.root
+ }))
+ const civilians=civilianTraffic(scene,boxes,traffic,trafficRigs)
+ const trafficView=new THREE.Frustum(),trafficProjection=new THREE.Matrix4(),trafficPoint=new THREE.Vector3()
+ const trafficInView=point=>trafficView.containsPoint(trafficPoint.set(point.x,1,point.z))
+ const walkers=[]
  const presence=roomPresence(scene)
  const player={pos,f:fighter(100),height:1.8,available:true}
  const episode=createEpisode({canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
@@ -432,6 +448,7 @@ export async function start(onContextLost){
  const room=createRoomClient({
   change(){ui.updateRoom();if(room.phase==='offline'&&room.message&&!ui.isOpen())ui.toast(room.message)},
   join(p,resumed){
+   civilians.clear()
    if(!resumed)offline={x:pos.x,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle,collision:null}))}
    localSeat=null
    const frame=room.sample(performance.now())
@@ -477,7 +494,7 @@ export async function start(onContextLost){
   if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
-  room.start(endpoint,request)
+  civilians.clear();room.start(endpoint,request)
  }
  const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
@@ -734,6 +751,13 @@ export async function start(onContextLost){
    player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    player.legacyArrest=room.phase!=='offline'
    const police=squads.update(dt,pos,player.inVehicle,crowd.wanted,!player.legacyArrest)
+   trafficProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse)
+   trafficView.setFromProjectionMatrix(trafficProjection)
+   walkers.length=0
+   if(!driving()&&pos.y<1.35&&!foot.air)walkers.push(pos)
+   for(const resident of crowd.all)if(resident.pos.y<1.35&&!resident.policeOrder?.aboard)walkers.push(resident.pos)
+   remoteShadow=civilians.update(dt,pos,{enabled:room.phase==='offline'&&!custody.active,
+    limit:coarse&&recentFrameMs>34?1:trafficRigs.length,walkers,inView:trafficInView})||remoteShadow
    for(let i=fleet.length;i<traffic.length;i++){
     const vehicle=traffic[i]
     effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))

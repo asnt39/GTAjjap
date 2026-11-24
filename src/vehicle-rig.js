@@ -62,7 +62,7 @@ export function createVehicleRig(id, model, parking) {
     mesh.material = brakeLight
   })
   return {
-    ...config, setup:config, root, hinged,
+    ...config, setup:config, root, hinged, cabin:body,
     updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,impact=0,lift=0,dents}) {
       root.position.set(x, dt ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
       root.rotation.y = -heading

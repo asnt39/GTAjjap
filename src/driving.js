@@ -59,10 +59,11 @@ export function overlapsCar(a,b){
   Math.abs(back.x)*2<b.width+a.width*c+a.length*s &&
   Math.abs(back.z)*2<b.length+a.width*s+a.length*c
 }
-export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false){
+export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,pedestrianBlocked){
  const setup=car.setup??touringSetup
  const clear=contact=>{
   if(!clearPose(car,boxes,true,allowSidewalk,contact))return false
+  if(pedestrianBlocked?.(car))return false
   const other=others.find(other=>other!==car&&overlapsCar(car,other))
   if(other&&contact)Object.assign(contact,{x:other.x,z:other.z,other})
   return !other
