@@ -29,6 +29,7 @@ import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
+import {uprightRider} from './rider-pose.js'
 import {entryPose,entryTime} from './vehicle-entry.js'
 import {vehicles} from './vehicles.js'
 import {createResidents} from './residents.js'
@@ -362,7 +363,7 @@ export async function start(onContextLost){
   const joining=mode==='enter',prior=transition
   car.door=0;transition=vehiclePose=null;clearControls()
   mode=joining?'walk':'drive'
-  if(joining){plantFeet(prior.from.x,prior.from.z);face=prior.face}
+  if(joining){face=prior.face;plantFeet(prior.from.x,prior.from.z)}
   else pos.set(car.x,0,car.z)
   actor.visible=joining
   if(joining)releaseSeat()
@@ -380,7 +381,7 @@ export async function start(onContextLost){
   car.door=rigs[car.id].hinged?pose.opening:0
   vehiclePose=pose;walkSpeed=pose.speed
   pos.set(pose.x,0,pose.z);actor.position.set(pose.x,pose.y,pose.z)
-  face=pose.face;actor.rotation.y=face;actor.visible=pose.visible;char.root.position.y=0
+  face=pose.face;actor.rotation.set(0,face,0);actor.visible=pose.visible;char.root.position.y=0
   if(!car.setup.bike||!pose.ride)char.update(dt,pose.speed,car.setup.bike?{}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
   renderer.shadowMap.needsUpdate=true
   if(transition.time<entryTime)return
@@ -407,8 +408,8 @@ export async function start(onContextLost){
  }
  function resetWalk(x,z,direction){
   pendingSeat=localSeat=transition=vehiclePose=null;mode='walk';car=cars.touring
-  plantFeet(x,z);face=direction
-  actor.rotation.y=face;actor.visible=true
+  face=direction;plantFeet(x,z)
+  actor.visible=true
   crowd.endTalk();clearControls();walkSpeed=0
   renderer.shadowMap.needsUpdate=true
  }
@@ -613,7 +614,8 @@ export async function start(onContextLost){
  }
  function plantFeet(x,z){
   foot.reset(groundHeight(x,z))
-  pos.set(x,foot.height,z);actor.position.copy(pos);char.root.position.y=0;shadow.position.y=.014
+  pos.set(x,foot.height,z);actor.position.copy(pos);shadow.position.y=.014
+  uprightRider(actor,char,face)
  }
  const bikeSeat=new THREE.Vector3(),bikeRotation=new THREE.Quaternion()
  function poseMotorcycle(dt){
@@ -706,7 +708,7 @@ export async function start(onContextLost){
    const previousFace=face
    const facing=player.f.action==='punch'?focus:crowd.talking
    if((armed()&&(aiming||loadout.recoil>.1||equipment.throwing))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1||equipment.throwing)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
-   actor.rotation.y=face;actor.position.copy(pos)
+   actor.rotation.set(0,face,0);actor.position.copy(pos)
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
     turn:dt>0?(face-previousFace)/dt:0})
