@@ -1,4 +1,4 @@
-const CACHE = 'harborline-install-icons-v3';
+const CACHE = 'harborline-install-icons-v4';
 const ICONS = ['/icons/harborline-pwa-192-v4.png', '/icons/harborline-pwa-512-v4.png'];
 
 self.addEventListener('install', event => {

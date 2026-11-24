@@ -5,6 +5,6 @@
  overflow:hidden;
 }
 #status>*{position:relative}
-#status img{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));width:clamp(48px,7vmin,84px);height:auto}
+#status img{position:absolute;right:var(--corner-logo-right);bottom:var(--corner-logo-bottom);width:var(--corner-logo-width);height:auto}
 #status b{font-size:13px;letter-spacing:.09em;font-weight:500;padding:8px 16px}
 #status[hidden]{display:none}
