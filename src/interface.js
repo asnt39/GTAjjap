@@ -3,6 +3,7 @@ import './equipment.css'
 import {inWestBank} from './west-bank-plan.js'
 import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
+import {dialogueVoice} from './dialogue-voice.js'
 import {drawMap} from './cartography.js'
 import {defaultRoomEndpoint} from './room-client.js'
 import {ROOM_CODE} from './room-protocol.js'
@@ -57,7 +58,7 @@ export function createUI(game){
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
- const story=episodeUI(game)
+ const voice=dialogueVoice(),story=episodeUI(game,voice)
  const conversation=$('#conversation'),dialogueClose=$('#dialogue-close')
  dialogueClose.onclick=()=>game.crowd.endTalk()
  const missionGoal=()=>story.goal(game.driving()&&game.car.id==='touring')
@@ -76,7 +77,7 @@ export function createUI(game){
   const journal=game.episode.snapshot()
   const menu={
    bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')],
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+button('runMode','Shift 달리기',game.foot.preference==='toggle'?'눌러 전환':'누르는 동안')+button('quality','그래픽 품질',game.quality())+button('credits','제작 · 라이선스')],
    equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'지급받기')).join('')+'<p class="smallnote">예비 탄약은 부두 정문 안내판에서 보급받을 수 있어. 온라인 방에서도 장비와 전투는 각자 진행해.</p>'],
    rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
    controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('달리기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–5</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. Shift 전환은 멈췄다가 다시 걸어도 유지되고 메뉴나 차량에 들어가면 해제돼.</p>'],
@@ -95,7 +96,7 @@ export function createUI(game){
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
   if(name==='rooms')updateRoom()
   if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
-  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
+  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  let roomForm,code=''
@@ -146,6 +147,7 @@ export function createUI(game){
    if(game.selectEquipment(id)){close();toast(gear[id].name+' 장착')}else toast('동작을 마친 뒤 장비를 변경해')
    return
   }
+  if(action==='voice'){const message=voice.toggle();show('pause');toast(message);return}
   if(action==='resupply'&&panel==='sight'&&near?.tag==='01'){game.loadout.resupply();close();toast('예비 탄약 보급 완료');return}
   if(action==='west-bank'&&panel==='sight'&&['HOME','PARK','WEST'].includes(near?.tag)){
    const tag=near.tag;close();toast(game.useWestBank(tag));return

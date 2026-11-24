@@ -28,6 +28,7 @@ export const firstWork = {
 }
 
 const clerk=person('tide-clerk')
+const ferryKeeper=person('ferry-keeper')
 export const storyContracts = [
   firstWork,
   {
@@ -48,6 +49,18 @@ export const storyContracts = [
       {goal:{x:-50,z:55,radius:2.1}, mode:'walk',objective:'내려서 시계탑 남쪽의 출항표 사본을 찾아.',reply:'사본을 찾았다. 새 화물의 인수란에 내 이름이 먼저 적혀 있다.'},
       {goal:dock, objective:'Jack Bennett에게 출항표 사본을 보여 줘.', choices:[
         {id:'deliver-copy',label:'누가 내 이름을 적어 놨어.',reply:'Jack · 네가 항구에 오기 전에 작성된 건데? 이건 미리 준비한 거야.',advance:true}
+      ]}
+    ]
+  },
+  {
+    id:'night-release',title:'허가 없는 출고',reward:4800,contact:dock,
+    brief:'Jack · 네 이름으로 나간 상자가 하나 더 있어. 북쪽 정비장에 도착하면 반출 서류부터 찾아봐.',
+    steps:[
+      {goal:{x:-216,z:33,radius:4},mode:'vehicle',stop:true,objective:'차량으로 서편 북쪽 정비장에 도착해 정차해.',reply:'반출 안내가 남아 있다. 서류가 어디로 옮겨졌는지 확인해.'},
+      {goal:sign('YARD'),objective:'정비장 반출 안내를 읽어.',reply:'출고일에 이 서류가 West Bank Works로 옮겨졌다.'},
+      {goal:sign('WORK'),objective:'West Bank Works 안에서 야간 작업 기록을 열어.',reply:'야간 기록에 적힌 인수인은 비어 있고, 승인 도장만 찍혀 있다. 선착장 시설팀에 보여 주자.'},
+      {goal:ferryKeeper,objective:'선착장 시설 담당 Caleb Frost에게 승인 도장을 보여 줘.',choices:[
+        {id:'show-stamp',label:'이 도장, 선착장에서 찍은 겁니까?',reply:'Caleb · 이건 폐기된 도장입니다. 그런데 종이가 아직 젖어 있군요. 누가 오늘 밤에도 여기 들어왔어요.',advance:true}
       ]}
     ]
   }

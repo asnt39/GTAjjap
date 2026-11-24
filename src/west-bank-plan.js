@@ -1,7 +1,7 @@
 // Rectangles use [west, east, north, south] in world metres.
 export const westBankLand=[
  [-225,-86,14,113],[-191,-99,-21,21],[-201,-118,108,144],
- [-225,-202,34,111]
+ [-225,-202,34,111],[-225,-182,-4,40]
 ]
 export const westBankRoads=[
  [-194,-68,18.5,27.5], [-192,-68,96,105],
@@ -10,13 +10,16 @@ export const westBankRoads=[
  [-219,-142,59,70], [-221,-211,39,97],
  [-221,-183,39,49], [-221,-183,83,94],
  [-192,-144,124,134], [-154,-144,98,134],
- [-132.9,-125.1,25,45.6]
+ [-132.9,-125.1,25,45.6],[-221,-211,19,40],[-221,-182,18.5,27.5]
 ]
 export const westBankSights=[
  {x:-165.6,z:49,tag:'PARK',title:'Foundry Garden',name:'정원 분수 스위치',body:'예전 제철소에서 쓰던 물탱크를 작은 정원의 분수로 바꿔 놓았다.'},
- {x:-214,z:103,tag:'WEST',title:'West Ferry Yard',name:'선착장 신호등 시험',body:'서편 여객선은 운항을 멈췄다. 신호등은 작업자가 직접 시험할 수 있다.'}
+ {x:-214,z:103,tag:'WEST',title:'West Ferry Yard',name:'선착장 신호등 시험',body:'서편 여객선은 운항을 멈췄다. 신호등은 작업자가 직접 시험할 수 있다.'},
+ {x:-134.2,z:43.6,tag:'WORK',title:'West Bank Works',name:'정비동 작업 기록',body:'좌측 공구대에 야간 수리 기록이 놓여 있다. 출고 승인은 남쪽 선착장 시설팀이 맡는다.'},
+ {x:-207.7,z:30.4,tag:'YARD',title:'North Service Yard',name:'북쪽 정비장의 반출 안내',body:'서쪽 진입로와 남쪽 작업로가 이어지는 점검 구역. 밤 출고 품목은 West Bank Works에 기록한다.'}
 ]
 export const inWestBank=(x,z,r=0)=>westBankLand.some(([a,b,c,d])=>x>=a+r&&x<=b-r&&z>=c+r&&z<=d-r)
+export const insideWorks=(x,z)=>x>-138.7&&x<-119.3&&z>29&&z<48.7
 
 // Mixed terraced shops and former worker housing. Large sheds and civic
 // landmarks are deliberately kept out of this frontage set.
@@ -31,5 +34,6 @@ export const westBankFrontages=[
  [-158,75,11,8.7,6,1,Math.PI],[-172,76,11,10.4,8,0,Math.PI],
  [-172,107.5,10,9.2,4.6,1,Math.PI],[-158,116,10,10.2,5,2,Math.PI/2],
  [-127,112,10,9.9,6,2,Math.PI],[-118,127,9,8.1,7,0,Math.PI],
- [-196,113,8.7,9.5,6.5,0,Math.PI/2],[-175,137.5,11,8,6,1,Math.PI]
+ [-196,113,8.7,9.5,6.5,0,Math.PI/2],[-175,137.5,11,8,6,1,Math.PI],
+ [-205,8,13,9.7,8,0,0],[-218,9,9.2,8.6,7,2,0],[-198.1,34.4,10.2,7.9,6,1,Math.PI]
 ]

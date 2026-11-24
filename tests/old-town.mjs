@@ -4,6 +4,7 @@ import {Scene, Texture, TextureLoader} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {buildOldTown} from '../src/old-town.js'
 import {buildWestBank} from '../src/west-bank.js'
+import {loadWorksDetail} from '../src/works-detail.js'
 import {garage} from '../src/garage.js'
 import {createPedestrianImpacts} from '../src/vehicle-pedestrians.js'
 import {buildStreet} from '../src/street.js'
@@ -52,7 +53,7 @@ movePlayer(alley,0,-17,boxes)
 movePlayer(alley,16.5,0,boxes)
 assert(alley.x>-35.2,'the alley connects to Clock Street')
 for(const [a,b,c,d] of townRoadSurface)for(const [l,r,n,s] of boxes.slice(dockBoxes)){
- assert(a>=r||b<=l||c>=s||d<=n,'new structure overlaps an asphalt tile')
+ assert(a>=r||b<=l||c>=s||d<=n,JSON.stringify({road:[a,b,c,d],structure:[l,r,n,s]}))
 }
 assert.equal(oldTownHeight(0,64),.008)
 assert.equal(oldTownHeight(-68,-28),.008)
@@ -183,6 +184,15 @@ for(const z of [23,100.5]){
  movePlayer(walk,18,0,boxes)
  assert(walk.x>-73.01)
 }
+const serviceLoop=drive(vehicles.touring,[[-187,8],[-187,23],[-216,23],[-216,44],[-187,44],[-187,54]])
+assert(serviceLoop.car.z>52)
+const works={x:-129,z:26}
+movePlayer(works,0,17.6,boxes);movePlayer(works,-5.2,0,boxes)
+assert(Math.hypot(works.x+134.2,works.z-43.6)<.08)
+const fixtures=await loadWorksDetail()
+assert.equal(fixtures.group.children.length,7)
+assert.equal(fixtures.footprints.length,3)
+fixtures.dispose()
 const southExit=drive(vehicles.sport,[[-68,85],[-68,100.5],[-110.5,100.5],[-146,100.5],[-146,81]])
 assert(southExit.car.x<-144)
 westArt.operate('PARK');westArt.update(.01,1,{x:-160});westArt.operate('WEST');westArt.update(.01,1,{x:-170})

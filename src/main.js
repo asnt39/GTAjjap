@@ -9,6 +9,7 @@ import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
 import {buildOldTown} from './old-town.js'
 import {buildWestBank} from './west-bank.js'
+import {insideWorks} from './west-bank-plan.js'
 import {atGarage,garage} from './garage.js'
 import {createPedestrianImpacts} from './vehicle-pedestrians.js'
 import {useTownDriveMask,oldTownHeight} from './old-town-plan.js'
@@ -79,7 +80,7 @@ export async function start(onContextLost){
  }
  const market=buildMarket(scene,addCollider)
  const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
- const westBank=buildWestBank(scene,addCollider,surfaceMaps)
+ const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
@@ -526,6 +527,7 @@ export async function start(onContextLost){
   if(atGarage(pos.x,pos.z)&&eye.y>garage.ceiling-.16&&eye.y>anchor.y){
    fraction=Math.min(fraction,Math.max(.04,(garage.ceiling-.16-anchor.y)/(eye.y-anchor.y)))
   }
+  if(insideWorks(pos.x,pos.z)&&eye.y>3.58&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,(3.58-anchor.y)/(eye.y-anchor.y)))
   const availableArm=arm*fraction
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
@@ -612,7 +614,7 @@ export async function start(onContextLost){
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
    const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
    const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insidePremises(pos.x,pos.z)?3.44:Infinity
+     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insideWorks(pos.x,pos.z)?3.75:insidePremises(pos.x,pos.z)?3.44:Infinity
    const landing=foot.advance(dt,floor,roomCeiling-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height

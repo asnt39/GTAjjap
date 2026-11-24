@@ -46,7 +46,7 @@ Open the pause menu's credits or inspect the notices under `public/assets/` for 
 
 ## 현재 진행 상황
 
-2026-11-19 기준 HARBORLINE은 Three.js와 Vite를 사용하는 싱글플레이 항구 도시 프로토타입이다. 현재 배포 버전은 Sites 버전 6이며 이 저장소의 게임 소스 기준 커밋은 `5c2c9006e889d46b659610f9a378287a71a48ff1`이다. 운영 주소는 https://harborline-docklands.asnt1.chatgpt.site 이다.
+아래는 2026-11-19 Sites 버전 6의 기록이다. 소스 기준 커밋은 `5c2c9006e889d46b659610f9a378287a71a48ff1`이다. 이번 품질 개선의 검증 범위와 인수인계는 [QUALITY-HANDOFF.md](QUALITY-HANDOFF.md)에 있다. 운영 주소는 https://harborline-docklands.asnt1.chatgpt.site 이다.
 
 - 도로, 부두, 상점, 차량, 하늘과 수면을 포함하는 항구 구역과 충돌, 지도, 안내판, 설정을 구현했다.
 - 걷기, 달리기 전환, 점프, 카메라와 터치 조작을 지원한다.

@@ -1,5 +1,5 @@
 // Choices live in the existing conversation. Leaving its range closes the shop too.
-export function episodeUI(game) {
+export function episodeUI(game,voice) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
  const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
  let previous='', shopping=false, speaker=null, reply=''
@@ -21,7 +21,7 @@ export function episodeUI(game) {
  function dialogue(defaultLine) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
-  if(!npc)return
+  if(!npc){voice.stop();return}
   const state=episode.snapshot(), options=episode.choices(npc)
   let text=defaultLine
   if(reply)text=reply
@@ -30,6 +30,7 @@ export function episodeUI(game) {
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
   if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
   if(line.textContent!==text)line.textContent=text
+  if(shopping)voice.stop();else voice.say(npc.id,text)
   if(key===previous)return
   const focused=choices.contains(document.activeElement)?document.activeElement.dataset.choice:null
   previous=key;choices.replaceChildren()

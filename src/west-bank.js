@@ -1,6 +1,8 @@
 import * as T from 'three'
+import {streamDistrict} from './district-stream.js'
+import {loadWorksDetail} from './works-detail.js'
 
-export function buildWestBank(scene,addCollider,maps) {
+export function buildWestBank(scene,addCollider,maps,colliders) {
  const district=new T.Group()
  district.name='West Bank landmarks';scene.add(district)
  const solid=new T.BoxGeometry()
@@ -41,6 +43,8 @@ export function buildWestBank(scene,addCollider,maps) {
  box(stone,-129,.043,39,19.4,.086,19.2)
  box(steel,-129,3.86,39,20.6,.19,20.6)
  box(stone,-129,3.51,29.15,6.4,.39,.35)
+ for(const x of [-132.32,-125.68])box(steel,x,1.67,29.08,.18,3.34,.22)
+ for(let i=0;i<5;i++)box(steel,-129,3.15+i*.081,29.18,6.3,.059,.20)
  box(warm,-129,3.53,35,3,.06,.15)
  box(warm,-134.5,3.53,44,2.8,.06,.15)
  box(wood,-135.65,1.17,48.1,4.05,.12,1.12)
@@ -49,6 +53,8 @@ export function buildWestBank(scene,addCollider,maps) {
  box(steel,-121.25,1.29,47.51,.05,.33,.06)
  for(const x of [-130,-127.9])box(paint,x,.09,42,.095,.01,5.2)
  sign('WEST BANK WORKS',-129,3.38,28.94,5)
+ sign('NIGHT SERVICE LOG',-135.7,1.88,48.52,2.65)
+ for(const x of [-140.8,-117.4])box(paint,x,.091,31,.07,.012,3.3)
 
  // A garden with a diagonal walk, planted beds and the reclaimed pump.
  box(plants,-167,.10,47,14,.036,15)
@@ -87,6 +93,10 @@ export function buildWestBank(scene,addCollider,maps) {
  sign('WEST FERRY YARD',-212.5,3.45,108.68,5.2)
  const beacon=new T.Mesh(new T.SphereGeometry(.19,12,9),new T.MeshStandardMaterial({color:0xe68d41,emissive:0x9a3c14,emissiveIntensity:.4}))
  beacon.position.set(-207.1,2.6,100.14);district.add(beacon)
+ sign('NORTH SERVICE YARD',-208.0,1.53,32.1,3.3)
+ for(const [x,z] of [[-204.7,34.25],[-210.3,34.25]]){
+  box(steel,x,.52,z,.19,1,.19);addCollider(x-.095,x+.095,z-.095,z+.095,1.02)
+ }
 
  // Street lighting and masonry perimeter along the irregular edge.
  for(const [x,z] of [[-118,31],[-102.8,68],[-180,54],[-197,71],[-209,51],[-209,79],[-177,119],[-140,112],[-135,6]]){
@@ -103,14 +113,21 @@ export function buildWestBank(scene,addCollider,maps) {
   district.add(mesh);batches.push(mesh)
  }
  let pump=0,signal=0,shadows=false
+ const stream=streamDistrict({load:loadWorksDetail,enterDistance:62,leaveDistance:88,
+  attach(detail){district.add(detail.group);colliders?.push(...detail.footprints)},
+  detach(detail){
+   detail.group.removeFromParent()
+   if(colliders)for(const bounds of detail.footprints){const i=colliders.indexOf(bounds);if(i>=0)colliders.splice(i,1)}
+  }})
  return {
   operate(tag){if(tag==='PARK')pump=8;if(tag==='WEST')signal=8},
   update(dt,elapsed,pos){
+   const changed=stream(Math.hypot(pos.x+166,(pos.z??44)-58))
    pump=Math.max(0,pump-dt);signal=Math.max(0,signal-dt)
    water.visible=pump>0;water.scale.y=.72+.26*Math.sin(elapsed*9)
    beacon.material.emissiveIntensity=signal?(Math.sin(elapsed*10)>.1?2.6:.15):.4
    const near=pos.x<-92
-   if(near===shadows)return false
+   if(near===shadows)return changed
    shadows=near;for(const mesh of batches)mesh.castShadow=near
    return true
   }
