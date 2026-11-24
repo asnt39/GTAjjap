@@ -31,6 +31,7 @@ import {availableDoor,safeExit,nearBody,newDrive,stepDrive,localPoint,doorPoint,
 import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
+import {parkedPoses,restoreParkedPoses} from './vehicle-checkpoint.js'
 import {createCheckpoint,resolveCheckpoint} from './play-checkpoint.js'
 import {uprightRider} from './rider-pose.js'
 import {entryPose,entryTime} from './vehicle-entry.js'
@@ -112,9 +113,8 @@ export async function start(onContextLost){
  char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=profile().playerShadows}})
  const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,rig.setup??vehicles[id]),id,localOnly:!!rig.localOnly,door:0}]))
  const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
- const parkedSpawns=new Map(fleet.filter(vehicle=>vehicle.localOnly).map(vehicle=>[vehicle.id,{...vehicle}]))
+ const parkedSpawns=new Map(fleet.map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
- for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
@@ -245,6 +245,8 @@ export async function start(onContextLost){
   if(mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&!custody.active)loadout.reload()
  }
  const checkpoint=createCheckpoint(storage)
+ restoreParkedPoses(fleet,checkpoint.vehicles,boxes)
+ for(const vehicle of fleet)rigs[vehicle.id].updatePose(vehicle)
  const canRestore=(x,z,y)=>canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&
   (y>2.4||!occupied(x,z))
  const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
@@ -674,7 +676,13 @@ export async function start(onContextLost){
    offline:true,grounded:driving()||Math.abs(y-foot.height)<.08,safe:canRestore(x,z,y)
   })
  }
- function saveCheckpoint(){rememberCheckpoint();checkpoint.flush()}
+ function saveCheckpoint(){
+  rememberCheckpoint()
+  if(checkpointEnabled&&room.phase==='offline'&&!offline){
+   checkpoint.sampleVehicles(parkedPoses(fleet,parkedSpawns),true)
+  }
+  checkpoint.flush()
+ }
  const bikeSeat=new THREE.Vector3(),bikeRotation=new THREE.Quaternion()
  function poseMotorcycle(dt){
   const rig=rigs[car.id],seated=driving()?1:vehiclePose.ride
@@ -828,7 +836,7 @@ export async function start(onContextLost){
     speed,raise:stance.raise,ready:sniperAiming()&&stance.eye===1,alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    if(!scopeVisible)setZoom(1)
    if((sampleClock+=dt)>=.5){sampleClock=0;rememberCheckpoint()}
-   if((saveClock+=dt)>=4){saveClock=0;checkpoint.flush()}
+   if((saveClock+=dt)>=4){saveClock=0;saveCheckpoint()}
    effects.update(dt,canvas.height)
    ui.update(elapsed);updateGuide(ui.missionGoal(),pos)
    const actorVisible=actor.visible

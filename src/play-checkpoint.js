@@ -8,14 +8,21 @@ function valid(snapshot){
 }
 
 export function createCheckpoint(storage){
- let encoded,checkpoint
+ let encoded,checkpoint,vehiclePoses={}
  try{
   encoded=storage?.getItem(key)
   const loaded=JSON.parse(encoded??'null')
-  if(valid(loaded))checkpoint=loaded
+  if(valid(loaded)){
+   checkpoint=Object.fromEntries(fields.map(field=>[field,loaded[field]]))
+   if(loaded.vehicles&&typeof loaded.vehicles==='object'&&!Array.isArray(loaded.vehicles))vehiclePoses=loaded.vehicles
+  }
  }catch{}
  return {
   get current(){return checkpoint},
+  get vehicles(){return vehiclePoses},
+  sampleVehicles(poses,offline){
+   if(offline)vehiclePoses=poses
+  },
   sample(point,{offline,grounded,safe}){
    if(offline&&grounded&&safe&&valid(point)){
     checkpoint=Object.fromEntries(fields.map(field=>[field,point[field]]))
@@ -23,7 +30,7 @@ export function createCheckpoint(storage){
   },
   flush(){
    if(!checkpoint)return
-   const next=JSON.stringify(checkpoint)
+   const next=JSON.stringify({...checkpoint,vehicles:vehiclePoses})
    if(next===encoded)return
    try{storage?.setItem(key,next);encoded=next}catch{}
   }
