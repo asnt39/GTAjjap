@@ -166,6 +166,16 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   }
   return true
  }
+ function blastHit(n,source,strength){
+  if(!receive(n,source,'body',n.pos,Math.round(22+strength*90)))return false
+  if(n.f.hp>0){
+   const dx=n.pos.x-source.x,dz=n.pos.z-source.z,d=Math.hypot(dx,dz)||1
+   const force=2+strength*6
+   n.slide={x:dx/d*force,z:dz/d*force,lift:.22+strength*.35}
+   Object.assign(n.f,{action:'knockdown',elapsed:0,duration:1.8+strength*2})
+  }
+  return true
+ }
  function takePursuit(n){
   const count=wanted.level===3?2:1
   if(responders.has(n))return
@@ -346,6 +356,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(onPoliceShot&&n.officer)firearms.pose(n,player,tick,aiming,onPoliceShot)
   }
  }
- return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,vehicleHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

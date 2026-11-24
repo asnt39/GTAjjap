@@ -1,3 +1,5 @@
+import {grenadeModel} from './grenade-art.js'
+import {grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
 import {buildWeaponShop} from './weapon-shop.js'
 import * as THREE from 'three'
@@ -173,13 +175,51 @@ export async function start(onContextLost){
  let aiming=false,shoulder=0,scopeVisible=false,hideScopeBody=false
  const cancelAim=()=>{aiming=false;stance.update(0,false);scopeVisible=false}
  const armed=()=>loadout.selected!=='fists'
- const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,
+ const grenades=[],blastTarget=new THREE.Vector3(),grenadeStrength=grenadeBlast(boxes)
+ let grenadeShape,shake=0
+ function launchGrenade(hand){
+  const from=blastTarget.set(pos.x,pos.y+1.32,pos.z)
+  const origin=cameraFraction(from,hand,boxes)<.98?from:hand
+  grenadeShape??=grenadeModel()
+  const prop=grenadeShape.clone(true)
+  prop.position.copy(origin);scene.add(prop)
+  grenades.push({prop,flight:grenadeFlight({origin,heading:yaw,pitch,boxes,floor:groundHeight,ceiling:ceilingHeight,vehicles:traffic})})
+ }
+ function updateGrenades(dt){
+  shake=Math.max(0,shake-dt*3.4)
+  for(let i=grenades.length-1;i>=0;i--){
+   const {prop,flight}=grenades[i]
+   const exploded=flight.update(dt)
+   prop.position.copy(flight.position)
+   prop.rotation.x+=flight.velocity.length()*.62*dt
+   if(!exploded)continue
+   scene.remove(prop);grenades.splice(i,1)
+   const point=flight.position
+   effects.emit('burst',point.x,point.y+.24,point.z,8)
+   effects.emit('smoke',point.x,point.y+.26,point.z,16)
+   effects.emit('sparks',point.x,point.y+.1,point.z,13)
+   shake=Math.max(shake,Math.max(0,1-Math.hypot(point.x-pos.x,point.z-pos.z)/17))
+   const wantedBefore=crowd.wanted.level
+   for(const n of crowd.all){
+    if(n.f.hp<=0||n.policeOrder?.aboard)continue
+    const strength=grenadeStrength(point,blastTarget.copy(n.pos).addScaledVector(THREE.Object3D.DEFAULT_UP,.90))
+    if(strength>0)crowd.blastHit(n,point,strength)
+   }
+   for(const vehicle of traffic){
+    const strength=grenadeStrength(point,blastTarget.set(vehicle.x,.53+(vehicle.lift??0),vehicle.z))
+    kickVehicle(vehicle,point,strength,boxes,traffic,room.phase==='offline')
+   }
+   crowd.hearShot(point,crowd.wanted.level!==wantedBefore)
+   renderer.shadowMap.needsUpdate=true
+  }
+ }
+ const equipment=equipmentPlay({scene,camera,char,boxes,fleet:traffic,crowd,player,loadout,effects,throwGrenade:launchGrenade,
   onHit(n){focus=n;feedbackTime=4;ui.impact(false)},onShot:id=>ui.shot(id),toast:message=>ui.toast(message)})
  function selectEquipment(id){
   if(mode!=='walk'||crowd.talking||player.f.action||custody.active)return false
   const previous=loadout.selected
   if(!loadout.select(id))return false
-  if(previous!==id)cancelAim()
+  if(previous!==id){cancelAim();equipment.interrupt()}
   return true
  }
  function reloadEquipment(){
@@ -204,7 +244,7 @@ export async function start(onContextLost){
   crowd.endTalk()
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
-   if(loadout.def.capacity)face=Math.PI-yaw
+   if(loadout.def.capacity||loadout.def.consumable)face=Math.PI-yaw
    equipment.attack(loadout.def.lethal?sniperAiming()&&scopeVisible:aiming);return
   }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget()}
@@ -442,7 +482,7 @@ export async function start(onContextLost){
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
-   const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat',Digit5:'sniper'}[e.code]
+   const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat',Digit5:'sniper',Digit6:'grenade'}[e.code]
    if(slot){selectEquipment(slot);return}
    if(e.code==='KeyR'){reloadEquipment();return}
    if(e.code==='KeyQ'){ui.show('equipment');return}
@@ -550,6 +590,7 @@ export async function start(onContextLost){
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
+  if(shake){camera.position.x+=Math.sin(elapsed*63)*.1*shake;camera.position.y+=Math.cos(elapsed*80)*.075*shake}
   camera.lookAt(aim)
  }
  positionCamera(0,true)
@@ -563,6 +604,12 @@ export async function start(onContextLost){
   const lane=Math.abs(x)
   const edge=Math.min(lane-6,10.9-lane,Math.max(-43-z,z+31))
   return .008+.083*clamp(edge/.18,0,1)
+ }
+ function ceilingHeight(x,z,feet){
+  const room=rowRoomAt(x,z)
+  return room?rowCeiling(room,x,feet):x<archive.front&&archiveAccess(x,z,0)?archive.ceiling:
+   atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
+   (insidePremises(x,z)||insideWeaponShop(x,z))?3.44:Infinity
  }
  function plantFeet(x,z){
   foot.reset(groundHeight(x,z))
@@ -647,9 +694,7 @@ export async function start(onContextLost){
    const localRoom=rowRoomAt(pos.x,pos.z)
    const base=localRoom?rowFloor(localRoom,pos.x,pos.z,foot.height,foot.air):groundHeight(pos.x,pos.z)
    const floor=supportHeight(pos.x,pos.z,foot.height,base,surfaces)
-   const roomCeiling=localRoom?rowCeiling(localRoom,pos.x,foot.height):pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
-     atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insideWorks(pos.x,pos.z)?3.75:(insidePremises(pos.x,pos.z)||insideWeaponShop(pos.x,pos.z))?3.44:Infinity
-   const landing=foot.advance(dt,floor,roomCeiling-player.height)
+   const landing=foot.advance(dt,floor,ceilingHeight(pos.x,pos.z,foot.height)-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
    pos.y=foot.height
    shadow.position.y=floor-pos.y+.014
@@ -660,7 +705,7 @@ export async function start(onContextLost){
    if(accelerate&&dt>0)velocity.set(dx/dt,dz/dt)
    const previousFace=face
    const facing=player.f.action==='punch'?focus:crowd.talking
-   if((armed()&&(aiming||loadout.recoil>.1))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
+   if((armed()&&(aiming||loadout.recoil>.1||equipment.throwing))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1||equipment.throwing)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
    actor.rotation.y=face;actor.position.copy(pos)
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
@@ -669,6 +714,7 @@ export async function start(onContextLost){
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
    })
    }
+   updateGrenades(dt)
    for(const vehicle of fleet){
     const mounted=vehicle===car&&(driving()||(vehiclePose?.ride??0)>.6)
     rigs[vehicle.id].updatePose({...vehicle,dt,mounted,lift:room.phase==='offline'?vehicle.lift:0})

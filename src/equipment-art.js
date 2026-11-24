@@ -1,10 +1,11 @@
+import {grenadeModel} from './grenade-art.js'
 import {
  BoxGeometry, ConeGeometry, CylinderGeometry, Euler, Group, MathUtils, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, Vector3
 } from 'three'
 import {sniperModel} from './sniper-art.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 
-const equipment = new Set(['pistol','shotgun','bat','sniper'])
+const equipment = new Set(['pistol','shotgun','bat','sniper','grenade'])
 const loader = new GLTFLoader()
 // The Rocketbox hand's local X points along the fingers and Z toward the thumb.
 const rightGrip = new Quaternion(.5,.5,.5,-.5).normalize()
@@ -51,6 +52,10 @@ export function createEquipmentArt(character) {
 
  function ensure(weapon){
   if(loading.has(weapon)||shapes.has(weapon)||errors.has(weapon))return
+  if(weapon==='grenade'){
+   const scene=grenadeModel();scene.visible=false;socket.add(scene)
+   shapes.set(weapon,{scene,end:scene});return
+  }
   if(weapon==='sniper'){
    const scene=sniperModel();scene.visible=false;socket.add(scene)
    shapes.set(weapon,{scene,end:scene.getObjectByName('End'),lens:scene.getObjectByName('ScopeView'),bolt:scene.getObjectByName('Bolt')});return
@@ -68,7 +73,7 @@ export function createEquipmentArt(character) {
  }
 
  function update({weapon='fists',aiming=false,recoil=0,swing=0,speed=0,
-                  hidden=false,reload=0,pitch=0,raise,bolt=0,dt=1/60}={}){
+                  hidden=false,reload=0,pitch=0,raise,bolt=0,throwing=0,held=true,dt=1/60}={}){
   if(disposed)return
   if(weapon!==selected){
    errors.delete(weapon) // Re-selecting a failed model retries its request.
@@ -83,6 +88,7 @@ export function createEquipmentArt(character) {
    active=next
    if(active){active.scene.visible=true;active.end.add(flash)}
   }
+  if(active&&weapon==='grenade')active.scene.visible=held
   if(reloadProp)reloadProp.visible=false
   if(!active){flash.visible=false;return}
   if(active.bolt){
@@ -99,9 +105,16 @@ export function createEquipmentArt(character) {
   lift=weapon==='sniper'&&aiming&&raise!=null?raise:MathUtils.damp(lift,aiming||recoil>0?1:0,22,dt)
   const reloadArc=Math.sin(Math.PI*MathUtils.clamp(reload,0,1))
   const exchange=MathUtils.smootherstep(reload,.12,.5)*(1-MathUtils.smootherstep(reload,.52,.91))
-  const support=long?1:bat?0:Math.max(lift,MathUtils.smoothstep(reloadArc,0,.5))
+  const support=long?1:bat||weapon==='grenade'?0:Math.max(lift,MathUtils.smoothstep(reloadArc,0,.5))
   let x,y,z,tilt,yaw,roll
-  if(bat){
+  if(weapon==='grenade'){
+   const gather=MathUtils.smootherstep(throwing,0,.33)*(1-MathUtils.smootherstep(throwing,.33,.52))
+   const sweep=MathUtils.smootherstep(throwing,.32,.56)*(1-MathUtils.smootherstep(throwing,.60,1))
+   x=-.24-.12*gather+.11*sweep;y=1.12+.44*gather+.31*sweep;z=.26-.41*gather+.50*sweep
+   pitch=MathUtils.clamp(pitch,-.65,.85);y-=.20*pitch*sweep
+   tilt=-.24-1.4*gather+.95*sweep;yaw=-.19-.45*gather+.32*sweep;roll=-.10
+   rig.offset('Spine1','y',-.36*gather+.27*sweep)
+  }else if(bat){
    const pull=MathUtils.smoothstep(swing,0,.28)
    const sweep=MathUtils.smootherstep(swing,.28,.75)
    const settle=1-MathUtils.smootherstep(swing,.75,1)

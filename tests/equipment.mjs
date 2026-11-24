@@ -222,3 +222,31 @@ for(let i=0;i<255;i++){
 }
 assert(sawReload&&times.length>=9,JSON.stringify(times))
 assert(times[8]-times[7]>=1.14&&times[7]-times[6]<.90)
+
+const throwLoadout=createLoadout(equippedFixture),projectiles=[]
+const throwTest=equipmentPlay({scene,camera,char,boxes:[],fleet:[],crowd,player,loadout:throwLoadout,
+ onHit(){},onShot(){},throwGrenade:point=>projectiles.push(point.clone()),toast(){}})
+assert(throwLoadout.select('grenade'))
+const frameThrow=(dt,active=true)=>{char.update(dt,0);throwTest.update(dt,{active,aiming:false,speed:0,pitch:0})}
+throwTest.attack()
+frameThrow(.09)
+assert.equal(projectiles.length,0)
+frameThrow(.09,false)
+assert.equal(throwLoadout.item.reserve,4,'an interrupted windup does not remove a grenade')
+throwTest.attack()
+for(let i=0;i<25;i++)frameThrow(1/60)
+assert.equal(projectiles.length,1)
+assert.equal(throwLoadout.item.reserve,3)
+assert(projectiles[0].y>1&&projectiles[0].y<1.8)
+for(let i=0;i<90;i++)frameThrow(1/60)
+assert.equal(projectiles.length,1,'one input spawns one projectile')
+
+target.f=fighter(108)
+target.pos.set(0,0,2)
+officer.pos.set(4,0,1)
+witness.pos.set(0,0,4)
+crowd.wanted.clear()
+assert(crowd.blastHit(target,new Vector3(0,.1,0),.7))
+assert.equal(target.f.action,'knockdown')
+assert(target.f.hp<50&&target.slide.z>0)
+assert(crowd.wanted.level>0)

@@ -89,3 +89,15 @@ test('a stale tab does not overwrite a purchase made in another tab',()=>{
  assert(updated.loadout.items.pistol)
  assert.equal(updated.episode.snapshot().money,3200)
 })
+
+test('grenades come in counted purchases and can never exceed the stock cap',()=>{
+ const p=profile(),{loadout}=p.open()
+ assert(!loadout.select('grenade'))
+ assert(loadout.buy('grenade','weapon').ok)
+ for(let i=1;i<4;i++)assert(loadout.buy('grenade','ammo').ok)
+ assert(!loadout.buy('grenade','ammo').ok)
+ assert(loadout.select('grenade'))
+ assert(loadout.use())
+ assert(!loadout.use())
+ assert.equal(p.open().loadout.items.grenade.reserve,3)
+})

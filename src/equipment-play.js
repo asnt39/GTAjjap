@@ -9,7 +9,7 @@ export function pelletDamage(distance,base){
 
 // Center the player's sight on the camera, then check the actual hand-to-world path.
 // Both passes use the same world volumes, including near cover and occupied cars.
-export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadout,effects,onHit,onShot,toast}){
+export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadout,effects,onHit,onShot,throwGrenade,toast}){
  const art=createEquipmentArt(char),trace=equipmentTrace(boxes,fleet,crowd.all)
  const chest=new Vector3(),muzzle=new Vector3(),direction=new Vector3(),aimPoint=new Vector3()
  const contact=new Vector3(),grip=new Vector3(),tip=new Vector3(),previousTip=new Vector3()
@@ -18,7 +18,8 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const impact=new Mesh(meshGeometry,new MeshBasicMaterial({color:0xffbf83,toneMapped:false}))
  impact.scale.setScalar(.055);scene.add(impact)
  impact.visible=false
- let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure=''
+ let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure='',throwTime=null
+ const throwRelease=.28,throwLength=.53
  const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
  function hit(n,point,amount){
@@ -85,11 +86,17 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   hit(result.target,contact,loadout.def.damage);mark(contact);return true
  }
  function interrupt(){
-  queued=hasPrevious=batConnected=false;loadout.interrupt();impact.visible=false
+  queued=hasPrevious=batConnected=false;throwTime=null;loadout.interrupt();impact.visible=false
  }
  return {
   interrupt,
+  get throwing(){return throwTime!==null},
   attack(ready=false){
+   if(loadout.def.consumable){
+    if(!loadout.item.reserve){toast('수류탄 없음 · 무기 상점에서 구매');return}
+    if(throwTime===null&&!loadout.coolingDown)throwTime=0
+    return
+   }
    if(loadout.def.lethal&&!ready){toast('조준을 누른 상태에서 발사해.');return}
    if(!loadout.def.lethal&&!art.ready(loadout.selected)){toast(art.failed(loadout.selected)?'장비 모델을 불러오지 못했어':'장비를 준비하는 중');return}
    if(loadout.def.capacity&&!loadout.item.mag){
@@ -102,10 +109,20 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   update(dt,{active,aiming,speed,pitch,raise,ready=false,alignScope}){
    if(!active)interrupt()
    loadout.tick(dt)
+   if(loadout.selected!=='grenade')throwTime=null
+   const oldThrow=throwTime
+   if(throwTime!==null)throwTime+=dt
+   const release=oldThrow!==null&&oldThrow<throwRelease&&throwTime>=throwRelease
+   if(throwTime!==null&&throwTime>=throwLength)throwTime=null
    const wantsShot=queued===loadout.selected&&active&&(!loadout.def.lethal||ready)
    queued=false
    art.update({dt,weapon:loadout.selected,hidden:!active,aiming:aiming||wantsShot||loadout.recoil>.15,speed,
-    pitch,raise,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
+    pitch,raise,throwing:(throwTime??0)/throwLength,
+    held:loadout.item.reserve>0&&(throwTime===null||throwTime<=throwRelease)||release,recoil:loadout.recoil,swing:loadout.swing,reload:loadout.reloadProgress,bolt:loadout.boltProgress})
+   if(release&&loadout.use()){
+    art.muzzlePosition(muzzle)
+    throwGrenade?.(muzzle)
+   }
    const scoped=alignScope?.(art.scopePosition)
    const firing=wantsShot&&(!loadout.def.lethal||!alignScope||scoped===true)&&loadout.use()
    if(art.failed(loadout.selected)&&lastFailure!==loadout.selected){lastFailure=loadout.selected;toast('장비 모델을 불러오지 못했어 · 맨손으로 전환');loadout.select('fists')}

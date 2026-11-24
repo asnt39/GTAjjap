@@ -42,3 +42,5 @@
 }
 #sniper-scope small {position:absolute;bottom:13%;left:50%;transform:translateX(-50%);color:#e6c88d;font-weight:800}
 @media(pointer:fine) { #gear-next { display:none; } }
+
+#gear-status.grenade{padding-left:1.8rem;background-image:url(/icons/grenade.svg);background-repeat:no-repeat;background-position:.35rem center;background-size:1.2rem}
