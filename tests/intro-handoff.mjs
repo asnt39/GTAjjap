@@ -28,7 +28,7 @@ function boot({stored=false,discarded=false,hidden=true}={}){
  const doc={hidden,wasDiscarded:discarded,querySelector:get,
   addEventListener(type,fn,{signal}){if(type==='visibilitychange')visibility.push({fn,signal})}}
  const mainModule=new Promise(resolve=>{ready=()=>resolve({start:()=>{initializations++;return ()=>{started++}}})})
- runInNewContext(source.replace("import('./main.js')",'mainModule'),{
+ runInNewContext(source.replace(/^import .*?\n/,'').replace("import('./main.js')",'mainModule'),{
   document:doc,window:{addEventListener:(type,fn)=>globalEvents.set(type,fn),
    localStorage:{getItem:key=>record.get(key),setItem:(key,value)=>record.set(key,value)}},
   AbortController,mainModule,requestAnimationFrame(){},

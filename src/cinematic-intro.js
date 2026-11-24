@@ -1,3 +1,5 @@
+import {writeQuality} from './graphics-quality.js'
+
 const initialIntro = document.querySelector('#cinematic-intro')
 const game = document.querySelector('#game')
 const status = document.querySelector('#status')
@@ -17,14 +19,17 @@ function showGameFailure(text) {
   status.querySelector('b').textContent = text
   status.hidden = false
   game.inert = true
-  if (!status.querySelector("button")) {
-    const retryGame=document.createElement("button");retryGame.textContent="다시 불러오기";retryGame.onclick=()=>location.reload();status.append(retryGame)
+  if (!status.querySelector('button')) {
+    const retryGame=document.createElement('button')
+    retryGame.textContent='낮은 그래픽으로 다시 시도'
+    retryGame.onclick=()=>{writeQuality('low');location.reload()}
+    status.append(retryGame)
   }
 }
 
 function prepareGame() {
   launch ??= import('./main.js')
-    .then(({start}) => start(() => showGameFailure('그래픽 연결이 중단됐어. 페이지를 새로고침해.')))
+    .then(({start}) => start(() => showGameFailure('그래픽 연결이 중단됐어. 낮은 품질로 다시 시도해.')))
     .then(enable => { enableGame = enable })
     .catch(error => {
       console.error(error)

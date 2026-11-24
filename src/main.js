@@ -7,6 +7,7 @@ import {createLoadout,gear} from './equipment.js'
 import {scopeStance} from './scope-stance.js'
 import {equipmentPlay} from './equipment-play.js'
 import {worldEffects} from './world-effects.js'
+import {readQuality,writeQuality,nextQuality,graphicsProfile} from './graphics-quality.js'
 import {civilianTraffic} from './civilian-traffic.js'
 import {policeChase} from './police-chase.js'
 import {buildPoliceStation} from './police-station.js'
@@ -59,20 +60,20 @@ const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
 const addCollider=(a,b,c,d,h=3,standable=false,bottom)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable,bottom])}
 const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
 const coarse=matchMedia('(pointer:coarse)').matches
-let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
-const resolution=()=>quality==='low'?.8:quality==='high'?Math.min(devicePixelRatio,1.75):autoDpr
+let quality=readQuality(),autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
+const profile=()=>graphicsProfile(quality,devicePixelRatio,autoDpr)
 export async function start(onContextLost){
  const renderer=new THREE.WebGLRenderer({canvas,antialias:!coarse,powerPreference:'high-performance',alpha:false})
  let contextLost=false
  canvas.addEventListener('webglcontextlost',e=>{
   e.preventDefault();contextLost=true;onContextLost()
  })
- renderer.setPixelRatio(resolution());renderer.setSize(innerWidth,innerHeight,false);renderer.outputColorSpace=THREE.SRGBColorSpace
+ renderer.setPixelRatio(profile().pixelRatio);renderer.setSize(innerWidth,innerHeight,false);renderer.outputColorSpace=THREE.SRGBColorSpace
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12
- renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
+ renderer.shadowMap.enabled=profile().worldShadows;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
  const effects=worldEffects(scene,{capacity:coarse?72:120})
- const sunlight=illumination(scene);beacons(scene,addCollider);districtGates(scene,addCollider)
+ const sunlight=illumination(scene);sunlight.castShadow=profile().worldShadows;beacons(scene,addCollider);districtGates(scene,addCollider)
  const surfaceMaps={}
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
@@ -108,7 +109,7 @@ export async function start(onContextLost){
  actor.position.copy(pos);actor.rotation.y=Math.PI-yaw
  // The contact decal follows every footstep. Reserve moving sun shadows for High.
  const playerMeshes=[]
- char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=false}})
+ char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=profile().playerShadows}})
  const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,rig.setup??vehicles[id]),id,localOnly:!!rig.localOnly,door:0}]))
  const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
  const parkedSpawns=new Map(fleet.filter(vehicle=>vehicle.localOnly).map(vehicle=>[vehicle.id,{...vehicle}]))
@@ -501,7 +502,12 @@ export async function start(onContextLost){
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   saveCheckpoint();civilians.clear();room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=nextQuality(quality);writeQuality(quality)
+  const settings=profile()
+  renderer.setPixelRatio(settings.pixelRatio)
+  sunlight.castShadow=renderer.shadowMap.enabled=settings.worldShadows
+  for(const mesh of playerMeshes)mesh.castShadow=settings.playerShadows
+  renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
@@ -685,6 +691,7 @@ export async function start(onContextLost){
   }
   char.update(dt,driving()?0:vehiclePose.speed,{motorcycle:{seated,rig}})
  }
+ let slowSamples=0,performanceHint=false
  const draw=now=>{
   if(contextLost)return
   // After a long initialization or tab resume, rAF can carry an earlier frame timestamp.
@@ -832,6 +839,10 @@ export async function start(onContextLost){
     frameSum+=realDt;frameCount++
     if(frameCount>=30||frameSum>3){const mean=frameSum/frameCount;recentFrameMs=mean*1000
      if(quality==='auto'&&mean>.032&&autoDpr>.75){autoDpr=Math.max(.75,autoDpr-.15);renderer.setPixelRatio(autoDpr)}
+     slowSamples=mean>.05?slowSamples+1:0
+     if(!performanceHint&&quality!=='low'&&slowSamples>=3){
+      performanceHint=true;ui.toast('화면이 느리면 일시 정지 → 그래픽 품질 → 낮음으로 변경해')
+     }
      frameSum=frameCount=0
     }
    }
