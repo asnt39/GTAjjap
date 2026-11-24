@@ -9,6 +9,7 @@ import {defaultRoomEndpoint} from './room-client.js'
 import {ROOM_CODE} from './room-protocol.js'
 import {sights} from './navigation.js'
 const $=q=>document.querySelector(q)
+const nearbySight=p=>sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<(s.range??3.6)&&(s.y===undefined||Math.abs(p.y-s.y)<.86))
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
 function audioBed(){
  let ctx,output,shotNoise,motor,motorGain,roadGain,on=false
@@ -96,7 +97,7 @@ export function createUI(game){
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
   if(name==='rooms')updateRoom()
   if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
-  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
+  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['구시가지 상점과 숙소','market-row/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  let roomForm,code=''
@@ -158,7 +159,7 @@ export function createUI(game){
    e.preventDefault();if(action==='roomLeave')game.room.leave();else joinRoom(action==='roomCreate');return
   }
   if(action==='retry'||action==='abandon'||action.startsWith('use-')){const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4));toast(result.message);show('bag');return}if(action==='mission'){game.mission.start(game.driving()&&game.car.id==='touring');close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
- function activate(){if(game.interactCar()||game.converse())return;const sign=sights.find(s=>Math.hypot(game.pos.x-s.x,game.pos.z-s.z)<3.6);if(sign){near=sign;show('sight')}}
+ function activate(){if(game.interactCar()||game.converse())return;const sign=nearbySight(game.pos);if(sign){near=sign;show('sight')}}
  interact.onclick=activate
  window.addEventListener('keydown',e=>{
   if(e.repeat)return
@@ -225,7 +226,7 @@ export function createUI(game){
    opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
   }
   if(!panel){
-   near=game.canAct()?sights.find(s=>Math.hypot(p.x-s.x,p.z-s.z)<3.6):null
+   near=game.canAct()?nearbySight(p):null
    const label=game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }

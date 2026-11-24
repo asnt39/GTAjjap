@@ -11,28 +11,30 @@ export const worksProps=[
  ['rollershutter_window_03',-218,1.28,12.55,2.02,1.60,.20,0]
 ]
 
-export async function loadWorksDetail(){
+export function loadWorksDetail(){return loadDistrictProps('/assets/works/',worksProps,'West Bank sourced fixtures')}
+
+export async function loadDistrictProps(root,props,title){
  const loader=new GLTFLoader(),group=new Group(),sources=new Map()
- group.name='West Bank sourced fixtures'
- const files=[...new Set(worksProps.map(([id])=>id))]
- const results=await Promise.allSettled(files.map(id=>loader.loadAsync('/assets/works/'+id+'.glb')))
+ group.name=title
+ const files=[...new Set(props.map(([id])=>id))]
+ const results=await Promise.allSettled(files.map(id=>loader.loadAsync(root+id+'.glb')))
  for(const [index,result] of results.entries())if(result.status==='fulfilled')sources.set(files[index],result.value.scene)
  const bounds=new Box3(),dimensions=new Vector3(),mid=new Vector3()
- for(const [name,x,y,z,w,h,d,angle] of worksProps){
+ for(const [name,x,y,z,w,h,d,angle,,modelWidth=w,modelDepth=d] of props){
   const asset=sources.get(name)
   if(!asset)continue
   const art=asset.clone(),holder=new Group()
   bounds.setFromObject(art).getSize(dimensions);bounds.getCenter(mid)
   art.position.sub(new Vector3(mid.x,bounds.min.y,mid.z))
-  holder.scale.set(w/dimensions.x,h/dimensions.y,d/dimensions.z)
+  holder.scale.set(modelWidth/dimensions.x,h/dimensions.y,modelDepth/dimensions.z)
   holder.position.set(x,y,z);holder.rotation.y=angle;holder.add(art)
   art.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true}})
   group.add(holder)
  }
- if(!sources.size)throw new Error('West Bank fixtures could not be loaded')
+ if(!sources.size)throw new Error(title+' could not be loaded')
  const footprints=[]
- for(const [name,x,,z,w,h,d,,solid] of worksProps){
-  if(solid&&sources.has(name))footprints.push([x-w/2,x+w/2,z-d/2,z+d/2,h+.083])
+ for(const [name,x,y,z,w,h,d,,solid] of props){
+  if(solid&&sources.has(name))footprints.push([x-w/2,x+w/2,z-d/2,z+d/2,y+h,false,y>.2?y:undefined])
  }
  return {group,footprints,dispose(){
   const geometry=new Set(),materials=new Set(),textures=new Set()

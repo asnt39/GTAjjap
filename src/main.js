@@ -8,6 +8,8 @@ import {buildPoliceStation} from './police-station.js'
 import {createCustody,station,atStation} from './custody.js'
 import {custodyPresentation} from './custody-presentation.js'
 import {buildOldTown} from './old-town.js'
+import {rowCeiling,rowFloor,rowRoomAt} from './market-row-plan.js'
+import {buildRowDetail} from './market-row-detail.js'
 import {buildWestBank} from './west-bank.js'
 import {insideWorks} from './west-bank-plan.js'
 import {atGarage,garage} from './garage.js'
@@ -47,7 +49,7 @@ const pos=new THREE.Vector3(garage.x,0,garage.z),velocity=new THREE.Vector2()
 const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
 let yaw=garage.yaw,pitch=.13,distance=4.65,isPaused=false
 const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
-const addCollider=(a,b,c,d,h=3,standable=false)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable])}
+const addCollider=(a,b,c,d,h=3,standable=false,bottom)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable,bottom])}
 const resetInput=()=>{keys.clear();joystick.set(0,0);velocity.set(0,0);document.querySelector('#stick i').style.transform=''}
 const coarse=matchMedia('(pointer:coarse)').matches
 let quality='auto',autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
@@ -79,7 +81,12 @@ export async function start(onContextLost){
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),new THREE.LineBasicMaterial({color:0x79ffbc})))
  }
  const market=buildMarket(scene,addCollider)
+ const storeFloor=new THREE.MeshStandardMaterial({color:0xa99c85,roughness:.86,map:surfaceMaps.street[2],normalMap:surfaceMaps.street[3]})
+ const rowBoards=new THREE.MeshStandardMaterial({color:0x877665,roughness:.82})
+ surfaceMaps.storeFloor=storeFloor;surfaceMaps.rowBoards=rowBoards
  const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
+ const updateRow=buildRowDetail(scene,boxes,storeFloor,rowBoards,surfaceMaps.street)
+ updateRow(pos,0)
  const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
@@ -503,7 +510,9 @@ export async function start(onContextLost){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
   const prone=THREE.MathUtils.smootherstep(stance.prone,0,1)
   shoulder=damp(shoulder,aiming&&!driving()&&!prone?1:0,12,dt)
-  const viewDistance=THREE.MathUtils.lerp(distance,Math.min(distance,2.45),shoulder)
+  const localRoom=rowRoomAt(pos.x,pos.z)
+  const roomDistance=localRoom?Math.min(distance,2.65):distance
+  const viewDistance=THREE.MathUtils.lerp(roomDistance,Math.min(roomDistance,2.45),shoulder)
   const arm=THREE.MathUtils.lerp(viewDistance,2.35,prone)+cameraBlend*car.setup.camera
   const tilt=pitch+cameraBlend*.115-loadout.recoil*(loadout.selected==='sniper'?.038:.021)
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
@@ -528,6 +537,10 @@ export async function start(onContextLost){
    fraction=Math.min(fraction,Math.max(.04,(garage.ceiling-.16-anchor.y)/(eye.y-anchor.y)))
   }
   if(insideWorks(pos.x,pos.z)&&eye.y>3.58&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,(3.58-anchor.y)/(eye.y-anchor.y)))
+  if(localRoom&&eye.y>anchor.y){
+   const ceiling=rowCeiling(localRoom,pos.x,pos.y)-.14
+   if(eye.y>ceiling)fraction=Math.min(fraction,Math.max(.04,(ceiling-anchor.y)/(eye.y-anchor.y)))
+  }
   const availableArm=arm*fraction
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
@@ -612,8 +625,10 @@ export async function start(onContextLost){
    const ox=pos.x,oz=pos.z
    const stagger=player.f.action==='hit'?.55:0
    movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
-   const floor=supportHeight(pos.x,pos.z,foot.height,groundHeight(pos.x,pos.z),surfaces)
-   const roomCeiling=pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
+   const localRoom=rowRoomAt(pos.x,pos.z)
+   const base=localRoom?rowFloor(localRoom,pos.x,pos.z,foot.height,foot.air):groundHeight(pos.x,pos.z)
+   const floor=supportHeight(pos.x,pos.z,foot.height,base,surfaces)
+   const roomCeiling=localRoom?rowCeiling(localRoom,pos.x,foot.height):pos.x<archive.front&&archiveAccess(pos.x,pos.z,0)?archive.ceiling:
      atStation(pos.x,pos.z)?station.ceiling:atGarage(pos.x,pos.z)?garage.ceiling:insideWorks(pos.x,pos.z)?3.75:insidePremises(pos.x,pos.z)?3.44:Infinity
    const landing=foot.advance(dt,floor,roomCeiling-player.height)
    if(landing)effects.land(pos.x,floor,pos.z,landing)
@@ -677,9 +692,9 @@ export async function start(onContextLost){
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
-   const districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos)
+   const districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos),rowChanged=updateRow(pos,dt)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||districtChanged||stationChanged||westChanged||roadChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||districtChanged||stationChanged||westChanged||rowChanged||roadChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,

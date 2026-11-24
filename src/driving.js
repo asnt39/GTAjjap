@@ -31,7 +31,7 @@ export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false,contac
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z
   return Math.abs(dx*cs+dz*sn)<w+a*c+b*s && Math.abs(-dx*sn+dz*cs)<l+a*s+b*c
  }
- const block=(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).find(overlaps)??boxes.find(overlaps)
+ const block=(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).find(overlaps)??boxes.find(bounds=>(bounds[6]??0)<car.height+.16&&overlaps(bounds))
  if(contact&&block){
   contact.x=clamp(car.x,block[0],block[1])
   contact.z=clamp(car.z,block[2],block[3])

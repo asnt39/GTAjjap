@@ -94,8 +94,11 @@ function waterSurface() {
         float lights=exp(-abs(sin((p.y+p.x*.13)*.19))*(8.+p.x*.032))*
                      smoothstep(.48,.77,c)*smoothstep(40.,79.,p.x);
         col+=vec3(.53,.28,.11)*lights*detail;
-        float wash=1.-smoothstep(.06,.45,abs(p.x-26.1-.18*swell));
-        col+=vec3(.16,.21,.19)*shore*wash*detail*smoothstep(.34,.72,c);
+        float wake=p.x-26.1-.20*swell;
+        float wash=1.-smoothstep(.05,.41,abs(wake));
+        float retreat=(1.-smoothstep(.06,.32,abs(wake-.75-.11*a)))*.41;
+        float breaks=smoothstep(.39,.80,c+.13*b);
+        col+=vec3(.15,.20,.185)*shore*(wash+retreat)*detail*breaks;
         gl_FragColor=vec4(col,1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

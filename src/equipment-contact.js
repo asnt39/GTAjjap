@@ -20,7 +20,7 @@ export function equipmentTrace(boxes,cars,residents){
   for(const b of boxes){
    let box=staticBounds.get(b)
    if(!box){
-    box=bounds(b[0],b[1],-.1,b[4],b[2],b[3])
+    box=bounds(b[0],b[1],b[6]??-.1,b[4],b[2],b[3])
     staticBounds.set(b,box)
    }
    if(box.containsPoint(origin)){nearest(0);break}

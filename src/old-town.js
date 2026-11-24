@@ -2,6 +2,8 @@ import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {westBankFrontages,inWestBank} from './west-bank-plan.js'
 import {clockCourt,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
+import {rowRooms} from './market-row-plan.js'
+import {buildRowShell} from './market-row-shell.js'
 
 // Each frontage faces the street. Leave the gap at Clock Court and the
 // passages at z=67 and z=96 open to pedestrians.
@@ -17,7 +19,7 @@ const rows=[
  ...westBankFrontages
 ]
 
-export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
+export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
  town.name='Old Town';structures.name='Clock Court and terraces'
  town.add(structures,westStructures,barriers);scene.add(town)
@@ -27,6 +29,11 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
  const stone=standard(0xb4aa91),iron=standard(0x343a35,{metalness:.38})
  const roof=standard(0x494c45),wood=standard(0x6b4e3c),fabric=standard(0x58655a)
  const trim=standard(0xa1937a),paint=standard(0xd9c392),lamp=standard(0xe5c49a,{emissive:0xdca060,emissiveIntensity:.48})
+ const trafficPaint=standard(0xbfb9a1,{roughness:.89})
+ const storeMaterial=storeFloor??standard(0xa29580,{map:street[2],normalMap:street[3]})
+ const lining=standard(0xc0baa2,{map:architecture[1]})
+ const boards=rowBoards??standard(0x675140,{roughness:.76})
+ const glass=standard(0x8ba1a0,{opacity:.22,transparent:true,roughness:.32,metalness:.15,depthWrite:false,side:T.DoubleSide})
  const walls=[0xc6aba1,0xd4c5a6,0xc0c5bc].map((color,i)=>standard(color,{map:architecture[i]}))
  const atlas=standard(0xeddbc0,{map:architecture[4],emissiveMap:architecture[4],emissive:0xd9ad7e,emissiveIntensity:.24})
  const batches=new Map(),solidBox=new T.BoxGeometry()
@@ -47,6 +54,11 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
  }
  for(const rect of townRoadSurface)floor(rect,0,surface)
  for(const rect of townPavement)floor(rect,.082,pavement)
+ for(const z of [39,99])for(let i=0;i<11;i++)box(-73.05+i*.98,.004,z,.53,.006,1.71,trafficPaint,town)
+ for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
+  batch(new T.BoxGeometry(.33,.026,.66).rotateY(angle).translate(x,.016,z),iron,town)
+  for(let i=-2;i<=2;i++)batch(new T.BoxGeometry(.24,.004,.028).translate(0,.033,i*.10).rotateY(angle).translate(x,0,z),roof,town)
+ }
 
  // Painted dashes stop before corners and junctions.
  for(const [axis,mid,from,to] of [
@@ -66,12 +78,13 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
   batch(rotate(originX,originZ,angle,g.rotateY(turn).translate(x,y,z)),atlas,group)
  }
  for(const [i,[x,z,width,height,depth,skin,angle]] of rows.entries()){
+  const room=rowRooms.find(r=>r.x===x&&r.z===z)
   const sideways=Math.abs(Math.sin(angle))>.5
   const w=sideways?depth:width,d=sideways?width:depth
-  addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
+  if(!room)addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
   const group=inWestBank(x,z)?westStructures:structures
   const facade=walls[skin],face=depth/2
-  function part(px,y,pz,pw,ph,pd,mat,tileSurface=false,tilt=0){
+  function part(px,y,pz,pw,ph,pd,mat,tileSurface=false,tilt=0,target=group){
    const g=solidBox.clone().scale(pw,ph,pd)
    if(tileSurface){
     const uv=g.attributes.uv
@@ -81,9 +94,13 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
     }
    }
    g.rotateX(tilt).translate(px,y,pz)
-   batch(rotate(x,z,angle,g),mat,group)
+   batch(rotate(x,z,angle,g),mat,target)
   }
-  part(0,height/2+.082,0,width,height,depth,facade,true)
+  if(room){
+   const roomGroup=new T.Group();roomGroup.name=room.title+' interior';town.add(roomGroup)
+   const decorate=(mesh,px,y,pz)=>{mesh.position.set(px,y,pz).applyAxisAngle(T.Object3D.DEFAULT_UP,angle).add(new T.Vector3(x,0,z));mesh.rotation.y=angle;roomGroup.add(mesh)}
+   buildRowShell(room,height,part,decorate,addCollider,roomGroup,{facade,trim,iron,wood,lamp,stone,lining,boards,storeFloor:storeMaterial,glass})
+  }else part(0,height/2+.082,0,width,height,depth,facade,true)
   part(0,height+.22,0,width+.36,.32,depth+.40,stone)
   part(0,height+.42,0,width+.14,.17,depth+.12,roof)
   part(i%2?width*.24:-width*.27,height+.72,-depth*.21,.72,.64,.58,facade,true)
@@ -96,10 +113,18 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture}){
   for(const side of [-1,1])part(side*(width/2-.21),height/2+.09,face+.07,.36,height,.18,trim)
   const shop=i%3!==1
   const door=shop?width*.25:0
-  part(door,1.20,face+.117,1.36,2.40,.12,wood)
-  panels(1.21,2.20,door,1.27,face+.187,25,angle,x,z,0,group)
-  part(door+.41,1.10,face+.211,.066,.21,.07,stone)
-  if(shop){
+  if(!room){
+   part(door,1.20,face+.117,1.36,2.40,.12,wood)
+   panels(1.21,2.20,door,1.27,face+.187,25,angle,x,z,0,group)
+   part(door+.41,1.10,face+.211,.066,.21,.07,stone)
+  }
+  if(room?.id==='chandlery'){
+   part(0,2.47,face+.62,width-.62,.071,1.12,fabric,false,.14)
+   part(0,2.39,face+1.16,width-.62,.12,.062,trim)
+  }else if(room?.id==='lodging'){
+   part(0,2.35,face+.32,2.32,.15,.64,stone)
+   for(const side of [-1,1])part(side*.97,1.87,face+.09,.20,.72,.21,trim)
+  }else if(shop){
    part(-.76,1.48,face+.106,width*.49,1.91,.12,iron)
    panels(width*.45,1.72,-.76,1.48,face+.18,16+i%4,angle,x,z,0,group)
    part(-.76,1.46,face+.20,width*.46,.075,.06,wood)

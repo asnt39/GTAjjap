@@ -15,7 +15,10 @@ import {marketCollision} from '../src/market-plan.js'
 import {stationColliders,atStation} from '../src/custody.js'
 import {clockCourt,oldTownHeight,townRoadSurface} from '../src/old-town-plan.js'
 import {availableDoor,clearPose,nearBody,newDrive,safeExit,stepDrive} from '../src/driving.js'
-import {spawn,canWalk,movePlayer} from '../src/navigation.js'
+import {spawn,canWalk,movePlayer,cameraFraction} from '../src/navigation.js'
+import {createFootwork} from '../src/footwork.js'
+import {loftFloor,rowCeiling,rowFloor,rowPoint,rowRooms,rowSights} from '../src/market-row-plan.js'
+import {buildRowDetail} from '../src/market-row-detail.js'
 import {vehicles} from '../src/vehicles.js'
 
 globalThis.self=globalThis
@@ -32,6 +35,51 @@ districtGates(model,add);marketCollision(add);stationColliders(add)
 const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildStreet(model,add,surfaceMaps)])
 const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
+
+function takeRoute(room,waypoints){
+ const current={...rowPoint(room,...waypoints[0]),y:.083},foot=createFootwork()
+ foot.reset(current.y)
+ const steps=[]
+ for(const mark of waypoints.slice(1)){
+  const target=rowPoint(room,...mark)
+  for(let i=0;i<600;i++){
+   const dx=target.x-current.x,dz=target.z-current.z,distance=Math.hypot(dx,dz)
+   if(distance<.025)break
+   const pace=Math.min(.028,distance)/distance
+   movePlayer(current,dx*pace,dz*pace,boxes,undefined,foot.height)
+   foot.advance(1/60,rowFloor(room,current.x,current.z,foot.height,foot.air),rowCeiling(room,current.x,foot.height)-1.8)
+   current.y=foot.height
+  }
+  assert(Math.hypot(current.x-target.x,current.z-target.z)<.027,room.id+' '+mark+' '+JSON.stringify(current))
+  steps.push({...current})
+ }
+ return steps
+}
+const [chandlery,lodging]=rowRooms
+const shopWalk=takeRoute(chandlery,[[0,5],[0,-1.08],[.6,-1.08],[0,5]])
+assert(shopWalk[0].x<chandlery.x&&shopWalk.at(-1).x>chandlery.x+4.6)
+const upstairs=takeRoute(lodging,[[0,4.75],[0,2.86],[1.71,2.86],[1.71,-2.64],[.25,-2.64],[1.71,-2.64],[1.71,2.86],[0,2.86],[0,4.75]])
+assert.equal(upstairs[3].y,loftFloor)
+assert(upstairs.at(-1).y<.10)
+const rail={...rowPoint(lodging,0,-2.35),y:loftFloor}
+movePlayer(rail,-2,0,boxes,undefined,loftFloor)
+assert(rail.x>lodging.x+1.70,'loft railing blocks entering the void')
+const under={...rowPoint(lodging,0,-2.40),y:1.65},above={...under,y:4.2}
+assert(canWalk(under.x,under.z,boxes,.32,.09)&&cameraFraction(under,above,boxes)<.5)
+assert(rowSights[1].y===loftFloor)
+const updateRow=buildRowDetail(model,boxes,{},{},surfaceMaps.street)
+const close={x:chandlery.x,y:.09,z:chandlery.z}
+const beforeDetails=boxes.length
+updateRow(close,.02)
+for(let i=0;i<200&&!model.getObjectByName('MARKET ROW CHANDLERY furniture');i++){
+ await new Promise(resolve=>setTimeout(resolve,5));updateRow(close,.02)
+}
+assert.equal(model.getObjectByName('MARKET ROW CHANDLERY furniture').children.length,4)
+assert(boxes.length>beforeDetails)
+updateRow({x:30,y:0,z:100},.02)
+assert.equal(boxes.length,beforeDetails)
+assert(!model.getObjectByName('MARKET ROW CHANDLERY furniture'))
+console.log('Market Row entrances, stair ascent/descent, loft collision and streamed furnishing cleanup passed.')
 const parked=Object.values(rigs).filter(rig=>rig.localOnly)
 assert.equal(parked.length,7)
 for(const rig of parked){

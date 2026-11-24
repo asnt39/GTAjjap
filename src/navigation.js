@@ -3,12 +3,13 @@ import {inOldTown} from './old-town-plan.js'
 import {westBankSights} from './west-bank-plan.js'
 import {garageAccess,garageSight} from './garage.js'
 import {archiveAccess} from './chart-room.js'
+import {rowSights} from './market-row-plan.js'
 export const spawn = { x:-3.4, z:25 }
 export const sights = [
  {x:8.1,z:18.5,tag:'01',title:'Harbor Gate',name:'부두 출입 안내',body:'브레이크워터 대로와 하역장 사이에 있는 정문이야. 북쪽으로 걸으면 갠트리 크레인 아래로 컨테이너 야드가 이어져.'},
  {x:14,z:-16,tag:'02',title:'West Quay',name:'서부 부두 안내',body:'이곳에선 선박과 육상 야드를 잇는 주황색 갠트리 크레인을 가까이 볼 수 있어. 강 건너편으로는 항구의 오래된 산업 지대가 보여.'},
  {x:-8.6,z:-38,tag:'03',title:'Market Crossing',name:'시장 교차로 안내',body:'수산물 상점과 창고가 모이는 교차로야. 대로를 따라 남쪽으로 돌아가면 다시 부두 정문에 닿아.'}
-].concat(marketSights,westBankSights,garageSight)
+].concat(marketSights,westBankSights,garageSight,rowSights)
 export function inDocklands(x,z,r=0){
  if(marketAccess(x,z,r))return true
  if(z < -101+r || z>58-r || x>25.3-r) return false
@@ -20,7 +21,9 @@ export const inDistrict=(x,z,r=0)=>inDocklands(x,z,r)||garageAccess(x,z,r)||inOl
 export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  if(!inDistrict(x,z,r))return false
  return !boxes.some(b=>{
-  if(b[5]&&feet>=b[4]-.002)return false
+  if(b[6]>0&&(Number.isFinite(feet)?feet:0)+1.8<b[6]-.01)return false
+  if(b[5]&&feet>=b[4]-(b[6]>0?.23:.002))return false
+  if(b[6]>0&&feet>=b[4]-.002)return false
   const dx=x-Math.max(b[0],Math.min(b[1],x)), dz=z-Math.max(b[2],Math.min(b[3],z))
   return dx*dx+dz*dz < r*r
  })
@@ -56,7 +59,7 @@ export function cameraFraction(from,to,boxes){
   for(let axis=0;axis<3;axis++){
    const a=axis===0?from.x:axis===1?from.y:from.z
    const d=axis===0?dx:axis===1?dy:dz
-   const min=axis===0?b[0]-.13:axis===1?-.3:b[2]-.13
+   const min=axis===0?b[0]-.13:axis===1?(b[6]>0?b[6]-.12:-.3):b[2]-.13
    const max=axis===0?b[1]+.13:axis===1?b[4]+.12:b[3]+.13
    if(Math.abs(d)<1e-7){if(a<min||a>max){hi=-1;break}}
    else{

@@ -48,3 +48,7 @@ Jack Bennett의 **첫 일거리**를 마치면 조위 관측소의 Morgan이 **�
 주민 여섯 명은 업무와 휴식에 맞춰 기존 도로, 보도와 출입구를 이용한다. Daniel Cole은 해도 자료실, Jack Bennett은 정문 일대 횡단로, Ellis Torres는 서부 부두를 돈다. Arthur Hayes는 교차로를 지나 조위 관측소에 들르며, Morgan은 관측소와 선용품점 사이를 이동한다. Elena Reed의 근무 동선은 기존 상점 주변에 둔다. 미션 마커는 주민의 실시간 위치를 계속 따른다.
 
 지점과 근무 순서는 `src/resident-routes.js`에 있다. 건물이나 길을 수정한 뒤 `node --test tests/resident-life.mjs`로 출입구와 목적지 연결을 다시 검사한다. 경찰 추격과 체포를 적용한 상태에서도 주민 일정은 대화, 피격, 차량 접근에 양보한다.
+
+## Market Street 탐색
+
+시장길 서쪽의 **Market Row Chandlery**에 들어가 카운터 옆 재고표를 읽을 수 있다. 같은 길 남쪽의 **South Row Lodging**에서는 1층 쉼터를 지나 오른쪽 계단으로 올라가 교대 게시판을 확인한다. 새 위치는 기존 지도에 표시된다. [v24 인수인계](CITY-V24-HANDOFF.md)
