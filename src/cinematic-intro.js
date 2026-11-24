@@ -4,15 +4,7 @@ const initialIntro = document.querySelector('#cinematic-intro')
 const game = document.querySelector('#game')
 const status = document.querySelector('#status')
 const canvas = game.querySelector('#world')
-const introKey = 'harborline.introSeen.v1'
 let launch,enableGame,gameFailed=false,started=false,active=false
-
-function playedIntro(){
-  try { return window.localStorage.getItem(introKey)==='1' } catch { return false }
-}
-function rememberIntro(){
-  try { window.localStorage.setItem(introKey,'1') } catch {}
-}
 
 function showGameFailure(text) {
   gameFailed = true
@@ -38,7 +30,7 @@ function prepareGame() {
   return launch
 }
 
-function mountIntro(intro,{replay=false,skip=false}={}){
+function mountIntro(intro,{replay=false}={}){
   active=true
   const previousFocus=document.activeElement
   game.inert=true
@@ -133,7 +125,6 @@ function mountIntro(intro,{replay=false,skip=false}={}){
     if (!started) {
       started = true
       enableGame()
-      rememberIntro()
     }
     active = false
     canvas.focus({preventScroll: true})
@@ -172,28 +163,20 @@ function mountIntro(intro,{replay=false,skip=false}={}){
    const follow=()=>{positionLogo();if(phase!=='exiting')video.requestVideoFrameCallback(follow)}
    video.requestVideoFrameCallback(follow)
   }
-  intro.addEventListener('click',event=>{
-   if(event.target.closest('#intro-audio,#intro-retry'))return
-   if(phase==='playing'||event.target.closest('#intro-skip'))finish()
-  },media)
   video.addEventListener('ended', finish, media)
   video.addEventListener('error', failPlayback, media)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && isPlayingOrStarting()) {
-      finish()
+      showPrompt('인트로 계속', '', false)
     } else if (!document.hidden && playbackAttempt === 0 && phase === 'prompt') {
       startPlayback(false, true)
     }
   }, media)
 
-  if (skip) finish()
-  else {
-    intro.focus({preventScroll: true})
-    if (!document.hidden) startPlayback(false, true)
-    // Allow the first video paint before preparing the city.
-    if (!replay) requestAnimationFrame(()=>setTimeout(prepareGame,0))
-  }
-
+  intro.focus({preventScroll: true})
+  if (!document.hidden) startPlayback(false, true)
+  // Allow the first video paint before preparing the city.
+  if (!replay) requestAnimationFrame(()=>setTimeout(prepareGame,0))
 }
 
 const artwork = initialIntro.cloneNode(true)
@@ -204,4 +187,4 @@ window.addEventListener('harborline:replay-intro',()=>{
   mountIntro(replay,{replay:true})
 })
 
-mountIntro(initialIntro,{skip:playedIntro()||document.wasDiscarded})
+mountIntro(initialIntro)

@@ -34,16 +34,18 @@ function boot({stored=false,discarded=false,hidden=true}={}){
   AbortController,mainModule,requestAnimationFrame(){},
   setTimeout:()=>0,clearTimeout(){},console
  })
- const tapSkip=node=>node.listeners.click({target:{closest:selector=>selector==='#intro-skip'}})
+ const end=node=>node.querySelector('video').listeners.ended()
  return {ready,game,intro:get('#cinematic-intro'),status:get('#status'),started:()=>started,playing:()=>playing,
-  inits:()=>initializations,record,replay:()=>globalEvents.get('harborline:replay-intro')(),tapSkip,
+  inits:()=>initializations,replay:()=>globalEvents.get('harborline:replay-intro')(),end,
   visible(value){doc.hidden=!value;for(const {fn,signal} of visibility)if(!signal.aborted)fn()}}
 }
 
-test('a skipped intro starts the game once on the first ready frame',async()=>{
- const app=boot()
- app.tapSkip(app.intro)
- app.tapSkip(app.intro)
+test('the video ends before gameplay starts, and boot runs once',async()=>{
+ const app=boot({hidden:false})
+ assert.equal(app.playing(),1)
+ assert.equal(app.intro.listeners.click,undefined)
+ app.end(app.intro)
+ app.end(app.intro)
  await setImmediate()
  assert(app.game.inert)
  assert.equal(app.started(),0)
@@ -55,31 +57,41 @@ test('a skipped intro starts the game once on the first ready frame',async()=>{
  assert.equal(app.status.hidden,true)
  assert.equal(app.intro.removed,true)
 })
-test('backgrounding during playback hands off once, and replay does not reset the game',async()=>{
+test('backgrounding pauses the video and replay does not reset the game',async()=>{
  const app=boot({hidden:false})
- assert.equal(app.playing(),1)
  app.visible(false)
  app.ready()
  await setImmediate()
  app.visible(true)
+ assert(app.game.inert)
  assert.equal(app.playing(),1)
- assert.equal(app.record.get('harborline.introSeen.v1'),'1')
- app.replay()
+ app.intro.querySelector('#intro-retry').listeners.click()
  assert.equal(app.playing(),2)
+ app.end(app.intro)
+ await setImmediate()
+ assert.equal(app.started(),1)
+ app.visible(false)
+ app.visible(true)
+ assert.equal(app.playing(),2)
+ app.replay()
+ assert.equal(app.playing(),3)
  assert(app.game.inert)
  app.replay()
- assert.equal(app.playing(),2)
- app.tapSkip(app.game.replay)
+ assert.equal(app.playing(),3)
+ app.end(app.game.replay)
  assert.equal(app.game.inert,false)
  assert.equal(app.started(),1)
  assert.equal(app.inits(),1)
 })
-test('repeat launches and browser-discarded pages boot without playing the video',async()=>{
+test('new pages play the video even with the old seen flag or a browser discard',async()=>{
  for(const options of [{stored:true},{discarded:true}]){
   const app=boot({...options,hidden:false})
   app.ready()
   await setImmediate()
-  assert.equal(app.playing(),0)
+  assert.equal(app.playing(),1)
+  assert.equal(app.started(),0)
+  app.end(app.intro)
+  await setImmediate()
   assert.equal(app.started(),1)
  }
 })

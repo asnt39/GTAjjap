@@ -67,15 +67,4 @@
 
 #intro-audio { left: max(16px, env(safe-area-inset-left)); }
 
-#intro-skip {
-  position: absolute;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
-  padding: 0 13px;
-  border: 1px solid #f5f2e95c;
-  background: #101922e8;
-  color: #f5f2e9;
-  font-size: .875rem;
-}
-
-#intro-recovery, #intro-skip, #intro-audio { z-index: 1; }
+#intro-recovery, #intro-audio { z-index: 1; }
