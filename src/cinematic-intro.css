@@ -55,7 +55,7 @@
 
 #intro-retry:disabled { opacity: .7; cursor: wait; }
 
-#intro-audio {
+#intro-audio, #intro-skip {
   position: absolute;
   bottom: max(12px, env(safe-area-inset-bottom));
   padding: 0 13px;
@@ -67,4 +67,6 @@
 
 #intro-audio { left: max(16px, env(safe-area-inset-left)); }
 
-#intro-recovery, #intro-audio { z-index: 1; }
+#intro-skip { right: max(16px, env(safe-area-inset-right)); }
+
+#intro-recovery, #intro-audio, #intro-skip { z-index: 1; }

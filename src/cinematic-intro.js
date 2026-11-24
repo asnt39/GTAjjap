@@ -163,6 +163,7 @@ function mountIntro(intro,{replay=false}={}){
    const follow=()=>{positionLogo();if(phase!=='exiting')video.requestVideoFrameCallback(follow)}
    video.requestVideoFrameCallback(follow)
   }
+  intro.querySelector('#intro-skip').addEventListener('click', finish, media)
   video.addEventListener('ended', finish, media)
   video.addEventListener('error', failPlayback, media)
   document.addEventListener('visibilitychange', () => {

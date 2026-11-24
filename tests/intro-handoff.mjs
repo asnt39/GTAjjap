@@ -95,3 +95,17 @@ test('new pages play the video even with the old seen flag or a browser discard'
   assert.equal(app.started(),1)
  }
 })
+
+
+test('only the explicit skip control can end the intro before the video ends',async()=>{
+ const app=boot({stored:true,hidden:false})
+ app.ready()
+ await setImmediate()
+ assert.equal(app.playing(),1)
+ assert.equal(app.started(),0)
+ assert.equal(app.intro.listeners.click,undefined)
+ app.intro.querySelector('#intro-skip').listeners.click()
+ await setImmediate()
+ assert.equal(app.started(),1)
+ assert.equal(app.game.inert,false)
+})
