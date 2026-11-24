@@ -1,5 +1,5 @@
 export const ARREST_REACH = 1.12
-export const custodyTimes = { arrest: 2.25, fade: .42, sentence: 7 }
+export const custodyTimes = { arrest: 2.25, fade: .42, sentence: 5 }
 export const station = {
  x: -93.2, left: -96.4, right: -90, front: -46, back: -56, ceiling: 3.32,
  cell: { x: -92.5, z: -53.4 }, release: { x: -93.2, z: -43.7 }
@@ -17,6 +17,7 @@ export function createCustody({admit,release}) {
   get officer(){return officer},
   get active(){return stage!=='free'},
   get locked(){return stage!=='free'&&stage!=='sentence'},
+  get canPunch(){return stage==='sentence'},
   get progress(){return stage==='arrest'?Math.min(1,clock/custodyTimes.arrest):1},
   get remaining(){return Math.ceil(Math.max(0,custodyTimes.sentence-clock))},
   get opacity(){

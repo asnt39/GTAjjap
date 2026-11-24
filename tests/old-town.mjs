@@ -171,7 +171,7 @@ const homeTraffic=traffic.filter(car=>car.x!==personal.x||car.z!==personal.z)
 const garageExit=drive(personal.setup,[[garage.car.x,garage.car.z],[0,42],[0,63]],homeTraffic)
 assert(garageExit.car.z>61)
 const walkOut={x:-14,z:40.4}
-movePlayer(walkOut,7.1,0,boxes)
+for(let i=0;i<710;i++)movePlayer(walkOut,.01,0,boxes)
 assert(walkOut.x>-7)
 for(const z of [23,100.5]){
  const walk={x:-73,z}

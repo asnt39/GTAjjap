@@ -1,6 +1,6 @@
 export const garage={
  x:-17.35,z:37.75,yaw:Math.PI/2,
- bounds:[-21.1,-9.9,35,49], front:-11.1, ceiling:3.36, forecourt:[-21.1,-6,37.9,46.1],
+ bounds:[-21.1,-9.9,35,49], doorway:[-12.4,-9.2,39.24,44.76], front:-11.1, ceiling:3.36, forecourt:[-21.1,-6,37.9,46.1],
  car:{x:-16.05,z:42,heading:Math.PI/2}
 }
 export const garageSight={x:-17.5,z:36.6,tag:'HOME',title:'Breakwater Garage',name:'차고지 살림',
@@ -8,6 +8,10 @@ export const garageSight={x:-17.5,z:36.6,tag:'HOME',title:'Breakwater Garage',na
 export function atGarage(x,z,r=0){
  const [a,b,n,s]=garage.bounds
  return x>=a+r&&x<=b-r&&z>=n+r&&z<=s-r
+}
+export function garageAccess(x,z,r=0){
+ const [a,b,n,s]=garage.doorway
+ return atGarage(x,z,r)||(x>=a+r&&x<=b-r&&z>=n+r&&z<=s-r)
 }
 
 export function buildGarage({cube,panel,addCollider,wall,iron,trim,ledge,lit},height){

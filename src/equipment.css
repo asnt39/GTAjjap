@@ -1,5 +1,5 @@
 #equipment-hud {
- position:absolute; z-index:2; right:max(24px,env(safe-area-inset-right)); bottom:76px;
+ position:absolute; z-index:3; right:max(24px,env(safe-area-inset-right)); bottom:76px;
  display:flex; align-items:center; gap:4px;
 }
 #equipment-hud button,#gear-status {
@@ -16,7 +16,7 @@
 }
 #equipment-hud [hidden],#equipment-hud[hidden],#gear-reticle[hidden],
 #game:has(#overlay:not([hidden])) :is(#equipment-hud,#gear-reticle) {display:none}
-@media(pointer:fine) {#gear-aim,#gear-reload {display:none}}
+@media(pointer:fine) {#gear-aim:not([aria-pressed=true]),#gear-reload {display:none}}
 @media(pointer:coarse) {
  #equipment-hud {right:max(16px,env(safe-area-inset-right));bottom:max(86px,calc(env(safe-area-inset-bottom) + 80px))}
  #equipment-hud button {min-height:44px;min-width:44px;touch-action:manipulation}

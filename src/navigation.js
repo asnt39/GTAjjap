@@ -1,7 +1,7 @@
 import {marketAccess,marketSights} from './market-plan.js'
 import {inOldTown} from './old-town-plan.js'
 import {westBankSights} from './west-bank-plan.js'
-import {atGarage,garageSight} from './garage.js'
+import {garageAccess,garageSight} from './garage.js'
 import {archiveAccess} from './chart-room.js'
 export const spawn = { x:-3.4, z:25 }
 export const sights = [
@@ -16,7 +16,7 @@ export function inDocklands(x,z,r=0){
  if(x>10.7-r && (z< -63+r || z>35-r))return false
  return true
 }
-export const inDistrict=(x,z,r=0)=>inDocklands(x,z,r)||atGarage(x,z,r)||inOldTown(x,z,r)
+export const inDistrict=(x,z,r=0)=>inDocklands(x,z,r)||garageAccess(x,z,r)||inOldTown(x,z,r)
 export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  if(!inDistrict(x,z,r))return false
  return !boxes.some(b=>{

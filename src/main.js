@@ -119,6 +119,7 @@ export async function start(onContextLost){
   },
   release(){
    returnToHome()
+   revive(player.f)
    crowd.wanted.clear();ui.toast(room.phase==='offline'?'석방 · 차고지로 돌아왔어':'석방 · 부두 정문')
   }
  })
@@ -184,8 +185,10 @@ export async function start(onContextLost){
   }
   return nearest
  }
+ const canAttack=()=>!custody.locked&&mode==='walk'&&!isPaused&&!crowd.talking&&!foot.air&&foot.land<=.25&&player.f.hp>0
  function attack(){
-  if(custody.active||mode!=='walk'||isPaused||crowd.talking||foot.air||foot.land>.25||player.f.hp<=0)return
+  if(!canAttack())return
+  if(custody.canPunch){swing(player.f);return}
   crowd.endTalk()
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
@@ -237,7 +240,19 @@ export async function start(onContextLost){
  const canAct=()=>!sniperAiming()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!foot.air&&foot.land<.25&&!player.f.action
  const canJump=()=>!sniperAiming()&&!custody.active&&!pendingSeat&&mode==='walk'&&!isPaused&&!crowd.talking&&!player.f.action&&foot.canJump
  function jump(){if(canJump())foot.jump()}
- const clearControls=()=>{aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear();for(const b of document.querySelectorAll('[data-pedal]'))b.classList.remove('held')}
+ let drag=null,clickOrigin=null,stickId=null
+ const pedalPointers=new Map()
+ const releasePointer=(element,id)=>{if(id!=null&&element.hasPointerCapture(id))element.releasePointerCapture(id)}
+ function clearControls(){
+  if(drag)releasePointer(canvas,drag.id)
+  releasePointer(document.querySelector('#stick'),stickId)
+  drag=clickOrigin=stickId=null
+  for(const [button,ids] of pedalPointers){
+   for(const id of ids)releasePointer(button,id)
+   ids.clear();button.classList.remove('held')
+  }
+  aiming=false;equipment.interrupt();resetInput();foot.sprint=false;player.f.queued=false;pedals.clear()
+ }
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
   if(driving())return Math.abs(car.speed)>.45?'정차 후 하차':'하차'
@@ -411,7 +426,7 @@ export async function start(onContextLost){
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   room.start(endpoint,request)
  }
- const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
+ const ui=createUI({loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=({auto:'high',high:'low',low:'auto'})[quality];renderer.setPixelRatio(resolution());sunlight.castShadow=quality!=='low';for(const mesh of playerMeshes)mesh.castShadow=quality==='high';renderer.shadowMap.needsUpdate=true}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   if(!e.repeat&&mode==='walk'){
@@ -427,10 +442,9 @@ export async function start(onContextLost){
   }}})
  window.addEventListener('keyup',e=>keys.delete(e.code))
  window.addEventListener('blur',clearControls);document.addEventListener('visibilitychange',()=>{clearControls();last=performance.now()})
- let drag=null,clickOrigin=null
  canvas.addEventListener('mousedown',e=>{
-  if(isPaused||crowd.talking||mode!=='walk'||!armed())return
-  if(e.button===2)aiming=!!loadout.def.capacity&&!foot.air&&!player.f.action
+  if(isPaused||crowd.talking||mode!=='walk'||!armed()&&!custody.canPunch)return
+  if(e.button===2)aiming=!custody.active&&!!loadout.def.capacity&&!foot.air&&!player.f.action
   if(e.button===0)clickOrigin={x:e.clientX,y:e.clientY}
  })
  canvas.addEventListener('mouseup',e=>{
@@ -449,11 +463,10 @@ export async function start(onContextLost){
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
  const adjust=e=>{const b=stick.getBoundingClientRect();joystick.set((e.clientX-b.left-b.width/2)/30,(e.clientY-b.top-b.height/2)/30).clampLength(0,1);knob.style.transform='translate('+joystick.x*24+'px,'+joystick.y*24+'px)'}
  for(const b of document.querySelectorAll('[data-pedal]')){
-  const ids=new Set();b.onpointerdown=e=>{if(!driving()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
+  const ids=new Set();pedalPointers.set(b,ids);b.onpointerdown=e=>{if(!driving()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
   b.onlostpointercapture=e=>{ids.delete(e.pointerId);if(!ids.size){pedals.delete(b.dataset.pedal);b.classList.remove('held')}}
  }
- let stickId=null
- stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=()=>{stickId=null;joystick.set(0,0);knob.style.transform=''}
+ stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=e=>{if(stickId!==e.pointerId)return;stickId=null;joystick.set(0,0);knob.style.transform=''}
  const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
@@ -461,7 +474,7 @@ export async function start(onContextLost){
   const ids=Object.keys(gear)
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
- document.querySelector('#gear-aim').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=!aiming}
+ document.querySelector('#gear-aim').onclick=()=>{if(aiming)aiming=false;else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=true}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
@@ -615,7 +628,7 @@ export async function start(onContextLost){
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,prone:player.f.action==='down'?0:prone,
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
     turn:dt>0?(face-previousFace)/dt:0})
-   if(player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
+   if(!custody.active&&player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
    })
    }

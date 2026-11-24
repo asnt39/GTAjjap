@@ -190,13 +190,15 @@ export function createUI(game){
   $('#sniper-scope').hidden=!scoped
   $('#gear-reticle').hidden=scoped||!walking||!gun||!!game.player.f.action
   $('#gear-aim').hidden=$('#gear-reload').hidden=!gun
-  $('#gear-aim').setAttribute('aria-pressed',String(game.aiming()))
+  const aimButton=$('#gear-aim'),aiming=game.aiming()
+  aimButton.setAttribute('aria-pressed',String(aiming))
+  aimButton.textContent=aiming?'조준 취소':'조준'
   $('#gear-reload').disabled=equipped.reloading||!equipped.item.reserve||equipped.item.mag===equipped.def.capacity
   $('#gear-status').hidden=equipped.selected==='fists'
   $('#gear-status').textContent=equipped.def.name+(gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):'')
-  $('#punch').setAttribute('aria-label',gun?'발사':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
+  $('#punch').setAttribute('aria-label',game.inCell()?'주먹 공격':gun?'발사':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
   $('#jump').disabled=!game.canJump()
-  $('#punch').disabled=game.mode()!=='walk'||game.foot.air||game.player.f.action==='down'
+  $('#punch').disabled=!game.canAttack()
   const dialogue=game.crowd.dialogue,box=conversation
   const opened=!!dialogue&&!panel&&(box.hidden||box.inert)
   if(dialogue&&!panel){
