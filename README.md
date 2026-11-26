@@ -2,6 +2,8 @@
 
 Player & Living City is a third-person exploration and driving game in a fictional working harbor. The first district joins Breakwater Avenue, Market Crossing and West Quay. Buildings, signage, the container terminal, vessels and street layout were authored for the game.
 
+The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
+
 ## Run
 
 Use Node.js 22 or newer. Run `npm ci` and `npm run dev`. Use `npm run build` to generate the static site in `dist/`. Assets ship with the game. The renderer requires WebGL 2.
