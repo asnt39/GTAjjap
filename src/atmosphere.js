@@ -9,8 +9,6 @@ export async function sky(scene,renderer){
 }
 export function illumination(scene){
  scene.fog=new T.FogExp2(0x8890a0,.0058)
- const foundation=new T.Mesh(new T.PlaneGeometry(346,510),new T.MeshStandardMaterial({color:0x595753,roughness:.97}))
- foundation.rotation.x=-Math.PI/2;foundation.position.set(-147.1,-.26,-8);foundation.receiveShadow=true;scene.add(foundation)
  scene.add(new T.HemisphereLight(0xfcdfd6,0x677888,1.05))
  const sun=new T.DirectionalLight(0xffc597,2.05);sun.position.set(34,37,-52);sun.target.position.set(0,0,-12)
  sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-48,right:48,top:52,bottom:-52,near:1,far:180});sun.shadow.normalBias=.035;sun.shadow.bias=-.0003

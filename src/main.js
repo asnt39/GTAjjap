@@ -1,3 +1,4 @@
+import {buildEstuary,landscapeMaterial} from './estuary.js'
 import {grenadeModel} from './grenade-art.js'
 import {grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
@@ -75,7 +76,8 @@ export async function start(onContextLost){
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x8b94a3);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.08,420)
  const effects=worldEffects(scene,{capacity:coarse?72:120})
  const sunlight=illumination(scene);sunlight.castShadow=profile().worldShadows;beacons(scene,addCollider);districtGates(scene,addCollider)
- const surfaceMaps={}
+ const surfaceMaps={meadow:landscapeMaterial()}
+ buildEstuary(scene,surfaceMaps.meadow)
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
