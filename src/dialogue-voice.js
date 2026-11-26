@@ -1,5 +1,5 @@
 // Use only voices the device explicitly marks local.
-export function dialogueVoice(browser=globalThis){
+export function dialogueVoice(browser=globalThis,volume=()=>.9){
  const engine=browser.speechSynthesis
  let enabled=false,last='',current=false
  const voices=()=>engine?.getVoices().filter(voice=>voice.localService&&/^ko(?:-|$)/i.test(voice.lang))??[]
@@ -22,6 +22,7 @@ export function dialogueVoice(browser=globalThis){
    const index=Array.from(speaker).reduce((acc,c)=>acc+c.charCodeAt(0),0)
    stop();last=key
    const utterance=new browser.SpeechSynthesisUtterance(text.replace(/^.{1,22} · /,''))
+   utterance.volume=volume()
    utterance.voice=choices[index%choices.length];utterance.lang=utterance.voice.lang
    utterance.rate=.89+(index%5)*.032;utterance.pitch=.91+(index%4)*.053
    current=true;engine.speak(utterance)

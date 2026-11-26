@@ -1,3 +1,5 @@
+import {cityAudio} from './city-audio.js'
+import {dartPower,dartScore} from './darts-round.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
 import {gear} from './equipment.js'
 import './equipment.css'
@@ -12,55 +14,13 @@ import {sights} from './navigation.js'
 const $=q=>document.querySelector(q)
 const nearbySight=p=>sights.find(s=>(s.tag!=='ARM'||insideWeaponShop(p.x,p.z))&&Math.hypot(p.x-s.x,p.z-s.z)<(s.range??3.6)&&(s.y===undefined||Math.abs(p.y-s.y)<.86))
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
-function audioBed(){
- let ctx,output,shotNoise,motor,motorGain,roadGain,on=false
- const toggle=async()=>{if(!ctx){
-  ctx=new AudioContext();const n=ctx.sampleRate*3,buffer=ctx.createBuffer(1,n,ctx.sampleRate),a=buffer.getChannelData(0);let last=0
-  for(let i=0;i<n;i++){last=(last+.035*(Math.random()*2-1))/1.02;a[i]=last*3}
-  shotNoise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.2),ctx.sampleRate)
-  const noiseData=shotNoise.getChannelData(0)
-  for(let i=0;i<noiseData.length;i++)noiseData[i]=Math.random()*2-1
-  const wind=ctx.createBufferSource(),filter=ctx.createBiquadFilter();wind.buffer=buffer;wind.loop=true;filter.type='lowpass';filter.frequency.value=620
-  output=ctx.createGain();output.gain.value=0;wind.connect(filter).connect(output).connect(ctx.destination);wind.start()
-  motor=ctx.createOscillator();motor.type='sawtooth';motorGain=ctx.createGain();motorGain.gain.value=0
-  const engineFilter=ctx.createBiquadFilter();engineFilter.type='lowpass';engineFilter.frequency.value=290
-  motor.connect(engineFilter).connect(motorGain).connect(output);motor.start()
-  roadGain=ctx.createGain();roadGain.gain.value=0;wind.connect(roadGain).connect(output)
-  for(const freq of [49,73.5]){const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=freq;gain.gain.value=.015;osc.connect(gain).connect(output);osc.start()}
- }
- await ctx.resume();on=!on;output.gain.setTargetAtTime(on?.28:0,ctx.currentTime,.14);return on}
- toggle.hit=()=>{if(!on||!ctx)return
-  const now=ctx.currentTime,tone=ctx.createOscillator(),gain=ctx.createGain()
-  tone.frequency.setValueAtTime(124,now);tone.frequency.exponentialRampToValueAtTime(48,now+.10)
-  gain.gain.setValueAtTime(.34,now);gain.gain.exponentialRampToValueAtTime(.001,now+.13)
-  tone.connect(gain).connect(output);tone.start(now);tone.stop(now+.14);tone.onended=()=>{tone.disconnect();gain.disconnect()}
- }
- toggle.shot=id=>{
-  if(!on||!ctx)return
-  const now=ctx.currentTime,duration=id==='shotgun'?.19:.10
-  const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain()
-  noise.buffer=shotNoise;filter.type='lowpass';filter.frequency.setValueAtTime(id==='shotgun'?1800:3100,now)
-  filter.frequency.exponentialRampToValueAtTime(220,now+duration)
-  gain.gain.setValueAtTime(.60,now);gain.gain.exponentialRampToValueAtTime(.001,now+duration)
-  noise.connect(filter).connect(gain).connect(output);noise.start();noise.stop(now+duration)
-  noise.onended=()=>{noise.disconnect();filter.disconnect();gain.disconnect()}
- }
- toggle.engine=(active,car)=>{
-  if(!ctx||!on)return
-  const now=ctx.currentTime,speed=Math.abs(car.speed)
-  motor.frequency.setTargetAtTime(34+speed*3.8+Math.max(0,car.accel)*2,now,.08)
-  motorGain.gain.setTargetAtTime(active?.09+Math.min(.04,speed*.003):0,now,.07)
-  roadGain.gain.setTargetAtTime(active?Math.min(1,speed*.056):0,now,.12)
- }
- return toggle
-}
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
- const toggleAudio=audioBed();let panel='',near=null,sounded=false,lastUi=-Infinity,priorFocus=null
+ const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
  const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
- const voice=dialogueVoice(),story=episodeUI(game,voice)
+ const voice=dialogueVoice(globalThis,()=>audio.settings.voice),story=episodeUI(game,voice,audio.sound)
  const conversation=$('#conversation'),dialogueClose=$('#dialogue-close')
  dialogueClose.onclick=()=>game.crowd.endTalk()
  const missionGoal=()=>story.goal(game.driving()&&game.car.id==='touring')
@@ -70,19 +30,29 @@ export function createUI(game){
  const button=(action,label,end='›')=>'<button type="button" class="menubtn" data-action="'+action+'"><span>'+label+'</span><span>'+end+'</span></button>'
  function close(){
   if(panel==='rooms'&&game.room.phase==='connecting')game.room.leave()
-  panel='';overlay.hidden=true;game.setPaused(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
+  panel='';round=null;overlay.hidden=true;game.setPaused(false);audio.pause(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
   if(game.crowd.talking)return
+  $('#vehicle-tools').hidden=true
   if(panel==='rooms'&&name!=='rooms'&&game.room.phase==='connecting')game.room.leave()
-  if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);toggleAudio.engine(false,game.car);overlay.hidden=false;interact.hidden=true
+  if(panel==='darts'&&name!=='darts')round=null
+  if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);audio.pause(true);overlay.hidden=false;interact.hidden=true
+  if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
   const menu={
    bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')],
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
+   audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
+    button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
+    [['music','배경음악'],['effects','효과음'],['ambient','환경음'],['voice','대사 음량']].map(([key,label])=>
+     '<label class="mixer-row"><span>'+label+'</span><input type="range" data-audio="'+key+'" min="0" max="100" value="'+Math.round(audio.settings[key]*100)+'"><output>'+Math.round(audio.settings[key]*100)+'%</output></label>').join('')],
+   atm:['CLOCK COURT','ATM',row('현금','₩'+journal.money.toLocaleString())+row('예금','₩'+journal.bank.toLocaleString())+button('deposit','₩500 입금')+button('withdraw','₩500 출금')],
+   darts:['SOUTH ROW SOCIAL CLUB','다트', '<p id="dart-score"></p><meter id="dart-power" aria-label="던지는 힘" min="0" max="1" low=".56" high=".66" optimum=".61"></meter>'+
+    '<p class="smallnote">힘이 61%에 가까울수록 점수가 높아. 한 라운드에 세 번 던져.</p>'+button('throw-dart','던지기')],
    equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'미보유')).join('')+'<p class="smallnote">장비와 예비탄은 Tide Market의 Breakwater Arms에서 살 수 있어. 온라인 방에서도 장비와 전투는 각자 진행해.</p>'],
    rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('걷기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–6</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 안내판 · 승하차','<kbd>E</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. 키보드에서는 기본으로 달려. Shift로 걷기와 달리기를 바꿀 수 있어.</p>'],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('걷기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–6</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 상호작용 · 승하차','<kbd>E</kbd>')+row('경적 · 전조등 · 라디오','<kbd>H</kbd> · <kbd>L</kbd> · <kbd>B</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. 키보드에서는 기본으로 달려. Shift로 걷기와 달리기를 바꿀 수 있어.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -110,9 +80,10 @@ export function createUI(game){
   const content=menu[name];
   if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
+  if(name==='darts'){round={at:performance.now(),points:[],next:0};drawRound()}
   if(name==='rooms')updateRoom()
   if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
-  if(name==='credits'){for(const [label,path] of [['휴대 장비','equipment/CREDITS.md'],['구시가지 상점과 숙소','market-row/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
+  if(name==='credits'){for(const [label,path] of [['도시 음악과 효과음','city-audio/CREDITS.md'],['휴대 장비','equipment/CREDITS.md'],['구시가지 상점과 숙소','market-row/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
  let roomForm,code=''
@@ -155,7 +126,39 @@ export function createUI(game){
   if(!create&&!ROOM_CODE.test(code)){$('#room-message').textContent='12자리 방 코드를 확인해';return}
   game.startRoom(defaultRoomEndpoint,create?{t:'create'}:{t:'join',code})
  }
- $('#sound').innerHTML=speaker(false);$('#sound').onclick=async()=>{try{sounded=await toggleAudio();const el=$('#sound');el.innerHTML=speaker(sounded);el.title=el.ariaLabel='항구 환경음 '+(sounded?'끄기':'켜기');el.setAttribute('aria-pressed',String(sounded))}catch{$('#sound').title='환경음을 재생할 수 없어'}}
+ function reflectSound(){
+  const el=$('#sound'),on=audio.active
+  el.innerHTML=speaker(on);el.title=el.ariaLabel='게임 소리 '+(on?'끄기':'켜기');el.setAttribute('aria-pressed',String(on))
+ }
+ reflectSound()
+ $('#sound').onclick=async()=>{await audio.toggle();reflectSound()}
+ for(const event of ['pointerdown','keydown'])window.addEventListener(event,e=>{
+  if(!$('#game').inert&&!e.target.closest?.('#sound,[data-action="master-sound"]'))audio.gesture()
+ },{passive:true})
+ document.addEventListener('visibilitychange',()=>{audio.visibility(document.hidden);if(document.hidden)voice.stop()})
+ $('#panel-body').addEventListener('input',e=>{
+  const key=e.target.dataset.audio
+  if(key){audio.set(key,Number(e.target.value)/100);e.target.nextElementSibling.value=e.target.value+'%'}
+ })
+ function drawRound(){
+  if(!round||panel!=='darts')return
+  const now=performance.now()
+  const power=dartPower((now-round.at)/1000)
+  $('#dart-power').value=power
+  const tally=round.points.map((n,i)=>(i+1)+'번째 '+n+'점').join(' · ')
+  const label=tally?tally+' · 합계 '+round.points.reduce((a,b)=>a+b,0)+'점':'목표 61%'
+  const score=$('#dart-score');if(score.textContent!==label)score.textContent=label
+  const button=$('[data-action="throw-dart"]')
+  button.disabled=round.points.length===3
+  if(button.disabled){button.querySelector('span').textContent='라운드 종료'}
+ }
+ function activateCity(site){
+  place=site
+  if(site.type==='map')show('map')
+  else if(site.type==='atm'||site.type==='darts')show(site.type)
+  else game.useCity(site)
+ }
+ $('#vehicle-tools').onclick=e=>{const action=e.target.closest('button')?.dataset.vehicle;if(action)game.vehicleAction(action)}
  $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
  overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
   if(panel==='equipment'&&action.startsWith('equip-')){
@@ -164,10 +167,22 @@ export function createUI(game){
    return
   }
   if(action==='replay-intro'){window.dispatchEvent(new Event('harborline:replay-intro'));return}
-  if(action==='voice'){const message=voice.toggle();show('pause');toast(message);return}
+  if(action==='master-sound'){audio.toggle().then(()=>{reflectSound();if(panel==='audio')show('audio')});return}
+  if(action==='voice'){const message=voice.toggle();show('audio');toast(message);return}
+  if(panel==='atm'&&(action==='deposit'||action==='withdraw')){
+   if(!place||place.type!=='atm')return
+   const result=game.episode.transfer(action==='deposit'?500:-500)
+   toast(result.message);if(result.ok)audio.sound('buy',null,1,true)
+   show('atm');return
+  }
+  if(action==='throw-dart'&&panel==='darts'&&round&&round.points.length<3){
+   const now=performance.now();if(now<round.next)return
+   round.points.push(dartScore(dartPower((now-round.at)/1000)));round.next=now+430
+   audio.sound('wood',null,1,true);drawRound();return
+  }
   if(panel==='sight'&&near?.tag==='ARM'&&action.startsWith('shop-')){
    const [,kind,id]=action.split('-')
-   toast(game.loadout.buy(id,kind).message);show('sight');return
+   const result=game.loadout.buy(id,kind);toast(result.message);if(result.ok)audio.sound('buy',null,1,true);show('sight');return
   }
   if(action==='west-bank'&&panel==='sight'&&['HOME','PARK','WEST'].includes(near?.tag)){
    const tag=near.tag;close();toast(game.useWestBank(tag));return
@@ -181,7 +196,9 @@ export function createUI(game){
  function activate(){
   const sign=game.canAct()?nearbySight(game.pos):null
   if(sign?.tag==='ARM'&&!game.crowd.talking&&game.player.f.hp>0){near=sign;show('sight');return}
-  if(game.interactCar()||game.converse())return
+  if(game.interactCar())return
+  const site=game.cityCandidate();if(site){activateCity(site);return}
+  if(game.converse())return
   if(sign){near=sign;show('sight')}
  }
  interact.onclick=activate
@@ -207,10 +224,10 @@ export function createUI(game){
   if(law.level)wanted.textContent='수배 '+law.level+' · '+({investigate:'조사',pursuit:'추격',search:'수색'}[law.phase])
   const driving=game.driving(),goal=missionGoal()
   document.body.classList.toggle('driving',driving)
+  $('#vehicle-tools').hidden=!driving||!!panel
   $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)
   $('#speed small').textContent=game.car.speed<-.08?'R':'D'
   $('#objective').hidden=!goal;if(goal)$('#objective').textContent=goal.label
-  toggleAudio.engine(driving&&!panel,game.car)
   const equipped=game.loadout,gun=!!equipped.def.capacity,throwable=!!equipped.def.consumable,walking=game.mode()==='walk'&&!game.crowd.talking&&!panel
   $('#equipment-hud').hidden=!walking
   const scoped=walking&&game.scoped()
@@ -262,8 +279,16 @@ export function createUI(game){
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
  }
  function impact(received){
-  toggleAudio.hit()
+  audio.sound('hit')
   const el=$('#vitals');el.animate?.([{opacity:.55,color:received?'#ff9b77':'#ffd3a1'},{opacity:1,color:'#f5f2e9'}],{duration:240})
  }
- return {update,updateRoom,show,close,toast,impact,shot:toggleAudio.shot,missionGoal,isOpen:()=>!!panel}
+ let lastAudio=-Infinity
+ function updateAudio(now,state){
+  drawRound()
+  if(now-lastAudio<100)return
+  lastAudio=now
+  if(audio.active)audio.update(state())
+  if(audio.active!==($('#sound').getAttribute('aria-pressed')==='true'))reflectSound()
+ }
+ return {update,updateAudio,updateRoom,show,close,toast,impact,sound:audio.sound,shot:(id,point)=>audio.sound(id,point),missionGoal,isOpen:()=>!!panel}
 }

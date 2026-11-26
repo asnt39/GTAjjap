@@ -3,7 +3,7 @@ import {terracePoint,terraceRooms} from './terrace-plan.js'
 
 const opening=1.8
 const clamp=v=>Math.max(0,Math.min(1,v))
-export function createTerraceDoors(scene,boxes){
+export function createTerraceDoors(scene,boxes,sound=()=>{}){
  const doors=terraceRooms.map(r=>({r,at:terracePoint(r,0,r.depth/2-.08),progress:0,target:0,
   direction:1,npcOpened:false,leaves:r.door==='pair'||r.door==='auto'?2:1}))
  const leaves=doors.reduce((n,d)=>n+d.leaves,0),unit=new T.BoxGeometry()
@@ -74,6 +74,7 @@ export function createTerraceDoors(scene,boxes){
     if(user||npc){if(!d.target){open(d,user?player:npc.pos);d.npcOpened=true}}
     else if(d.npcOpened&&!near(d,player,2.2)){d.target=0;d.npcOpened=false}
     if(d.progress===d.target)continue
+    const previous=d.progress
     const actors=[player,...residents.filter(n=>near(d,n.pos,3)).map(n=>n.pos)]
     // Sweep in short increments even after a long frame. Stop before touching a body.
     const travel=Math.min(Math.abs(d.target-d.progress),dt*1.65),steps=Math.ceil(travel/.035),sign=Math.sign(d.target-d.progress)
@@ -82,6 +83,9 @@ export function createTerraceDoors(scene,boxes){
      if(!pose(d,next,actors,false))break
      d.progress=Math.abs(next-d.target)<1e-7?d.target:next;changed=true
     }
+    if(previous===0&&d.progress>0)sound('doorOpen',d.at)
+    if(previous>0&&d.progress===0)sound('doorClose',d.at)
+    if(previous===d.progress)continue
     for(const b of d.bounds)boxes.unindex?.(b)
     pose(d,d.progress,[],true)
     for(const b of d.bounds)boxes.reindex?.(b)

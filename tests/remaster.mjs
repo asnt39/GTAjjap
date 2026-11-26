@@ -1,3 +1,6 @@
+import {cityFixtures} from "../src/city-fixtures.js"
+import {citySpots} from "../src/city-life-plan.js"
+import {crossings} from "../src/street-plan.js"
 import {worldColliders} from '../src/world-colliders.js'
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
@@ -38,7 +41,7 @@ const system=createTerraceDoors(scene,boxes)
 function stand(r,x,z){return {...terracePoint(r,x,z),y:.083}}
 function advance(p,npcs=[]){for(let i=0;i<60;i++)system.update(1/60,p,npcs)}
 
-test('all fifteen doors block when closed, open onto a walkable room, and allow exit',()=>{
+test('all terrace doors block when closed, open onto a walkable room, and allow exit',()=>{
  for(const {r} of system.doors){
   const front=r.depth/2,p=stand(r,0,front+1.20),inside=stand(r,0,0),threshold=stand(r,0,front-.08)
   assert(canWalk(p.x,p.z,boxes),r.title+' approach')
@@ -125,4 +128,26 @@ test('city-wide pedestrian flood reaches every new entrance and existing distric
  for(const [x,z] of [[-129,34],[-212,105],[-163,45],[-68,32],[0,64],[-56,-51],[-47,-50],[-93,-49],[14.5,-68],[14.5,41],[-16,42]])targets.push({x,z,name:x+','+z})
  for(const {x,z,name} of targets)assert(seen[index(x,z)],name+' must connect to Breakwater Avenue')
  console.log('Connected half-metre samples:',queue.length)
+})
+
+test('market and West Bank sidewalks lead to interaction fixtures without walking through a wall',()=>{
+ const fixtureScene=new Scene()
+ cityFixtures(fixtureScene,add)
+ advance({x:0,z:0,y:0})
+ for(const s of citySpots){
+  assert(canWalk(s.x,s.z,boxes,.32,.083),s.id+' approach')
+ }
+ for(const c of crossings){
+  const p=c.axis==='z'?{x:c.x-c.span/2-1.15,z:c.z}:{x:c.x,z:c.z-c.span/2-1.15}
+  assert(canWalk(p.x,p.z,boxes),'crossing start '+JSON.stringify(c))
+  movePlayer(p,c.axis==='z'?c.span+2.30:0,c.axis==='x'?c.span+2.30:0,boxes)
+  assert(Math.hypot(p.x-c.x,p.z-c.z)>c.span/2+1,'crossing arrival '+JSON.stringify(c))
+ }
+})
+test('vans and motorcycles enter the new repair court from West Bank road',()=>{
+ for(const setup of [vehicles.van,motorcycleSetup]){
+  const car=Object.assign(newDrive(setup,setup),{x:-110.5,z:51.7,heading:-Math.PI/2})
+  for(let i=0;i<1200&&car.x>-127;i++)stepDrive(car,{forward:1,back:0,steer:0},boxes,1/60,[],true)
+  assert(car.x<=-127&&clearPose(car,boxes,true,true),setup.name+' reached the garage')
+ }
 })

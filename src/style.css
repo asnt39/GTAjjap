@@ -101,3 +101,11 @@ body.speaking #guide-marker { visibility:hidden }
 
 #custody-overlay{position:absolute;inset:0;z-index:6;pointer-events:none;background:rgb(12 17 21 / var(--custody-fade,0))}
 .custody-status{position:absolute;left:50%;top:max(68px,calc(env(safe-area-inset-top) + 32px));transform:translateX(-50%);padding:8px 14px;border-left:2px solid var(--orange);background:#142026e8;color:#ffdfc2;white-space:nowrap}
+
+#vehicle-tools{position:absolute;z-index:3;right:32px;bottom:136px;display:flex;gap:6px}
+#vehicle-tools button{min-height:44px;min-width:54px;border:1px solid #d5e3d780;background:#17252bdf;border-radius:5px;font:600 13px var(--game-font)}
+#overlay:not([hidden])~#vehicle-tools{display:none}
+.mixer-row{display:grid;grid-template-columns:75px minmax(90px,1fr) 44px;gap:10px;align-items:center;min-height:48px;font-size:14px}
+.mixer-row input{accent-color:var(--orange);width:100%}
+#dart-power{width:100%;height:26px;accent-color:var(--orange)}
+@media(pointer:coarse){#vehicle-tools{right:max(16px,env(safe-area-inset-right));bottom:172px}}
