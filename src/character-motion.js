@@ -195,7 +195,12 @@ export function characterPose(scene){
    curl(sign,guard)
   }
  }
- return {reset,jump,offset,gesture,vehicle,motorcycle,custody,handPosition,
+ function consume(weight,kind){
+  placeArm(-1,-.16,kind==='drink'?1.57:1.50,.17,weight)
+  curl(-1,.70*weight)
+  offset('Head','x',-.12*weight)
+ }
+ return {consume,reset,jump,offset,gesture,vehicle,motorcycle,custody,handPosition,
   equipment:{placeArm,curl,orientHand,offset,hand:arms[0].hand?.bone,knuckle:arms[0].knuckle?.bone,
    supportHand:arms[1].hand?.bone,supportKnuckle:arms[1].knuckle?.bone}}
 }

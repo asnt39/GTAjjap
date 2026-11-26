@@ -6,7 +6,7 @@ const emptyRun=()=>({step:0,status:'available',reason:''})
 const initial = () => ({
   index:0, step:0, status:'available', money:5000,
   inventory:Object.fromEntries(goods.map(item=>[item.id,0])), remaining:null, reason:'',
-  firstJob:emptyRun(),
+  bank:0, firstJob:emptyRun(),
   followups:Object.fromEntries(storyContracts.slice(1).map(contract=>[contract.id,emptyRun()]))
 })
 const storyRun=(state,contract)=>contract===firstWork?state.firstJob:state.followups[contract.id]
@@ -31,6 +31,7 @@ function read(raw) {
     if (state.status==='complete' && state.index!==missions.length-1) state.status='available'
     if (state.status==='active' && natural(saved.step) && saved.step<missions[state.index].steps.length) state.step=saved.step
     if (natural(saved.money)) state.money=saved.money
+    if (natural(saved.bank)) state.bank=saved.bank
     for (const item of goods) {
       if (natural(saved.inventory?.[item.id])) state.inventory[item.id]=saved.inventory[item.id]
     }
@@ -210,13 +211,29 @@ export function createEpisode(options={}) {
     if (Math.ceil(state.remaining)!==savedSecond) save()
     return null
   }
+  function spend(price){
+    if(!natural(price)||!price||state.money<price)return wrong('현금이 부족해.')
+    const money=state.money-price,saved=write({money})
+    if(!saved.ok)return saved
+    state.money=money
+    return result(true,'결제 완료')
+  }
+  function transfer(amount){
+    const money=state.money-amount,bank=state.bank+amount
+    if(!Number.isSafeInteger(amount)||!amount||!natural(money)||!natural(bank))return wrong('이체할 잔액이 부족해.')
+    const saved=write({money,bank})
+    if(!saved.ok)return saved
+    Object.assign(state,{money,bank})
+    return result(true,amount>0?'예금 완료':'출금 완료')
+  }
   function buy(id) {
     const item=goods.find(entry=>entry.id===id)
     if (!item) return wrong('판매하지 않는 물건이야.')
     if (state.money<item.price) return wrong('돈이 부족해.')
-    state.money-=item.price
-    state.inventory[id]++
-    save()
+    const money=state.money-item.price,inventory={...state.inventory,[id]:state.inventory[id]+1}
+    const saved=write({money,inventory})
+    if(!saved.ok)return saved
+    Object.assign(state,{money,inventory})
     return result(true,item.name+' 구매 완료')
   }
   function use(id,{hp,maxHealth,armor=0,repairable=false,reserveSpace=()=>0}={}) {
@@ -259,7 +276,7 @@ export function createEpisode(options={}) {
     const {status,reason}=record()
     const current=mission()
     return {
-      title:current.title, missionId:current.id, stage:selectedStory()?storyContracts.indexOf(current)+1:index+1,status,reason,remaining,money,
+      title:current.title, missionId:current.id, stage:selectedStory()?storyContracts.indexOf(current)+1:index+1,status,reason,remaining,money,bank:state.bank,
       objective:status==='complete' ? '마지막 교대가 떠났다. 항구를 자유롭게 둘러봐.' : status==='failed' ? reason : step().objective,
       goal:status==='active' ? {...step().goal} : null,
       items:goods.map(item=>({...item,count:state.inventory[item.id]})),
@@ -280,7 +297,7 @@ export function createEpisode(options={}) {
     if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
     return {...next.contact,jobTitle:next.title}
   }
-  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,purchaseEquipment,saveEquipment,
+  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,
     get savedEquipment(){return state.equipment},
     get openingActive(){return !!selectedStory()&&record().status==='active'},
     get roadClosed(){return selectedStory()===firstWork&&this.openingActive&&!!step().roadClosed}}

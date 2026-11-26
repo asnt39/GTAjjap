@@ -1,5 +1,12 @@
+function nearbyDirections(pos){
+ if(pos.x<-148)return 'Foundry Garden에서 쉬어 가. 서쪽 끝엔 West Ferry Yard가 있어.'
+ if(pos.x<-93)return 'West Bank Works 정비장은 Clock Street 너머 서편에 있어. 남쪽 마당으로 차를 가져가면 돼.'
+ if(pos.z>57)return 'Clock Court 시계탑을 찾아봐. 광장에 안내도와 ATM이 있어.'
+ if(pos.x<-35)return '시장 북쪽 보도에 Breakwater Arms와 조위 관측소가 나란히 있어.'
+ return '대로를 따라 북쪽으로 가면 하역장이고, Market Crossing에서 서쪽으로 가면 시장이야.'
+}
 // Choices live in the existing conversation. Leaving its range closes the shop too.
-export function episodeUI(game,voice) {
+export function episodeUI(game,voice,sound=()=>{}) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
  const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
  let previous='', shopping=false, speaker=null, reply=''
@@ -35,11 +42,16 @@ export function episodeUI(game,voice) {
   const focused=choices.contains(document.activeElement)?document.activeElement.dataset.choice:null
   previous=key;choices.replaceChildren()
   for(const item of options)option(item.id,item.label,()=>episode.interact({resident:npc,choice:item.id}))
+  if(!shopping){
+   option('greet','인사하기',()=>({message:npc.lines?.[0]??defaultLine}))
+   option('directions','가까운 장소 묻기',()=>({message:nearbyDirections(npc.pos)}))
+  }
   if(npc.id==='merchant'){
    option('shop',shopping?'물건 접기':'상품 보기',()=>{shopping=!shopping;reply=''})
    if(shopping){
     for(const item of state.items)option('buy-'+item.id,item.name+' · ₩'+item.price.toLocaleString('ko-KR'),()=>{
      const sale=episode.buy(item.id)
+     if(sale.ok)sound('buy')
      return {...sale,message:sale.ok?item.name+' '+npc.purchase:npc.insufficient}
     },item.description)
    }

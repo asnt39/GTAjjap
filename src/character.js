@@ -44,7 +44,9 @@ export async function createCharacter({variant,model='resident'}={}){
   const move=MathUtils.smoothstep(stride,.05,.9)*(1-.95*airborne)
   const run=MathUtils.smoothstep(stride,2,4.65)
   const cadence=Math.min(stride/MathUtils.lerp(1.42,2.55,run),2.68)
-  gait=(gait+dt*cadence*(1-.85*airborne))%1
+  const nextGait=gait+dt*cadence*(1-.85*airborne)
+  if(aimSpeed>.5&&Math.floor(nextGait*2)>Math.floor(gait*2))pose.step?.()
+  gait=nextGait%1
   actions.Walk.time=gait*actions.Walk.getClip().duration
   actions.Run.time=((gait+runPhaseOffset)%1)*actions.Run.getClip().duration
   actions.Idle.setEffectiveWeight(1-move)
@@ -66,6 +68,20 @@ export async function createCharacter({variant,model='resident'}={}){
   }
   posture.position.set(0,-.082*landing*landing+.21*fall,.51*fall)
   layer.jump(phase,landing)
+  if(pose.city){
+   const {spot,weight}=pose.city
+   if(spot.pose==='sit'){
+    posture.position.y+=(spot.seatY-.96)*weight
+    for(const leg of ['L','R']){
+     layer.offset(leg+' Thigh','x',-1.50*weight)
+     layer.offset(leg+' Calf','x',1.58*weight)
+    }
+    layer.offset('Spine1','x',.17*weight)
+   }else if(spot.pose==='rest'){
+    layer.offset('Spine1','x',.28*weight)
+    layer.offset('Head','x',.26*weight)
+   }else layer.consume(weight,spot.pose)
+  }
   guardHold=pose.action==='punch'?.7:Math.max(0,guardHold-dt)
   const guarding=!pose.vehicle&&!pose.motorcycle&&(pose.guard||pose.action==='guard'||guardHold>0)
   guard=MathUtils.damp(guard,guarding?1:0,12,dt)
