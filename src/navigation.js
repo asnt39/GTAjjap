@@ -1,3 +1,4 @@
+import {onQuay} from './quay-plan.js'
 import {weaponShop} from './weapon-shop-plan.js'
 import {marketAccess,marketSights} from './market-plan.js'
 import {inOldTown} from './old-town-plan.js'
@@ -12,6 +13,7 @@ export const sights = [
  {x:-8.6,z:-38,tag:'03',title:'Market Crossing',name:'시장 교차로 안내',body:'수산물 상점과 창고가 모이는 교차로야. 대로를 따라 남쪽으로 돌아가면 다시 부두 정문에 닿아.'}
 ].concat(marketSights,westBankSights,garageSight,rowSights,weaponShop)
 export function inDocklands(x,z,r=0){
+ if(onQuay(x,z,r))return true
  if(marketAccess(x,z,r))return true
  if(z < -101+r || z>58-r || x>25.3-r) return false
  if(x < -10.5+r && !archiveAccess(x,z,r) && (z < -42.7+r || z > -31.3-r || x < -36+r))return false

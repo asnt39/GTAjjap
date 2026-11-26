@@ -1,3 +1,4 @@
+import {foundryGarden} from './foundry-garden.js'
 import * as T from 'three'
 import {streamDistrict} from './district-stream.js'
 import {loadWorksDetail} from './works-detail.js'
@@ -22,14 +23,14 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   const mesh=new T.Mesh(new T.CylinderGeometry(r*.82,r,height,10),mat)
   mesh.position.set(x,y,z);mesh.receiveShadow=true;district.add(mesh)
  }
- function sign(text,x,y,z,width=4){
+ function sign(text,x,y,z,width=4,angle=0){
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=108
   const ctx=canvas.getContext('2d');ctx.fillStyle='#273830';ctx.fillRect(0,0,512,108)
   ctx.strokeStyle='#bd9964';ctx.lineWidth=4;ctx.strokeRect(10,10,492,88)
   ctx.fillStyle='#e9dfc6';ctx.font='bold 45px sans-serif';ctx.textAlign='center';ctx.fillText(text,256,70,460)
   const map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace
   const mesh=new T.Mesh(new T.PlaneGeometry(width,width*.21),new T.MeshStandardMaterial({map,side:T.DoubleSide}))
-  mesh.position.set(x,y,z);district.add(mesh)
+  mesh.position.set(x,y,z);mesh.rotation.y=angle;district.add(mesh)
  }
  for(const [a,b,n,s,h] of [
   [-139,-138.7,29,49,3.8],[-119.3,-119,29,49,3.8],[-139,-119,48.7,49,3.8],
@@ -57,8 +58,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  for(const x of [-140.8,-117.4])box(paint,x,.091,31,.07,.012,3.3)
 
  // A garden with a diagonal walk, planted beds and the reclaimed pump.
- box(plants,-167,.10,47,14,.036,15)
- box(stone,-168,.137,47,18,.046,2.3,-.52)
+ const garden=foundryGarden(district,maps)
  for(const [x,z] of [[-173,52],[-174,41],[-166,41],[-161,53],[-164,55]]){
   box(stone,x,.23,z,2.35,.36,1.4)
   box(plants,x,.44,z,2.07,.15,1.15)
@@ -73,7 +73,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  column(stone,-167.8,48.5,1.54,.32)
  column(steel,-167.8,48.5,.48,1.32,.94)
  addCollider(-168.26,-167.34,48.01,48.99,1.61)
- sign('FOUNDRY GARDEN',-166.1,1.3,51.1,2.8)
+ sign('FOUNDRY GARDEN',-166.1,1.3,51.1,2.8,Math.PI*.20)
  const water=new T.Mesh(new T.CylinderGeometry(.065,.18,.82,10),new T.MeshStandardMaterial({color:0x9aced5,roughness:.24,transparent:true,opacity:.72}))
  water.position.set(-167.8,1.84,48.5);water.visible=false;district.add(water)
 
@@ -81,7 +81,39 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  for(const [a,b,n,s,h] of [[-221,-220.7,100,111,4.7],[-220.7,-204,110.72,111,4.7],[-204.25,-204,105,111,4.7]]){
   addCollider(a,b,n,s,h);box(brick,(a+b)/2,h/2,(n+s)/2,b-a,h,s-n)
  }
- box(steel,-212.5,4.76,105.5,17.8,.17,11.7)
+ // Ferry hall roof lantern and riveted cross-braced steel frame.
+ const truss=[]
+ function girder(ax,ay,az,bx,by,bz,w,d){
+  const start=new T.Vector3(ax,ay,az),end=new T.Vector3(bx,by,bz),v=end.clone().sub(start)
+  const m=new T.Matrix4().compose(start.lerp(end,.5),new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),v.clone().normalize()),new T.Vector3(w,v.length(),d))
+  truss.push(m)
+ }
+ for(const side of [-1,1]){
+  girder(-212.5,6.74,105.5,-212.5,4.80,105.5+side*6,17.95,.15)
+  for(const x of [-220.6,-216.5,-212.5,-208.5,-204.4]){
+   girder(x,4.82,105.5+side*5.86,x,6.64,105.5,.13,.17)
+   girder(x,4.71,105.5+side*5.8,x,4.71,105.5,.11,.16)
+   girder(x,4.75,105.5+side*3,x,6.48,105.5,.09,.1)
+  }
+ }
+ const beams=new T.InstancedMesh(solid,steel,truss.length);truss.forEach((m,i)=>beams.setMatrixAt(i,m))
+ beams.receiveShadow=true;district.add(beams)
+ for(const x of [-220.6,-216.55,-212.5,-208.45,-204.4]){
+  box(paint,x,5.56,99.63,.11,1.56,.15)
+  box(wood,x,.62,110.19,2.64,.15,.59);addCollider(x-1.32,x+1.32,109.89,110.49,.71,true)
+ }
+ box(steel,-212.5,4.72,99.63,17.8,.28,.21)
+ for(let i=0;i<12;i++){
+  const ax=-220.2+i*1.39
+  girder(ax,6.55,98,ax+.68,7.13,98,.072,.10)
+  girder(ax+.68,7.13,98,ax+1.37,6.55,98,.072,.10)
+ }
+ const lattice=new T.InstancedMesh(solid,steel,24);truss.slice(-24).forEach((m,i)=>lattice.setMatrixAt(i,m));district.add(lattice)
+ box(steel,-212.6,7.16,98,17.0,.12,.20)
+ for(const x of [-217.5,-212.5,-207.5]){
+  box(steel,x,4.32,101.1,.045,.74,.045)
+  box(warm,x,3.92,101.1,.58,.15,.42)
+ }
  for(const x of [-218.4,-207.1]){
   box(steel,x,2.39,100.4,.29,4.78,.36);addCollider(x-.15,x+.15,100.2,100.6,4.78)
  }
@@ -90,7 +122,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   addCollider(x-.20,x+.20,97.78,98.22,6.7)
  }
  box(steel,-212.7,6.72,98,13.4,.53,.45)
- sign('WEST FERRY YARD',-212.5,3.45,108.68,5.2)
+ sign('WEST FERRY YARD',-212.5,3.45,99.45,6.1,Math.PI)
  const beacon=new T.Mesh(new T.SphereGeometry(.19,12,9),new T.MeshStandardMaterial({color:0xe68d41,emissive:0x9a3c14,emissiveIntensity:.4}))
  beacon.position.set(-207.1,2.6,100.14);district.add(beacon)
  sign('NORTH SERVICE YARD',-208.0,1.53,32.1,3.3)
@@ -122,6 +154,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  return {
   operate(tag){if(tag==='PARK')pump=8;if(tag==='WEST')signal=8},
   update(dt,elapsed,pos){
+   garden(elapsed,Math.hypot(pos.x+167,(pos.z??47)-47)<55)
    const changed=stream(Math.hypot(pos.x+166,(pos.z??44)-58))
    pump=Math.max(0,pump-dt);signal=Math.max(0,signal-dt)
    water.visible=pump>0;water.scale.y=.72+.26*Math.sin(elapsed*9)

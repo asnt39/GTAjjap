@@ -62,7 +62,7 @@ export function buildTerraceShell(r,part,add,materials){
  // Persistent, simple furniture footprints match the visible furnishings on every quality.
  const items=fittings(r)
  for(const [x,y,z,w,h,d] of items){
-  if(w<.30||d<.30||y>2.2)continue
+  if(w<.40||d<.38||y>1.20)continue
   add(...terraceBounds(r,x,z,w,d,0,y+h/2))
  }
 }

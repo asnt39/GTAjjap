@@ -1,3 +1,4 @@
+import {quayApron} from './quay-plan.js'
 import {loadPortProp} from './port-props.js';
 import * as THREE from 'three';
 
@@ -214,6 +215,14 @@ export async function buildPort(scene, addCollider) {
     }
     for(const h of [.40,.78])line([a[0],y+h,a[1]],[b[0],y+h,b[1]],.056,c);
   }
+  // End rails and waterside rail follow the deck used by pedestrians and vehicles.
+  const [apronWest,apronEast,apronNorth,apronSouth]=quayApron;
+  for(const z of [apronNorth,apronSouth]){
+    guardRail([apronWest,z],[apronEast,z],.05,iron);
+    addCollider?.(apronWest,apronEast,z-.045,z+.045,.86);
+  }
+  guardRail([apronEast,apronNorth],[apronEast,apronSouth],.05,iron);
+  addCollider?.(apronEast-.045,apronEast+.045,apronNorth,apronSouth,.86);
   function crane(x,z,s,index,collide = false) {
     const p=(u,v,w)=>[x+u*s,v*s,z+w*s];
     const b=(u,v,w,ww,h,dd,c,m=steel,rot)=>box(...p(u,v,w),ww*s,h*s,dd*s,c,m,rot);

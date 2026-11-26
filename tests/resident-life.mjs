@@ -28,7 +28,7 @@ GLTFLoader.prototype.loadAsync=async function(url){
 let seed=41
 Math.random=()=>((seed=Math.imul(1664525,seed)+1013904223|0)>>>0)/4294967296
 const boxes=[],scene=new Scene()
-const add=(a,b,c,d,h=3)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h])}
+const add=(a,b,c,d,h=3,standable=false,bottom)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable,bottom])}
 beacons(scene,add);districtGates(scene,add);marketCollision(add);stationColliders(add)
 const maps={}
 const [,rigs]=await Promise.all([buildArchitecture(scene,add,maps),buildStreet(scene,add,maps)])

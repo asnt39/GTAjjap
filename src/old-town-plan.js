@@ -1,3 +1,4 @@
+import {quayApron} from './quay-plan.js'
 import {westBankLand,westBankRoads} from './west-bank-plan.js'
 import {garage} from './garage.js'
 // Rectangles use [west, east, north, south] in Docklands metres.
@@ -81,7 +82,7 @@ export const townDriveBounds=[-97,25.3,-43,114.5]
 export const townCurbBlocks=townTiles(roadBlend,(x,z)=>!roadBlend.some(r=>contains(r,x,z)))
 
 const dockPavement=[
- garage.forecourt,
+ quayApron,garage.forecourt,
  [-10.8,-6,-101,-43],[6,10.8,-101,-43],[-10.8,-6,-31,58],[6,10.8,-31,58],
  [-40,-6,-46.1,-43],[6,25.3,-46.1,-43],[-40,-6,-31,-27.9],[6,25.3,-31,-27.9],
  [-96,-40,-46,-43],[-96,marketEntrance[0],-31,-27],[marketEntrance[1],-40,-31,-27],

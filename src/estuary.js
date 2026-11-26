@@ -41,7 +41,7 @@ export function landscapeMaterial(){
 }
 export function buildEstuary(scene,ground){
  // Undulating salt meadow below the paved quay level. Distant ridges remain outside play.
- const terrain=new T.PlaneGeometry(430,510,64,72).rotateX(-Math.PI/2).translate(-189,0,-8)
+ const terrain=new T.PlaneGeometry(430,510,38,44).rotateX(-Math.PI/2).translate(-189,0,-8)
  const pos=terrain.attributes.position,uv=terrain.attributes.uv
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),z=pos.getZ(i)

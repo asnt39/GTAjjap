@@ -1,3 +1,5 @@
+import {buildClockLane} from './clock-lane.js'
+import {terraceSigns,detailTerrace} from './terrace-fronts.js'
 import {rows,terraceRooms} from './terrace-plan.js'
 import {buildTerraceShell} from './terrace-interior.js'
 import * as T from 'three'
@@ -48,6 +50,15 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   for(let i=-2;i<=2;i++)batch(new T.BoxGeometry(.24,.004,.028).translate(0,.033,i*.10).rotateY(angle).translate(x,0,z),roof,town)
  }
 
+ // Crossings and setback stop bars on the West Bank loop.
+ for(const [x,z,wide,turn] of [[-119.2,23,9,true],[-146,31,10,false],[-187,72.8,10,false],[-178.3,100.5,9,true]]){
+  const bars=Math.floor(wide/.88)
+  for(let j=0;j<bars;j++){
+   const off=(j-(bars-1)/2)*.88
+   box(x+(turn?0:off),.012,z+(turn?off:0),turn?1.9:.42,.008,turn?.42:1.9,trafficPaint,town)
+  }
+  box(x+(turn?-1.8:-wide/4),.012,z+(turn?wide/4:-1.8),turn?.19:wide*.45,.008,turn?wide*.45:.19,trafficPaint,town)
+ }
  // Painted dashes stop before corners and junctions.
  for(const [axis,mid,from,to] of [
   ['z',0,64,78],['z',-68,-28,23],['z',-68,40,102],['z',-35,40,75],['z',-35,93,101],
@@ -65,6 +76,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   for(let i=0;i<uv.count;i++)uv.setXY(i,((tile%4)+.012+.976*uv.getX(i))/4,(7-Math.floor(tile/4)+.014+.972*uv.getY(i))/8)
   batch(rotate(originX,originZ,angle,g.rotateY(turn).translate(x,y,z)),atlas,group)
  }
+ const signs=terraceSigns()
  for(const [i,[x,z,width,height,depth,skin,angle]] of rows.entries()){
   const room=rowRooms.find(r=>r.x===x&&r.z===z)
   const terrace=terraceRooms.find(r=>r.index===i)
@@ -85,6 +97,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    g.rotateX(tilt).translate(px,y,pz)
    batch(rotate(x,z,angle,g),mat,target)
   }
+  detailTerrace({i,width,height,depth,part,panels,terrace,group,x,z,angle,rotate,batch,signs,materials:{iron,stone,trim,wood,roof,facade,lamp}})
   if(room){
    const roomGroup=new T.Group();roomGroup.name=room.title+' interior';town.add(roomGroup)
    const decorate=(mesh,px,y,pz)=>{mesh.position.set(px,y,pz).applyAxisAngle(T.Object3D.DEFAULT_UP,angle).add(new T.Vector3(x,0,z));mesh.rotation.y=angle;roomGroup.add(mesh)}
@@ -150,6 +163,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   }
  }
 
+ buildClockLane({batch,box,materials:{iron,roof,stone,lamp,trim}})
  const {x,z}=clockCourt
  addCollider(x-1.65,x+1.65,z-1.43,z+1.43,10.5)
  box(x,.22,z,3.6,.275,3.16,stone)
