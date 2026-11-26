@@ -1,3 +1,5 @@
+import {streetDetails,reservedSurfaces} from './town-streets.js'
+import {within} from './street-plan.js'
 import {buildClockLane} from './clock-lane.js'
 import {terraceSigns,detailTerrace} from './terrace-fronts.js'
 import {rows,terraceRooms} from './terrace-plan.js'
@@ -5,11 +7,11 @@ import {buildTerraceShell} from './terrace-interior.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {inWestBank} from './west-bank-plan.js'
-import {clockCourt,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
+import {clockCourt,townTiles,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
 import {rowRooms} from './market-row-plan.js'
 import {buildRowShell} from './market-row-shell.js'
 
-export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards}){
+export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards,meadow}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
  town.name='Old Town';structures.name='Clock Court and terraces'
  town.add(structures,westStructures,barriers);scene.add(town)
@@ -61,22 +63,16 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   batch(g.translate((x0+x1)/2,height,(z0+z1)/2),material,town)
  }
  for(const rect of townRoadSurface)floor(rect,0,surface)
- for(const rect of townPavement)floor(rect,.082,pavement)
- for(const z of [39,99])for(let i=0;i<11;i++)box(-73.05+i*.98,.004,z,.53,.006,1.71,trafficPaint,town)
+ const pavementTiles=townTiles([...townPavement,...reservedSurfaces],(x,z)=>
+  townPavement.some(r=>within(r,x,z))&&!reservedSurfaces.some(r=>within(r,x,z)))
+ for(const rect of pavementTiles)floor(rect,.082,pavement)
+ streetDetails({floor,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
+  materials:{stone,paint:trafficPaint,asphalt:surface,paving:pavement,planted:meadow??standard(0x626b49),iron}})
  for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
   batch(new T.BoxGeometry(.33,.026,.66).rotateY(angle).translate(x,.016,z),iron,town)
   for(let i=-2;i<=2;i++)batch(new T.BoxGeometry(.24,.004,.028).translate(0,.033,i*.10).rotateY(angle).translate(x,0,z),roof,town)
  }
 
- // Crossings and setback stop bars on the West Bank loop.
- for(const [x,z,wide,turn] of [[-119.2,23,9,true],[-146,31,10,false],[-187,72.8,10,false],[-178.3,100.5,9,true]]){
-  const bars=Math.floor(wide/.88)
-  for(let j=0;j<bars;j++){
-   const off=(j-(bars-1)/2)*.88
-   box(x+(turn?0:off),.012,z+(turn?off:0),turn?1.9:.42,.008,turn?.42:1.9,trafficPaint,town)
-  }
-  box(x+(turn?-1.8:-wide/4),.012,z+(turn?wide/4:-1.8),turn?.19:wide*.45,.008,turn?wide*.45:.19,trafficPaint,town)
- }
  // Painted dashes stop before corners and junctions.
  for(const [axis,mid,from,to] of [
   ['z',0,64,78],['z',-68,-28,23],['z',-68,40,102],['z',-35,40,75],['z',-35,93,101],

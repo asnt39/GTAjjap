@@ -1,3 +1,4 @@
+import {marketStreetbed,marketWalks} from './street-plan.js'
 import * as T from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
@@ -173,9 +174,11 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   batch(floorGeometry(-6,6,-107,63,0,4.04),asphalt)
   batch(floorGeometry(-40,-6,-43,-31,0,4.04),asphalt)
   batch(floorGeometry(6,26,-43,-31,0,4.04),asphalt)
+  batch(floorGeometry(...marketStreetbed,0,4.04),asphalt)
   function sidewalk(x1,x2,z1,z2){
     batch(floorGeometry(x1,x2,z1,z2,.083,2.65),paving)
   }
+  for(const rect of marketWalks)sidewalk(...rect)
   for(const side of [-1,1]){
     const inner=side*6, outer=side*10.8
     for(const [lo,hi] of [[-107,-43],[-31,63]]){

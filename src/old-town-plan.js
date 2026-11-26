@@ -1,3 +1,4 @@
+import {crossingRamp,loadingCourt,serviceApron,within} from './street-plan.js'
 import {quayApron} from './quay-plan.js'
 import {westBankLand,westBankRoads} from './west-bank-plan.js'
 import {garage} from './garage.js'
@@ -43,6 +44,9 @@ export function inOldTown(x,z,r=0){
 }
 const approachRoads=[...oldTownRoads,[-6,6,52,63],[...marketEntrance,-34,-31]]
 export function oldTownHeight(x,z){
+ if(within(loadingCourt,x,z)||within(serviceApron,x,z))return .008
+ const rampHeight=crossingRamp(x,z)
+ if(rampHeight<1)return .008+.075*rampHeight
  // Blend the 7.5 cm curb over the same short run as the Docklands curbs.
  const ramp=.18
  let closest=ramp*ramp

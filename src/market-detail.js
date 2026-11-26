@@ -1,7 +1,6 @@
 import {loadPortProp} from './port-props.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
-import {marketEntrance} from './old-town-plan.js'
 import {premises,front,windowMasonry} from './market-plan.js'
 
 // Batch fixed fittings by material; unloading releases district-owned GPU resources.
@@ -23,7 +22,7 @@ export async function marketDetail(){
   materials.forEach(m=>m.dispose())
   textures.forEach(t=>t.dispose())
  }
- const surfaces=[...premises.map(p=>'architecture/'+p.skin),'street/asphalt_04-Diffuse','street/concrete_pavement_02-Diffuse']
+ const surfaces=[...premises.map(p=>'architecture/'+p.skin),'street/concrete_pavement_02-Diffuse']
  const [crate,loaded]=await Promise.all([
   loadPortProp('chandlery-crate'),Promise.allSettled(surfaces.map(load))
  ])
@@ -51,10 +50,6 @@ export async function marketDetail(){
   box(x,y,z,w,h,.045,mat(0xffffff,{map:t}))
  }
  const metal=mat(0x324041),wood=mat(0x916d4c),linen=mat(0xdcccad),stripe=mat(0xd7c093),glass=mat(0x899f9e,{metalness:.16,roughness:.2,transparent:true,opacity:.23,depthWrite:false}),paper=mat(0xc6bd98)
- box(-68,-.008,-37,56,.018,12,mat(0xaaaaaa,{map:maps[3]}))
- const sidewalk=mat(0xc3bab0,{map:maps[4]})
- box(-68,.045,-44.5,56,.07,3,sidewalk)
- for(const [a,b] of [[-96,marketEntrance[0]],[marketEntrance[1],-40]])box((a+b)/2,.045,-29,b-a,.07,4,sidewalk)
  for(let x=-42;x>-95;x-=5)box(x,.012,-37,2,.018,.1,stripe)
  for(const [i,p] of premises.entries()){
   const facade=mat(0xffffff,{map:maps[i]}),glow=mat(p.light,{emissive:p.light,emissiveIntensity:.9})
@@ -69,7 +64,7 @@ export async function marketDetail(){
    box(p.x+dx,1.01,front+.26,2.95,.12,.22,wood)
   }
   // Stone thresholds, skirting, and fittings use the same street materials as the quay.
-  box(p.x,.052,-51,10.7,.01,9.72,mat(i===0?0xbcb6a8:0x9b9e96,{map:maps[4]}))
+  box(p.x,.052,-51,10.7,.01,9.72,mat(i===0?0xbcb6a8:0x9b9e96,{map:maps[3]}))
   for(const side of [-1,1]){
    box(p.x+side*5.36,1.55,-51,.035,3.05,9.82,facade)
    box(p.x+side*5.32,.28,-51,.085,.47,9.86,metal)
