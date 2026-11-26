@@ -1,3 +1,4 @@
+import {worldColliders} from '../src/world-colliders.js'
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {readFile} from 'node:fs/promises'
@@ -29,7 +30,7 @@ GLTFLoader.prototype.loadAsync=async function(url){
  const b=await readFile(new URL('../public'+url,import.meta.url))
  return this.parseAsync(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),'')
 }
-const scene=new Scene(),boxes=[],maps={},add=(...b)=>boxes.push(b)
+const scene=new Scene(),boxes=worldColliders(),maps={},add=(...b)=>boxes.push(b)
 await Promise.all([buildStreet(scene,add,maps),buildArchitecture(scene,add,maps),buildPort(scene,add)])
 buildOldTown(scene,add,boxes,maps);buildWestBank(scene,add,maps,boxes)
 beacons(scene,add);districtGates(scene,add);stationColliders(add);marketCollision(add);buildWeaponShop(scene,add)

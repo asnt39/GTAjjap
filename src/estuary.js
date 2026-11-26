@@ -27,21 +27,16 @@ export function waterfrontEdges(){
  return edges
 }
 export function landscapeMaterial(){
- const mat=new T.MeshStandardMaterial({color:0x939986,roughness:.95})
- const loader=new T.TextureLoader()
- for(const [slot,name] of [['map','color'],['normalMap','normal'],['roughnessMap','rough']]){
-  loader.load('/assets/estuary/grass-'+name+'.webp',tex=>{
-   if(slot==='map')tex.colorSpace=T.SRGBColorSpace
-   tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=2
-   mat[slot]=tex;mat.needsUpdate=true
-  })
- }
- mat.normalScale.set(.42,.42)
+ const mat=new T.MeshLambertMaterial({color:0x98a38e})
+ new T.TextureLoader().load('/assets/estuary/grass-color.webp',tex=>{
+  tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping
+  mat.map=tex;mat.needsUpdate=true
+ })
  return mat
 }
 export function buildEstuary(scene,ground){
  // Undulating salt meadow below the paved quay level. Distant ridges remain outside play.
- const terrain=new T.PlaneGeometry(430,510,38,44).rotateX(-Math.PI/2).translate(-189,0,-8)
+ const terrain=new T.PlaneGeometry(430,510,30,32).rotateX(-Math.PI/2).translate(-189,0,-8)
  const pos=terrain.attributes.position,uv=terrain.attributes.uv
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),z=pos.getZ(i)
@@ -50,7 +45,9 @@ export function buildEstuary(scene,ground){
   pos.setY(i,-1.1+ridge+.28*Math.sin(x*.15+z*.10)*Math.cos(z*.12));uv.setXY(i,x/5,z/5)
  }
  terrain.computeVertexNormals()
- const meadow=new T.Mesh(terrain,ground);meadow.receiveShadow=true;scene.add(meadow)
+ // Draw the background after opaque city surfaces so hidden terrain fragments
+ // fail the depth test before sampling the ground textures.
+ const meadow=new T.Mesh(terrain,ground);meadow.renderOrder=8;scene.add(meadow)
  const pieces=[],t=new T.Color()
  function block(x,y,z,w,h,d,color){
   const g=new T.BoxGeometry(w,h,d).translate(x,y,z),colors=[]

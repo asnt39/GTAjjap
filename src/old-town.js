@@ -24,24 +24,27 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  const lining=standard(0xc0baa2,{map:architecture[1]})
  const boards=rowBoards??standard(0x675140,{roughness:.76})
  const glass=standard(0x8ba1a0,{opacity:.22,transparent:true,roughness:.32,metalness:.15,depthWrite:false,side:T.DoubleSide})
+ glass.forceSinglePass=true
  const walls=[0xc6aba1,0xd4c5a6,0xc0c5bc].map((color,i)=>standard(color,{map:architecture[i]}))
  const atlas=standard(0xeddbc0,{map:architecture[4],emissiveMap:architecture[4],emissive:0xd9ad7e,emissiveIntensity:.24})
  const batches=new Map(),solidBox=new T.BoxGeometry()
  const colored=new Set([stone,trim,roof,wood,paint,fabric]),masonry=standard(0xffffff,{vertexColors:true})
+ const detailMetal=standard(0xffffff,{vertexColors:true,metalness:.22,roughness:.72})
  const blocks=new Map()
  function detailBlock(x,z){
-  const bx=Math.floor(x/42),bz=Math.floor(z/42),key=bx+','+bz
+  const bx=Math.floor(x/62),bz=Math.floor(z/62),key=bx+','+bz
   if(!blocks.has(key)){
-   const group=new T.Group();town.add(group)
-   blocks.set(key,{group,x:(bx+.5)*42,z:(bz+.5)*42})
+   const group=new T.Group();group.userData.facadeDetail=true;town.add(group)
+   blocks.set(key,{group,x:(bx+.5)*62,z:(bz+.5)*62})
   }
   return blocks.get(key).group
  }
  function batch(geometry,material,group=structures){
-  if(colored.has(material)){
+  const detail=group.userData.facadeDetail
+  if(colored.has(material)||(detail&&material===iron)){
    const rgb=new Uint8Array(geometry.attributes.position.count*3),t=material.color
    for(let i=0;i<rgb.length;i+=3){rgb[i]=Math.round(t.r*255);rgb[i+1]=Math.round(t.g*255);rgb[i+2]=Math.round(t.b*255)}
-   geometry.setAttribute('color',new T.Uint8BufferAttribute(rgb,3,true));material=masonry
+   geometry.setAttribute('color',new T.Uint8BufferAttribute(rgb,3,true));material=detail?detailMetal:masonry
   }
   const mats=batches.get(group)??new Map(),parts=mats.get(material)??[]
   const piece=geometry.index?geometry.toNonIndexed():geometry
@@ -238,7 +241,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   group.add(mesh);parts.forEach(g=>g.dispose())
  }
  barriers.visible=false
- return (open,position)=>{
+ return (open,position,low=false)=>{
   // Far buildings keep their silhouettes. Distant shadow batches stay out
   // of the shadow map until the player approaches either side of the loop.
   const shadows=Math.hypot(Math.max(0,position.x+23,-86-position.x),Math.max(0,17-position.z,position.z-126))<38
@@ -249,13 +252,10 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    for(const mesh of westStructures.children)mesh.castShadow=westShadows
   }
   for(const block of blocks.values()){
-   const d=Math.max(0,Math.abs(position.x-block.x)-21)**2+Math.max(0,Math.abs(position.z-block.z)-21)**2
-   const visible=d<(block.group.visible?84:78)**2,shadow=d<38**2
+   const d=Math.max(0,Math.abs(position.x-block.x)-31)**2+Math.max(0,Math.abs(position.z-block.z)-31)**2
+   const visible=d<((low?40:59)+(block.group.visible?5:0))**2
    if(block.group.visible!==visible){block.group.visible=visible;changed=true}
-   if(block.group.castShadow!==shadow){
-    block.group.castShadow=shadow;for(const m of block.group.children)m.castShadow=shadow
-    changed=true
-   }
+
   }
   if(barriers.visible===!open)return changed
   barriers.visible=!open

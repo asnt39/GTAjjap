@@ -23,13 +23,15 @@ export function inDocklands(x,z,r=0){
 export const inDistrict=(x,z,r=0)=>inDocklands(x,z,r)||garageAccess(x,z,r)||inOldTown(x,z,r)
 export function canWalk(x,z,boxes,r=.32,feet=-Infinity) {
  if(!inDistrict(x,z,r))return false
- return !boxes.some(b=>{
-  if(b[6]>0&&(Number.isFinite(feet)?feet:0)+1.8<b[6]-.01)return false
-  if(b[5]&&feet>=b[4]-(b[6]>0?.23:.002))return false
-  if(b[6]>0&&feet>=b[4]-.002)return false
+ for(const b of boxes.near?.(x,z,r)??boxes){
+  if(x+r<=b[0]||x-r>=b[1]||z+r<=b[2]||z-r>=b[3])continue
+  if(b[6]>0&&(Number.isFinite(feet)?feet:0)+1.8<b[6]-.01)continue
+  if(b[5]&&feet>=b[4]-(b[6]>0?.23:.002))continue
+  if(b[6]>0&&feet>=b[4]-.002)continue
   const dx=x-Math.max(b[0],Math.min(b[1],x)), dz=z-Math.max(b[2],Math.min(b[3],z))
-  return dx*dx+dz*dz < r*r
- })
+  if(dx*dx+dz*dz < r*r)return false
+ }
+ return true
 }
 export function movePlayer(pos,dx,dz,boxes,occupied,feet=-Infinity){
  if(!dx&&!dz)return

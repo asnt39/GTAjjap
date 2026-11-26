@@ -1,3 +1,4 @@
+import {roomDetails} from './parlor-fittings.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {terraceBounds,terraceCeiling,terraceRooms} from './terrace-plan.js'
@@ -73,15 +74,18 @@ export function streamTerraceRooms(scene){
   for(const r of terraceRooms){
    const gap=(position.x-r.x)**2+(position.z-r.z)**2
    if(active.has(r)){
-    if(gap<40**2)continue
+    if(gap<26**2)continue
     const mesh=active.get(r);mesh.removeFromParent();mesh.geometry.dispose();active.delete(r)
    }else{
-    if(gap>27**2)continue
-    const parts=fittings(r).map(([x,y,z,w,h,d,color])=>{
-     const g=new T.BoxGeometry(w,h,d).translate(x,y,z),t=new T.Color(color),rgb=[]
-     for(let k=0;k<24;k++)rgb.push(t.r,t.g,t.b)
-     g.setAttribute('color',new T.Float32BufferAttribute(rgb,3));return g
-    })
+    if(gap>19**2)continue
+    const parts=[]
+    function add(g,color){
+     const t=new T.Color(color),rgb=new Uint8Array(g.attributes.position.count*3)
+     for(let i=0;i<rgb.length;i+=3){rgb[i]=Math.round(t.r*255);rgb[i+1]=Math.round(t.g*255);rgb[i+2]=Math.round(t.b*255)}
+     g.setAttribute('color',new T.Uint8BufferAttribute(rgb,3,true));parts.push(g)
+    }
+    for(const [x,y,z,w,h,d,color] of fittings(r))add(new T.BoxGeometry(w,h,d).translate(x,y,z),color)
+    roomDetails(r,add)
     const mesh=new T.Mesh(mergeGeometries(parts),roomMaterial);parts.forEach(g=>g.dispose())
     mesh.name=r.title+' fittings';mesh.position.set(r.x,0,r.z);mesh.rotation.y=r.angle;mesh.receiveShadow=true;scene.add(mesh);active.set(r,mesh)
    }

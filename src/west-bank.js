@@ -164,14 +164,14 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   }})
  return {
   operate(tag){if(tag==='PARK')pump=8;if(tag==='WEST')signal=8},
-  update(dt,elapsed,pos){
-   garden(elapsed,Math.hypot(pos.x+167,(pos.z??47)-47)<55)
+  update(dt,elapsed,pos,low=false){
+   const gardenChanged=garden(elapsed,Math.hypot(pos.x+167,(pos.z??47)-47),low)
    const changed=stream(Math.hypot(pos.x+166,(pos.z??44)-58))
    pump=Math.max(0,pump-dt);signal=Math.max(0,signal-dt)
    water.visible=pump>0;water.scale.y=.72+.26*Math.sin(elapsed*9)
    beacon.material.emissiveIntensity=signal?(Math.sin(elapsed*10)>.1?2.6:.15):.4
    const near=pos.x<-92
-   if(near===shadows)return changed
+   if(near===shadows)return changed||gardenChanged
    shadows=near;for(const mesh of batches)mesh.castShadow=near
    return true
   }

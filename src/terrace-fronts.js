@@ -14,7 +14,7 @@ export function terraceSigns(){
 }
 
 export function detailTerrace({i,width:w,height:h,depth:d,part,panels,terrace,group,x,z,angle,rotate,batch,signs,materials}){
- const {iron,stone,trim,wood,roof,atlas,facade,lamp}=materials
+ const {iron,stone,trim,wood,roof,lamp}=materials
  const back=-d/2,front=d/2,industrial=terrace?.use==='workshop'||i>=42,home=terrace?.use==='home'||(!terrace&&i%3===1)
  if(terrace){
   const tile=terraceRooms.indexOf(terrace),g=new T.PlaneGeometry(w-.76,.72),uv=g.attributes.uv

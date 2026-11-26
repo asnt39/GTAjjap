@@ -1,3 +1,4 @@
+import {worldColliders} from './world-colliders.js'
 import {createTerraceDoors} from './terrace-doors.js'
 import {insideTerrace,terraceCeiling} from './terrace-plan.js'
 import {streamTerraceRooms} from './terrace-interior.js'
@@ -59,7 +60,7 @@ if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>wi
 
 const canvas=document.querySelector('#world')
 const pos=new THREE.Vector3(garage.x,0,garage.z),velocity=new THREE.Vector2()
-const keys=new Set(),boxes=[],joystick=new THREE.Vector2()
+const keys=new Set(),boxes=worldColliders(),joystick=new THREE.Vector2()
 let yaw=garage.yaw,pitch=.13,distance=4.65,isPaused=false
 const clamp=THREE.MathUtils.clamp, damp=THREE.MathUtils.damp
 const addCollider=(a,b,c,d,h=3,standable=false,bottom)=>{if(h>.15)boxes.push([Math.min(a,b),Math.max(a,b),Math.min(c,d),Math.max(c,d),h,standable,bottom])}
@@ -722,7 +723,7 @@ export async function start(onContextLost){
   if(!document.hidden&&!isPaused&&room.phase!=='reconnecting'){
    elapsed+=dt
    stance.update(Math.min(realDt,.25),sniperAiming())
-   if(updateTown(room.phase==='offline',pos))renderer.shadowMap.needsUpdate=true
+   if(updateTown(room.phase==='offline',pos,quality==='low'))renderer.shadowMap.needsUpdate=true
    if(pressed('ArrowRight')||pressed('ArrowLeft'))lookHold=2.2
    yaw+=(pressed('ArrowRight')-pressed('ArrowLeft'))*1.65*dt
    coffee=Math.max(0,coffee-dt)
@@ -834,7 +835,7 @@ export async function start(onContextLost){
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
-   const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos),rowChanged=updateRow(pos,dt)
+   const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos,quality==='low'),rowChanged=updateRow(pos,dt)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
    if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true

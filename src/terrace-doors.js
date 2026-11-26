@@ -18,7 +18,7 @@ export function createTerraceDoors(scene,boxes){
  for(const d of doors){
   d.first=first;first+=d.leaves
   d.bounds=Array.from({length:d.leaves*4},()=>[0,0,0,0,2.68,false,.08])
-  boxes.push(...d.bounds)
+
  }
  function pose(d,progress,actors,write){
   const {r}=d,w=opening/d.leaves,g=progress*progress*(3-2*progress)
@@ -51,7 +51,7 @@ export function createTerraceDoors(scene,boxes){
   }
   return true
  }
- for(const d of doors)pose(d,0,[],true)
+ for(const d of doors){pose(d,0,[],true);boxes.push(...d.bounds)}
  const near=(d,p,range)=>Math.abs(p.x-d.at.x)<range&&Math.abs(p.z-d.at.z)<range&&
   Math.hypot(p.x-d.at.x,p.z-d.at.z)<range&&(p.y??0)<2.69
  function open(d,p){
@@ -82,7 +82,9 @@ export function createTerraceDoors(scene,boxes){
      if(!pose(d,next,actors,false))break
      d.progress=Math.abs(next-d.target)<1e-7?d.target:next;changed=true
     }
+    for(const b of d.bounds)boxes.unindex?.(b)
     pose(d,d.progress,[],true)
+    for(const b of d.bounds)boxes.reindex?.(b)
    }
    if(changed){frames.instanceMatrix.needsUpdate=true;panes.instanceMatrix.needsUpdate=true}
    return changed
