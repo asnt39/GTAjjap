@@ -1,3 +1,4 @@
+import {terraceRooms,terracePoint} from './terrace-plan.js'
 import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
 import {premises} from './market-plan.js'
 import {sights} from './navigation.js'
@@ -19,6 +20,11 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  for(const [a,b,n,s] of townPavement)rect(a,n,b-a,s-n,'#6c6352')
  for(const [a,b,n,s] of townRoadSurface)rect(a,n,b-a,s-n,'#57534b')
  rect(-58.9,-56,5.8,10,'#776c5b')
+ for(const r of terraceRooms){
+  const w=r.cos?r.width:r.depth,d=r.cos?r.depth:r.width
+  rect(r.x-w/2,r.z-d/2,w,d,'#8f816b')
+  const p=terracePoint(r,0,r.depth/2);rect(p.x-.75,p.z-.75,1.5,1.5,'#efcf8c')
+ }
  rect(clockCourt.x-1.7,clockCourt.z-1.5,3.4,3,'#e1c18c')
  for(const x of [-47,-65,-83])rect(x-5.5,-56,11,10,'#797967')
  for(const building of premises)rect(building.x-5.5,-56,11,10,'#776c5b')

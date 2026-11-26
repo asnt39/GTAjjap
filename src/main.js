@@ -1,3 +1,6 @@
+import {createTerraceDoors} from './terrace-doors.js'
+import {insideTerrace,terraceCeiling} from './terrace-plan.js'
+import {streamTerraceRooms} from './terrace-interior.js'
 import {buildEstuary,landscapeMaterial} from './estuary.js'
 import {grenadeModel} from './grenade-art.js'
 import {grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
@@ -120,6 +123,7 @@ export async function start(onContextLost){
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
+ const doors=createTerraceDoors(scene,boxes),updateFittings=streamTerraceRooms(scene)
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={}
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const trafficRigs=Array.from({length:coarse?2:4},()=>rigs.civilianRig())
@@ -337,6 +341,7 @@ export async function start(onContextLost){
   if(crowd.talking)return '대화 마치기'
   const candidate=canAct()&&nearestDoor()
   if(candidate)return candidate.car.setup.name+' 탑승'
+  const door=canAct()&&doors.prompt(pos);if(door)return door
   const resident=talkCandidate();return resident?resident.name+' · 대화':''
  }
  const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
@@ -367,7 +372,7 @@ export async function start(onContextLost){
   if(mode==='walk'){
    if(crowd.talking){crowd.endTalk();return true}
    if(!canAct())return true
-   const destination=nearestDoor();if(!destination)return false
+   const destination=nearestDoor();if(!destination)return doors.toggle(pos)
    if(room.phase==='connected'){
     const id=destination.car.id
     if(!room.send({t:'move',p:playerPacket()})||!room.send({t:'seat',car:id,side:destination.side})){
@@ -636,7 +641,7 @@ export async function start(onContextLost){
   if(saved){yaw=saved.yaw;pitch=saved.pitch;distance=saved.distance;face=saved.face}
   plantFeet(restored.x,restored.z,restored.y)
  }
- updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
+ updateFittings(pos);updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
  trackedX=pos.x;trackedZ=pos.z
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
@@ -655,7 +660,7 @@ export async function start(onContextLost){
  function ceilingHeight(x,z,feet){
   const room=rowRoomAt(x,z)
   return room?rowCeiling(room,x,feet):x<archive.front&&archiveAccess(x,z,0)?archive.ceiling:
-   atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
+   insideTerrace(x,z)?terraceCeiling:atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
    (insidePremises(x,z)||insideWeaponShop(x,z))?3.44:Infinity
  }
  function floorAt(x,z,feet,airborne=false){
@@ -830,8 +835,9 @@ export async function start(onContextLost){
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
    const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos),rowChanged=updateRow(pos,dt)
+   const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action,aiming,

@@ -1,23 +1,11 @@
+import {rows,terraceRooms} from './terrace-plan.js'
+import {buildTerraceShell} from './terrace-interior.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
-import {westBankFrontages,inWestBank} from './west-bank-plan.js'
+import {inWestBank} from './west-bank-plan.js'
 import {clockCourt,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
 import {rowRooms} from './market-row-plan.js'
 import {buildRowShell} from './market-row-shell.js'
-
-// Each frontage faces the street. Leave the gap at Clock Court and the
-// passages at z=67 and z=96 open to pedestrians.
-const rows=[
- [-79.7,37,7.6,8.4,8.5,0,Math.PI/2],[-79.8,53,7,7.2,8.4,1,Math.PI/2],[-80.1,72,8,8.8,8.2,2,Math.PI/2],
- [-79.9,91,8,6.8,8.6,1,Math.PI/2],[-79.4,110,8,8.6,8.2,0,Math.PI/2],
- [-56.8,47,7.1,7.8,7.2,2,-Math.PI/2],[-56.7,65,7.4,7.2,7.5,0,-Math.PI/2],
- [-56.9,83,7.7,8.2,7.8,1,-Math.PI/2],[-57.1,96,7.2,6.5,7.5,2,-Math.PI/2],
- [-45.8,65,6.1,8,6.8,1,Math.PI/2],[-45.7,88,6.2,7.4,6.6,0,Math.PI/2],
- [-25.4,34.5,7.2,7.1,4.2,2,-Math.PI/2],[-25.3,52,7.6,8.5,4.4,0,-Math.PI/2],
- [-23.2,68.5,7.8,7.0,8.2,1,-Math.PI/2],[-23.3,101.6,7.8,7.1,8.0,2,-Math.PI/2],
- [-68,120,10,6.8,7.7,1,Math.PI],[-53.3,120,10.1,7.6,7.8,0,Math.PI],[-37.2,120,10.8,6.4,8.1,2,Math.PI],
- ...westBankFrontages
-]
 
 export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
@@ -79,9 +67,10 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  }
  for(const [i,[x,z,width,height,depth,skin,angle]] of rows.entries()){
   const room=rowRooms.find(r=>r.x===x&&r.z===z)
+  const terrace=terraceRooms.find(r=>r.index===i)
   const sideways=Math.abs(Math.sin(angle))>.5
   const w=sideways?depth:width,d=sideways?width:depth
-  if(!room)addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
+  if(!room&&!terrace)addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
   const group=inWestBank(x,z)?westStructures:structures
   const facade=walls[skin],face=depth/2
   function part(px,y,pz,pw,ph,pd,mat,tileSurface=false,tilt=0,target=group){
@@ -100,6 +89,8 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    const roomGroup=new T.Group();roomGroup.name=room.title+' interior';town.add(roomGroup)
    const decorate=(mesh,px,y,pz)=>{mesh.position.set(px,y,pz).applyAxisAngle(T.Object3D.DEFAULT_UP,angle).add(new T.Vector3(x,0,z));mesh.rotation.y=angle;roomGroup.add(mesh)}
    buildRowShell(room,height,part,decorate,addCollider,roomGroup,{facade,trim,iron,wood,lamp,stone,lining,boards,storeFloor:storeMaterial,glass})
+  }else if(terrace){
+   buildTerraceShell(terrace,part,addCollider,{facade,stone,lining,wood,iron,glass})
   }else part(0,height/2+.082,0,width,height,depth,facade,true)
   part(0,height+.22,0,width+.36,.32,depth+.40,stone)
   part(0,height+.42,0,width+.14,.17,depth+.12,roof)
@@ -113,12 +104,14 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   for(const side of [-1,1])part(side*(width/2-.21),height/2+.09,face+.07,.36,height,.18,trim)
   const shop=i%3!==1
   const door=shop?width*.25:0
-  if(!room){
+  if(!room&&!terrace){
    part(door,1.20,face+.117,1.36,2.40,.12,wood)
    panels(1.21,2.20,door,1.27,face+.187,25,angle,x,z,0,group)
    part(door+.41,1.10,face+.211,.066,.21,.07,stone)
   }
-  if(room?.id==='chandlery'){
+  if(terrace){
+   part(0,2.87,face+.36,width-.34,.11,.82,terrace.use==='home'?stone:fabric,false,.10)
+  }else if(room?.id==='chandlery'){
    part(0,2.47,face+.62,width-.62,.071,1.12,fabric,false,.14)
    part(0,2.39,face+1.16,width-.62,.12,.062,trim)
   }else if(room?.id==='lodging'){
