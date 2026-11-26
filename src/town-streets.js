@@ -1,7 +1,7 @@
 import * as T from 'three'
 import {crossings,loadingCourt,serviceApron,pocketGarden,within} from './street-plan.js'
 
-export const streetAprons=[loadingCourt,serviceApron]
+const streetAprons=[loadingCourt,[serviceApron[0],serviceApron[1],serviceApron[2],loadingCourt[2]]]
 const crossingBeds=crossings.flatMap(c=>[-1,1].map(side=>{
  const along=(c.axis==='z'?c.z:c.x),across=(c.axis==='z'?c.x:c.z)+side*c.span/2
  const wide=c.width/2+.7,edge=across+side*1.08
@@ -9,7 +9,7 @@ const crossingBeds=crossings.flatMap(c=>[-1,1].map(side=>{
  return {rect:c.axis==='z'?[...span,along-wide,along+wide]:[along-wide,along+wide,...span],crossing:c,side,across,along}
 }))
 export const reservedSurfaces=[...streetAprons,...crossingBeds.map(b=>b.rect),pocketGarden]
-export function streetDetails({floor,box,batch,materials}){
+export function streetDetails({floor,box,batch,addCollider,materials}){
  const {stone,paint,asphalt,paving,planted,iron}=materials
  for(const r of streetAprons)floor(r,.002,asphalt)
  floor(pocketGarden,.082,planted)
@@ -48,13 +48,24 @@ export function streetDetails({floor,box,batch,materials}){
  }
  // A mesh kerb makes ordinary road edges read as steps. Marked ramps keep their open mouths.
  for(const [a,b,n,s] of [[-73.5,-62.5,37.8,102.8],[-40.5,-29.5,38,78],[-146-5,-146+5,32.9,58.5],[-192,-182,70.2,82.6]]){
-  for(const x of [a,b])for(let z=n;z<s;z+=.72){
-   const along=z+Math.min(.72,s-z)/2
-   if(reservedSurfaces.some(r=>within(r,x,along)))continue
-   box(x,.039,along,.12,.078,Math.min(.72,s-z),stone)
+  for(const x of [a,b]){
+   const cuts=[n,s]
+   for(const [w,e,lo,hi] of reservedSurfaces)if(x>=w&&x<=e){
+    if(lo>n&&lo<s)cuts.push(lo)
+    if(hi>n&&hi<s)cuts.push(hi)
+   }
+   cuts.sort((left,right)=>left-right)
+   for(let i=1;i<cuts.length;i++){
+    const length=cuts[i]-cuts[i-1],mid=(cuts[i]+cuts[i-1])/2
+    if(length<.01||reservedSurfaces.some(r=>within(r,x,mid)))continue
+    box(x,.039,mid,.12,.078,length,stone)
+   }
   }
  }
- for(const [x,z] of [[-164.85,107.35],[-155.75,107.35]]){
-  box(x,.30,z,.13,.51,.13,iron)
+ for(const [x,z] of [[-164.85,107.35],[-155.75,107.35]])box(x,.30,z,.13,.51,.13,iron)
+ // Distinct furniture and walking zones keep the planters clear of the pavement.
+ for(const [x,z] of [[-163.3,108.6],[-157.6,108.6]]){
+  box(x,.18,z,1.66,.22,.72,stone);box(x,.30,z,1.45,.075,.57,planted)
+  addCollider(x-.83,x+.83,z-.36,z+.36,.337,true)
  }
 }

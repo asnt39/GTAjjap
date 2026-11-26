@@ -1,5 +1,5 @@
 import {streetDetails,reservedSurfaces} from './town-streets.js'
-import {within} from './street-plan.js'
+import {within,crossings} from './street-plan.js'
 import {buildClockLane} from './clock-lane.js'
 import {terraceSigns,detailTerrace} from './terrace-fronts.js'
 import {rows,terraceRooms} from './terrace-plan.js'
@@ -66,7 +66,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  const pavementTiles=townTiles([...townPavement,...reservedSurfaces],(x,z)=>
   townPavement.some(r=>within(r,x,z))&&!reservedSurfaces.some(r=>within(r,x,z)))
  for(const rect of pavementTiles)floor(rect,.082,pavement)
- streetDetails({floor,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
+ streetDetails({floor,addCollider,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
   materials:{stone,paint:trafficPaint,asphalt:surface,paving:pavement,planted:meadow??standard(0x626b49),iron}})
  for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
   batch(new T.BoxGeometry(.33,.026,.66).rotateY(angle).translate(x,.016,z),iron,town)
@@ -81,8 +81,9 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   ['z',-187,29,39],['z',-187,72,83],['z',-146,28,57],['z',-146,72,96],['z',-110,30,92],['z',-216,50,82],
   ['x',23,-210,-193],['z',-216,29,37]
  ])for(let p=from+1.5;p<to-1;p+=5.1){
-  const z=axis==='z'
-  box(z?mid:p,.004,z?p:mid,z?.10:2.05,.006,z?2.05:.10,paint,town)
+  const z=axis==='z',x= z?mid:p,depth=z?p:mid
+  if(crossings.some(c=>c.axis===axis&&Math.hypot(x-c.x,depth-c.z)<c.width/2+1.2))continue
+  box(x,.004,depth,z?.10:2.05,.006,z?2.05:.10,paint,town)
  }
  const rotate=(x,z,angle,geometry)=>geometry.rotateY(angle).translate(x,0,z)
  function panels(w,h,x,y,z,tile,angle,originX,originZ,turn=0,group=structures){

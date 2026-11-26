@@ -1,6 +1,6 @@
 // All dynamics use metres, seconds and radians. Heading zero faces north (-Z).
 import {canWalk} from './navigation.js'
-import {onDrivePavement,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpavedDriveBlocks,useTownDriveMask} from './old-town-plan.js'
+import {drivePavementHeight,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpavedDriveBlocks,useTownDriveMask} from './old-town-plan.js'
 import {touringSetup} from './vehicles.js'
 import {dentVehicle} from './vehicle-damage.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
@@ -42,11 +42,11 @@ export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false,contac
 export function vehicleLift(car){
  const c=Math.cos(car.heading),s=Math.sin(car.heading)
  const across=car.width*.39,axle=car.length*(car.setup?.wheelbase??touringSetup.wheelbase)*.5
- let wheelsOnPavement=0
+ let height=0
  for(const side of [-1,1])for(const end of [-1,1]){
-  if(onDrivePavement(car.x+c*across*side-s*axle*end,car.z+s*across*side+c*axle*end))wheelsOnPavement++
+  height+=drivePavementHeight(car.x+c*across*side-s*axle*end,car.z+s*across*side+c*axle*end)
  }
- return .083*wheelsOnPavement/4
+ return height/4
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){

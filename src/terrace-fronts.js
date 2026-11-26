@@ -2,7 +2,7 @@ import * as T from 'three'
 import {terraceRooms} from './terrace-plan.js'
 
 export function terraceSigns(){
- const c=document.createElement('canvas');c.width=1024;c.height=512
+ const c=document.createElement('canvas');c.width=1024;c.height=1024
  const p=c.getContext('2d'),schemes=[['#315956','#efe3be'],['#814733','#f2dfbb'],['#343e47','#d9c49a'],['#d3bc96','#383e39']]
  terraceRooms.forEach((r,i)=>{
   const x=i%2*512,y=Math.floor(i/2)*64,[bg,ink]=schemes[i%4]
@@ -18,7 +18,7 @@ export function detailTerrace({i,width:w,height:h,depth:d,part,panels,terrace,gr
  const back=-d/2,front=d/2,industrial=terrace?.use==='workshop'||i>=42,home=terrace?.use==='home'||(!terrace&&i%3===1)
  if(terrace){
   const tile=terraceRooms.indexOf(terrace),g=new T.PlaneGeometry(w-.76,.72),uv=g.attributes.uv
-  for(let j=0;j<uv.count;j++)uv.setXY(j,(tile%2+.004+uv.getX(j)*.992)/2,(7-Math.floor(tile/2)+.02+uv.getY(j)*.96)/8)
+  for(let j=0;j<uv.count;j++)uv.setXY(j,(tile%2+.004+uv.getX(j)*.992)/2,(15-Math.floor(tile/2)+.02+uv.getY(j)*.96)/16)
   part(0,3.48,front+.105,w-.56,.89,.17,wood)
   batch(rotate(x,z,angle,g.translate(0,3.48,front+.196)),signs,group)
  }

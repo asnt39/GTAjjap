@@ -4,7 +4,7 @@ export const crossings=[
  {x:-68,z:99,span:11,width:2.5,axis:'z'},
  {x:-146,z:31,span:10,width:2.4,axis:'z'},
  {x:-187,z:74.4,span:10,width:2.4,axis:'z'},
- {x:-119.2,z:23,span:9,width:2.4,axis:'x'},
+ {x:-127.4,z:23,span:9,width:2.2,axis:'x'},
  {x:-178.3,z:100.5,span:9,width:2.4,axis:'x'}
 ]
 export const loadingCourt=[-139,-115.95,49.25,57.3]

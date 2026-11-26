@@ -98,7 +98,10 @@ const driveSurfaces=[...driveRoads,...drivePavement]
 export const pavedDriveBounds=[-225,25.3,-101,144]
 export const unpavedDriveBlocks=townTiles([...driveSurfaces,pavedDriveBounds],
  (x,z)=>!driveSurfaces.some(rect=>contains(rect,x,z)))
-export const onDrivePavement=(x,z)=>drivePavement.some(rect=>contains(rect,x,z))
+export function drivePavementHeight(x,z){
+ if(within(loadingCourt,x,z)||within(serviceApron,x,z))return 0
+ return drivePavement.some(rect=>contains(rect,x,z))?.083*crossingRamp(x,z):0
+}
 
 // Use the extended road mask only where the two networks meet or in the
 // expansion. The original Docklands mask still handles the rest of the map.

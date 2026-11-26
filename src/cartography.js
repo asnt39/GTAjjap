@@ -1,3 +1,5 @@
+import {citySpots} from './city-life-plan.js'
+import {crossings,loadingCourt,pocketGarden} from './street-plan.js'
 import {terraceRooms,terracePoint} from './terrace-plan.js'
 import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
 import {premises} from './market-plan.js'
@@ -12,13 +14,25 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  const rect=(x,z,a,b,fill)=>{c.fillStyle=fill;c.fillRect(x,z,a,b)}
  rect(-400,-400,800,800,'#283534');rect(26,-400,400,800,'#294950')
  for(let j=-4;j<=4;j++){const z=j*44+8;rect(26,z,9,6,'#34403d');rect(26,z+6,9,1,'#6c7468')}
- for(let x=-110;x<-10;x+=17){for(let z=-122;z<90;z+=13){if(z>-47&&z<-29)continue;rect(x,z,13,10,'#374541');c.strokeStyle='#4a554b';c.lineWidth=.4;c.strokeRect(x,z,13,10)}}
  for(let j=0;j<19;j++){const z=-90+j*8;rect(14,z,7.5,3,'#46524a');rect(17,z+3.6,6,2,'#424e46')}
  function road(points,width){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.strokeStyle='#84908a';c.lineWidth=width+1.2;c.stroke();c.strokeStyle='#576662';c.lineWidth=width;c.stroke()}
- road([[-1,-150],[0,-93],[0,63]],9);road([[-120,-37],[23,-37]],7);road([[-27,-130],[-27,-40],[-42,33],[-40,90]],3);road([[-27,50],[-8,50],[0,58]],4)
- c.setLineDash([2.5,4]);c.lineWidth=.5;c.strokeStyle='#abb19a';c.beginPath();c.moveTo(0,-105);c.lineTo(0,67);c.stroke();c.setLineDash([])
+ road([[0,-101],[0,63]],12);road([[-97,-37],[25.3,-37]],12)
+ c.setLineDash([2.5,4]);c.lineWidth=.5;c.strokeStyle='#abb19a';c.beginPath();c.moveTo(0,-101);c.lineTo(0,63);c.stroke();c.setLineDash([])
  for(const [a,b,n,s] of townPavement)rect(a,n,b-a,s-n,'#6c6352')
  for(const [a,b,n,s] of townRoadSurface)rect(a,n,b-a,s-n,'#57534b')
+ for(const [bounds,color] of [[loadingCourt,'#45575a'],[pocketGarden,'#475943']]){
+  const [a,b,n,s]=bounds;rect(a,n,b-a,s-n,color)
+ }
+ for(const crossing of crossings){
+  const along=crossing.axis==='z'
+  rect(crossing.x-(along?crossing.span:crossing.width)*.5,crossing.z-(along?crossing.width:crossing.span)*.5,
+   along?crossing.span:crossing.width,along?crossing.width:crossing.span,'#858780')
+ }
+ for(const spot of citySpots){
+  if(overview&&!['atm','recreation','repair'].includes(spot.type))continue
+  if(!overview&&Math.hypot(spot.x-player.x,spot.z-player.z)>70)continue
+  rect(spot.x-1,spot.z-1,2,2,'#b4dbbe')
+ }
  rect(-58.9,-56,5.8,10,'#776c5b')
  for(const r of terraceRooms){
   const w=r.cos?r.width:r.depth,d=r.cos?r.depth:r.width
