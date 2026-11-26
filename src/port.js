@@ -3,7 +3,7 @@ import {loadPortProp} from './port-props.js';
 import * as THREE from 'three';
 
 const PI = Math.PI;
-const assetRoot = `${import.meta.env.BASE_URL}assets/port/`;
+const assetRoot = `${import.meta.env?.BASE_URL ?? '/'}assets/port/`;
 const boxShape = new THREE.BoxGeometry(1, 1, 1);
 const rodShape = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
 const tankShape = new THREE.CylinderGeometry(0.5, 0.5, 1, 24);

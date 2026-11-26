@@ -55,6 +55,25 @@ export async function buildArchitecture(scene,addCollider,surfaceMaps){
    activeBatch=batches
   }else if(home){
    buildGarage({cube,panel,addCollider,wall:walls[skin],iron,trim,ledge,lit},h)
+  }else if(x>0&&(z===48||z===-72.7)){
+   // The ends of the older terminal apron overlap these two street buildings.
+   // Keep their upper floors, with a genuine clearance bay below the deck.
+   const head=3.58,left=12.16,right=16.84
+   for(const [a,b] of [[x,left],[right,x+depth]]){
+    cube((a+b)/2,head/2,z,b-a,head,w,walls[skin])
+    addCollider(a,b,z-w/2,z+w/2,head)
+   }
+   cube(x+depth/2,(h+head)/2,z,depth,h-head,w,walls[skin])
+   addCollider(x,x+depth,z-w/2,z+w/2,h,false,head)
+   for(const end of [-1,1]){
+    const zz=z+end*(w/2-.20)
+    cube((left+right)/2,head+.16,zz,right-left+.3,.32,.4,iron)
+    for(const xx of [left-.04,right+.04]){
+     cube(xx,1.62,zz,.19,3.22,.38,ledge)
+     for(let band=0;band<3;band++)cube(xx+Math.sign(14.5-xx)*.10,.45+band*.40,zz,.04,.15,.36,iron)
+    }
+   }
+   for(const off of [-.3,.2])cube(14.5,head-.06,z+w*off,1.08,.075,.28,lit)
   }else{
    cube(tx(-depth/2),h/2,z,depth,h,w,walls[skin])
    addCollider(Math.min(x,tx(-depth)),Math.max(x,tx(-depth)),z-w/2,z+w/2,h)

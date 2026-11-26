@@ -2,7 +2,7 @@ import {loadPortProp} from './port-props.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {marketEntrance} from './old-town-plan.js'
-import {premises,front} from './market-plan.js'
+import {premises,front,windowMasonry} from './market-plan.js'
 
 // Batch fixed fittings by material; unloading releases district-owned GPU resources.
 export async function marketDetail(){
@@ -50,7 +50,7 @@ export async function marketDetail(){
   const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;textures.push(t)
   box(x,y,z,w,h,.045,mat(0xffffff,{map:t}))
  }
- const metal=mat(0x324041),wood=mat(0x916d4c),linen=mat(0xdcccad),stripe=mat(0xd7c093),glass=mat(0x718b90,{metalness:.55}),paper=mat(0xc6bd98)
+ const metal=mat(0x324041),wood=mat(0x916d4c),linen=mat(0xdcccad),stripe=mat(0xd7c093),glass=mat(0x899f9e,{metalness:.16,roughness:.2,transparent:true,opacity:.23,depthWrite:false}),paper=mat(0xc6bd98)
  box(-68,-.008,-37,56,.018,12,mat(0xaaaaaa,{map:maps[3]}))
  const sidewalk=mat(0xc3bab0,{map:maps[4]})
  box(-68,.045,-44.5,56,.07,3,sidewalk)
@@ -58,9 +58,12 @@ export async function marketDetail(){
  for(let x=-42;x>-95;x-=5)box(x,.012,-37,2,.018,.1,stripe)
  for(const [i,p] of premises.entries()){
   const facade=mat(0xffffff,{map:maps[i]}),glow=mat(p.light,{emissive:p.light,emissiveIntensity:.9})
+  for(const [x,y,,w,h] of windowMasonry(p.x))box(x,y,front+.13,w,h,.025,facade)
   for(const dx of [-3.25,3.25]){
-   box(p.x+dx,1.65,front+.135,4.46,3.27,.035,facade)
-   box(p.x+dx,1.72,front+.18,2.8,1.52,.045,metal)
+   for(const side of [-1,1]){
+    box(p.x+dx+side*1.35,1.70,front+.16,.09,1.52,.16,metal)
+    box(p.x+dx,1.70+side*.72,front+.16,2.79,.09,.16,metal)
+   }
    box(p.x+dx,1.72,front+.21,2.65,1.37,.04,glass)
    for(const k of [-.8,0,.8])box(p.x+dx+k,1.72,front+.24,.065,1.42,.045,metal)
    box(p.x+dx,1.01,front+.26,2.95,.12,.22,wood)

@@ -110,7 +110,7 @@ test('a player car climbs paved curbs with a bump and retains speed',()=>{
 })
 
 test('a player car on a sidewalk still stops at the edge of paved ground',()=>{
- const car=Object.assign(newDrive({...rig,x:7,z:25,heading:Math.PI/2}),{speed:8})
+ const car=Object.assign(newDrive({...rig,x:7,z:-85,heading:Math.PI/2}),{speed:8})
  for(let i=0;i<100;i++)stepDrive(car,control(1),[],1/120,[],true)
  assert(car.x>=8&&car.x+rig.length/2<=10.8)
  assert.equal(car.speed,0)

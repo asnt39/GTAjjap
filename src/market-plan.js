@@ -16,6 +16,15 @@ export function insidePremises(x,z){
  return premises.find(p=>Math.abs(x-p.x)<5.4&&z<front&&z>back)
 }
 export const marketSights=premises.map(p=>({x:p.x+1,z:-51,tag:p.tag,title:p.title,name:p.action,body:p.report}))
+export function windowMasonry(x){
+ const parts=[]
+ for(const side of [-1,1]){
+  const mid=x+side*3.25
+  parts.push([mid,.48,front,4.5,.96,.24],[mid,2.97,front,4.5,1.06,.24])
+  for(const jamb of [-1,1])parts.push([mid+jamb*1.81,1.70,front,.88,1.48,.24])
+ }
+ return parts
+}
 export function roomParts(p){
  const x=p.x
  return [

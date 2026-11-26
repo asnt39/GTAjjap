@@ -27,7 +27,22 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  const walls=[0xc6aba1,0xd4c5a6,0xc0c5bc].map((color,i)=>standard(color,{map:architecture[i]}))
  const atlas=standard(0xeddbc0,{map:architecture[4],emissiveMap:architecture[4],emissive:0xd9ad7e,emissiveIntensity:.24})
  const batches=new Map(),solidBox=new T.BoxGeometry()
+ const colored=new Set([stone,trim,roof,wood,paint,fabric]),masonry=standard(0xffffff,{vertexColors:true})
+ const blocks=new Map()
+ function detailBlock(x,z){
+  const bx=Math.floor(x/42),bz=Math.floor(z/42),key=bx+','+bz
+  if(!blocks.has(key)){
+   const group=new T.Group();town.add(group)
+   blocks.set(key,{group,x:(bx+.5)*42,z:(bz+.5)*42})
+  }
+  return blocks.get(key).group
+ }
  function batch(geometry,material,group=structures){
+  if(colored.has(material)){
+   const rgb=new Uint8Array(geometry.attributes.position.count*3),t=material.color
+   for(let i=0;i<rgb.length;i+=3){rgb[i]=Math.round(t.r*255);rgb[i+1]=Math.round(t.g*255);rgb[i+2]=Math.round(t.b*255)}
+   geometry.setAttribute('color',new T.Uint8BufferAttribute(rgb,3,true));material=masonry
+  }
   const mats=batches.get(group)??new Map(),parts=mats.get(material)??[]
   const piece=geometry.index?geometry.toNonIndexed():geometry
   parts.push(piece);mats.set(material,parts);batches.set(group,mats)
@@ -83,7 +98,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   const sideways=Math.abs(Math.sin(angle))>.5
   const w=sideways?depth:width,d=sideways?width:depth
   if(!room&&!terrace)addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
-  const group=inWestBank(x,z)?westStructures:structures
+  let group=inWestBank(x,z)?westStructures:structures
   const facade=walls[skin],face=depth/2
   function part(px,y,pz,pw,ph,pd,mat,tileSurface=false,tilt=0,target=group){
    const g=solidBox.clone().scale(pw,ph,pd)
@@ -97,7 +112,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    g.rotateX(tilt).translate(px,y,pz)
    batch(rotate(x,z,angle,g),mat,target)
   }
-  detailTerrace({i,width,height,depth,part,panels,terrace,group,x,z,angle,rotate,batch,signs,materials:{iron,stone,trim,wood,roof,facade,lamp}})
+
   if(room){
    const roomGroup=new T.Group();roomGroup.name=room.title+' interior';town.add(roomGroup)
    const decorate=(mesh,px,y,pz)=>{mesh.position.set(px,y,pz).applyAxisAngle(T.Object3D.DEFAULT_UP,angle).add(new T.Vector3(x,0,z));mesh.rotation.y=angle;roomGroup.add(mesh)}
@@ -114,6 +129,8 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    peak.moveTo(-width/2,0);peak.lineTo(0,1.23);peak.lineTo(width/2,0);peak.closePath()
    batch(rotate(x,z,angle,new T.ExtrudeGeometry(peak,{depth:depth+.18,bevelEnabled:false}).translate(0,height+.40,-depth/2-.09)),roof,group)
   }
+  group=detailBlock(x,z)
+  detailTerrace({i,width,height,depth,part,panels,terrace,group,x,z,angle,rotate,batch,signs,materials:{iron,stone,trim,wood,roof,facade,lamp}})
   for(const side of [-1,1])part(side*(width/2-.21),height/2+.09,face+.07,.36,height,.18,trim)
   const shop=i%3!==1
   const door=shop?width*.25:0
@@ -226,10 +243,19 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   // of the shadow map until the player approaches either side of the loop.
   const shadows=Math.hypot(Math.max(0,position.x+23,-86-position.x),Math.max(0,17-position.z,position.z-126))<38
   const westShadows=position.x<-69
-  const changed=structures.children[0].castShadow!==shadows||westStructures.children[0].castShadow!==westShadows
+  let changed=structures.children[0].castShadow!==shadows||westStructures.children[0].castShadow!==westShadows
   if(changed){
    for(const mesh of structures.children)mesh.castShadow=shadows
    for(const mesh of westStructures.children)mesh.castShadow=westShadows
+  }
+  for(const block of blocks.values()){
+   const d=Math.max(0,Math.abs(position.x-block.x)-21)**2+Math.max(0,Math.abs(position.z-block.z)-21)**2
+   const visible=d<(block.group.visible?84:78)**2,shadow=d<38**2
+   if(block.group.visible!==visible){block.group.visible=visible;changed=true}
+   if(block.group.castShadow!==shadow){
+    block.group.castShadow=shadow;for(const m of block.group.children)m.castShadow=shadow
+    changed=true
+   }
   }
   if(barriers.visible===!open)return changed
   barriers.visible=!open

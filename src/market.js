@@ -1,7 +1,7 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {streamDistrict} from './district-stream.js'
-import {insidePremises,marketCollision,roomParts,premises} from './market-plan.js'
+import {insidePremises,marketCollision,roomParts,windowMasonry,premises} from './market-plan.js'
 
 export function buildMarket(scene,addCollider){
  marketCollision(addCollider)
@@ -9,7 +9,7 @@ export function buildMarket(scene,addCollider){
  const shell=new T.Group()
  const walls=[]
  for(const p of premises){
-  const parts=[...roomParts(p),[p.x,3.53,-51,11.5,.18,10.6],[p.x,.025,-51,11,.05,10],[p.x,2.98,-46,2,1.08,.24]]
+  const parts=[...windowMasonry(p.x),...roomParts(p).filter(part=>part[2]!==-46),[p.x,3.53,-51,11.5,.18,10.6],[p.x,.025,-51,11,.05,10],[p.x,2.98,-46,2,1.08,.24]]
   const tint=new T.Color(p.color)
   for(const [x,y,z,w,h,d] of parts){
    const g=new T.BoxGeometry(w,h,d).translate(x,y,z)

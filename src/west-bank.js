@@ -71,8 +71,19 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   addCollider(x-.95,x+.95,z-.26,z+.28,.59,true)
  }
  column(stone,-167.8,48.5,1.54,.32)
- column(steel,-167.8,48.5,.48,1.32,.94)
- addCollider(-168.26,-167.34,48.01,48.99,1.61)
+ const coping=new T.Mesh(new T.TorusGeometry(1.37,.115,7,36),stone)
+ coping.rotation.x=Math.PI/2;coping.position.set(-167.8,.42,48.5);district.add(coping)
+ const basin=new T.Mesh(new T.CircleGeometry(1.38,36),new T.MeshStandardMaterial({color:0x658d89,roughness:.21,metalness:.42}))
+ basin.rotation.x=-Math.PI/2;basin.position.set(-167.8,.40,48.5);district.add(basin)
+ column(steel,-167.8,48.5,.38,1.09,.91)
+ column(stone,-167.8,48.5,.67,.16,1.42)
+ column(steel,-167.8,48.5,.17,.28,1.56)
+ // Approximate the circular plinth with short chords so the corners stay walkable.
+ for(let k=0;k<8;k++){
+  const offset=(k-3.5)*.36,half=Math.sqrt(1.45**2-offset**2)
+  addCollider(-167.8-half,-167.8+half,48.5+offset-.18,48.5+offset+.18,.48,true)
+ }
+ addCollider(-168.18,-167.42,48.12,48.88,1.70)
  sign('FOUNDRY GARDEN',-166.1,1.3,51.1,2.8,Math.PI*.20)
  const water=new T.Mesh(new T.CylinderGeometry(.065,.18,.82,10),new T.MeshStandardMaterial({color:0x9aced5,roughness:.24,transparent:true,opacity:.72}))
  water.position.set(-167.8,1.84,48.5);water.visible=false;district.add(water)
@@ -99,14 +110,14 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  const beams=new T.InstancedMesh(solid,steel,truss.length);truss.forEach((m,i)=>beams.setMatrixAt(i,m))
  beams.receiveShadow=true;district.add(beams)
  for(const x of [-220.6,-216.55,-212.5,-208.45,-204.4]){
-  box(paint,x,5.56,99.63,.11,1.56,.15)
+  box(paint,x,4.34,99.63,.11,.65,.15)
   box(wood,x,.62,110.19,2.64,.15,.59);addCollider(x-1.32,x+1.32,109.89,110.49,.71,true)
  }
  box(steel,-212.5,4.72,99.63,17.8,.28,.21)
  for(let i=0;i<12;i++){
   const ax=-220.2+i*1.39
-  girder(ax,6.55,98,ax+.68,7.13,98,.072,.10)
-  girder(ax+.68,7.13,98,ax+1.37,6.55,98,.072,.10)
+  girder(ax,6.75,98,ax+.68,7.13,98,.072,.10)
+  girder(ax+.68,7.13,98,ax+1.37,6.75,98,.072,.10)
  }
  const lattice=new T.InstancedMesh(solid,steel,24);truss.slice(-24).forEach((m,i)=>lattice.setMatrixAt(i,m));district.add(lattice)
  box(steel,-212.6,7.16,98,17.0,.12,.20)
