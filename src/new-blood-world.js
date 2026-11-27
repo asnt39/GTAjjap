@@ -150,8 +150,8 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
   scene.add(n.rig.root);crowd.all.push(n)
   return true
  }
- function actionNear(pos,n){
-  if(!n?.joined||!n.f.hp||n.f.action||distance(pos,n.pos)>2.18||Math.abs((pos.y??0)-n.pos.y)>.85)return false
+ function actionNear(pos,n,range=2.18){
+  if(!n?.joined||!n.f.hp||n.f.action||distance(pos,n.pos)>range||Math.abs((pos.y??0)-n.pos.y)>.85)return false
   from.set(pos.x,(pos.y??0)+1.24,pos.z);to.copy(n.pos);to.y+=1.24
   return cameraFraction(from,to,boxes)>.91
  }
@@ -163,7 +163,7 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
    met=true
    return {message:'Victor · 뒷문은 잠그라고 했는데… Jack, 방금 소리 들었나?',met:true}
   }})
-  if(actionNear(pos,jack)){
+  if(actionNear(pos,jack,current==='entry'&&jack?.route.mode==='hold'?3.2:2.18)){
    const follow=jack.route.mode==='hold',first=follow&&current==='entry'&&!jack.joinedCommand
    const command=first?'join':follow?'follow':'hold'
    actions.push({id:'new-blood-jack-'+command,label:follow?'Jack · 따라와':'Jack · 여기서 대기',x:jack.pos.x,z:jack.pos.z,activate(){

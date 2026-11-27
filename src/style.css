@@ -116,6 +116,11 @@ body.speaking #guide-marker { visibility:hidden }
 #objective small{color:#d3dfd7;font-size:11px;font-variant-numeric:tabular-nums}
 @media(pointer:coarse) and (orientation:landscape) and (max-height:430px){
  #objective{left:auto;right:max(16px,env(safe-area-inset-right));top:63px;max-width:min(38vw,235px)}
+ #vitals{left:32vw;right:auto;top:63px;max-width:24vw;padding:6px 8px}
+ #vitals span:not(:empty){display:block}
+}
+@media(pointer:coarse) and (orientation:landscape) and (max-width:540px) and (max-height:430px){
+ #vitals{top:99px}
 }
 #mission-event{position:absolute;z-index:3;top:max(120px,23vh);left:50%;width:min(460px,92vw);transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 2px 8px #10191b,0 0 22px #10191b;animation:mission-arrive .30s ease-out}
 #mission-event small,#mission-event strong,#mission-event span{display:block}
