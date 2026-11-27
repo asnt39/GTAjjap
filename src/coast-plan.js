@@ -22,6 +22,7 @@ export const coastSights=[
  {x:44,z:146.5,title:'Meridian Beach',tag:'SEA',name:'해안 안내',body:'산책로 동쪽에서 모래사장과 수영 구역으로 내려갈 수 있어. 부표 안쪽을 사용하고, 선착장에서 E를 눌러 스키프나 스포츠 보트에 탑승해.'}
 ]
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
+const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t)}
 export function shoreX(z){
  const t=clamp((z-shoreNorth)/(shoreSouth-shoreNorth),0,1)
  const envelope=Math.sin(t*Math.PI)
@@ -33,7 +34,10 @@ export function seabed(x,z){
  const bank=shoreX(z)-x,island=shoalDistance(x,z)*12
  const delta=Math.max(bank,island)
  const slope=delta<0?.145:.128
- return seaLevel+clamp(delta*slope,-8.5,1.263)+(delta>11?.10*Math.sin((x-27)*.25)*Math.sin(z*.12):0)
+ const dry=smooth(9,18,bank)*smooth(42,50,x)*(1-smooth(67,76,x))
+ const corridor=smooth(5,13,Math.abs(z-beachGate.z))*smooth(120,134,z)*(1-smooth(201,220,z))
+ const dunes=.29*dry*corridor*(.55+.28*Math.sin(x*.41+z*.25)+.17*Math.cos(x*.57-z*.31))
+ return seaLevel+clamp(delta*slope,-8.5,1.263)+(delta>11?.10*Math.sin((x-27)*.25)*Math.sin(z*.12):0)+dunes
 }
 export function beachGround(x,z){
  if(inPier(x,z))return dock.height
@@ -69,6 +73,14 @@ export function rockSolid(x,z,r=0){
 export function boatWater(x,z,draft){
  return inCoast(x,z,.13)&&seabed(x,z)<seaLevel-draft&&!inPier(x,z,-.30)&&!rockSolid(x,z,.16)
 }
+// Shared coefficients keep the rendered surface and buoyancy in phase.
+const waves=[{x:.17,z:.22,speed:1.14,amplitude:.081},{x:.33,z:-.13,speed:-1.62,amplitude:.032}]
 export function swellAt(x,z,t){
- return seaLevel+.081*Math.sin(.17*x+.22*z+t*1.14)+.032*Math.sin(.33*x-.13*z-t*1.62)
+ return seaLevel+waves.reduce((height,w)=>height+w.amplitude*Math.sin(w.x*x+w.z*z+w.speed*t),0)
 }
+const decimal=value=>value.toFixed(5)
+const phase=w=>`dot(p,vec2(${decimal(w.x)},${decimal(w.z)}))+t*(${decimal(w.speed)})`
+export const waveSource=`
+ float swell(vec2 p,float t){return ${waves.map(w=>`${decimal(w.amplitude)}*sin(${phase(w)})`).join('+')};}
+ vec2 swellSlope(vec2 p,float t){return ${waves.map(w=>
+  `vec2(${decimal(w.x*w.amplitude)},${decimal(w.z*w.amplitude)})*cos(${phase(w)})`).join('+')};}`

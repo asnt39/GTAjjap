@@ -104,8 +104,9 @@ export async function start(onContextLost){
  const surfaceMaps={meadow:landscapeMaterial()}
  buildEstuary(scene,surfaceMaps.meadow,addCollider)
  const coastUpdate=buildCoast(scene,addCollider)
- const landFog=scene.fog.color.clone(),landDensity=scene.fog.density,waterColor=new THREE.Color(0x497a79)
+ const landFog=scene.fog.color.clone(),landDensity=scene.fog.density,waterColor=new THREE.Color(0x5b9286),waterDeep=new THREE.Color(0x214858)
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
+ portUpdate.optics(scene,sunlight)
  const landBackground=scene.background
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
@@ -805,8 +806,12 @@ export async function start(onContextLost){
    camera.position.y=wetView>.53?Math.min(seaLevel-.18,camera.position.y):Math.max(seaLevel+.20,camera.position.y)
   }else camera.position.y=Math.max(.24,camera.position.y)
   const submerged=camera.position.y<seaLevel-.06
-  scene.fog.color.copy(submerged?waterColor:landFog)
-  scene.fog.density=submerged?.078+Math.max(0,seaLevel-camera.position.y)*.006:landDensity
+  const depth=Math.max(0,seaLevel-camera.position.y)
+  if(submerged){
+   waterColor.setHex(0x5b9286).lerp(waterDeep,1-Math.exp(-depth*.31))
+   scene.fog.color.copy(waterColor)
+  }else scene.fog.color.copy(landFog)
+  scene.fog.density=submerged?.064+depth*.012:landDensity
   scene.background=submerged?waterColor:landBackground
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
   if(shake){camera.position.x+=Math.sin(elapsed*63)*.1*shake;camera.position.y+=Math.cos(elapsed*80)*.075*shake}
@@ -1123,7 +1128,7 @@ export async function start(onContextLost){
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
    const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos,quality==='low'),rowChanged=updateRow(pos,dt)
-   const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw),coastChanged=coastUpdate(pos,elapsed)
+   const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw),coastChanged=coastUpdate(pos,elapsed,camera.position.y)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
    if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||coastChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true

@@ -24,14 +24,17 @@ function hull(length,width){
  return g
 }
 
-function trail(scene){
- const limit=24,points=[],position=new Float32Array(limit*2*6*3),alpha=new Float32Array(limit*2*6)
+function trail(scene,swim=false){
+ const limit=24,points=[],position=new Float32Array(limit*3*6*3),alpha=new Float32Array(limit*3*6)
  const geometry=new T.BufferGeometry()
  geometry.setAttribute('position',new T.BufferAttribute(position,3).setUsage(T.DynamicDrawUsage))
  geometry.setAttribute('foam',new T.BufferAttribute(alpha,1).setUsage(T.DynamicDrawUsage))
  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,forceSinglePass:true,
-  vertexShader:`attribute float foam; varying float opacity; void main(){opacity=foam;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-  fragmentShader:`varying float opacity;void main(){gl_FragColor=vec4(.69,.87,.82,opacity);}`})
+  vertexShader:`attribute float foam; varying float opacity; varying vec2 surface; void main(){opacity=foam;surface=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying float opacity; varying vec2 surface;void main(){
+   float streak=sin(surface.x*7.1+surface.y*12.8+.56*sin(surface.x*15.4-surface.y*10.));
+   gl_FragColor=vec4(.69,.87,.82,opacity*(.61+.39*smoothstep(-.5,.5,streak)));
+  }`})
  const mesh=new T.Mesh(geometry,material);mesh.frustumCulled=false;mesh.renderOrder=4
  scene.add(mesh)
  let previous=-1
@@ -44,10 +47,15 @@ function trail(scene){
   let offset=0
   const index=(a,b,side)=>{
    const edge=(node,inner)=>{
-    const age=t-node.t,width=.26+(1-Math.exp(-age*.87))*(.8+.13*node.speed)
-    const v=side*(width+(inner?-.37:.12)),px=node.x+Math.cos(node.heading)*v,pz=node.z+Math.sin(node.heading)*v
+    const age=t-node.t,growth=1-Math.exp(-age*.87)
+    const width=swim?.18+growth*.47:.39+growth*(.88+.13*node.speed)
+    const jitter=.055*Math.sin(node.x*5.2+node.z*2.7+side)
+    const v=side===0?(inner?-.19:.19)*(1+growth):side*(width+(inner?-.24:.11)+jitter)
+    const px=node.x+Math.cos(node.heading)*v,pz=node.z+Math.sin(node.heading)*v
     position[offset*3]=px;position[offset*3+1]=swellAt(px,pz,t)+.035;position[offset*3+2]=pz
-    alpha[offset++]=inner?Math.min(.41,.08+node.speed*.042)*(1-age/3.25)*Math.min(age*6,1):0
+    const fade=(1-age/3.25)*Math.min(age*7,1)
+    alpha[offset++]=side===0?.21*fade*Math.exp(-age*.84):
+     inner?Math.min(swim?.22:.47,.07+node.speed*.043)*fade:0
    }
    edge(a,true);edge(a,false);edge(b,true);edge(a,false);edge(b,false);edge(b,true)
   }
@@ -55,6 +63,7 @@ function trail(scene){
    const a=points[i-1],b=points[i]
    if(b.t-a.t>.44)continue
    index(a,b,-1);index(a,b,1)
+   if(!swim)index(a,b,0)
   }
   geometry.setDrawRange(0,offset);mesh.visible=offset>0
   if(offset)geometry.attributes.position.needsUpdate=geometry.attributes.foam.needsUpdate=true
@@ -63,7 +72,7 @@ function trail(scene){
 }
 
 export function boatArt(scene,boats){
- const swimTrail=trail(scene)
+ const swimTrail=trail(scene,true)
  const black=new T.MeshStandardMaterial({color:0x293435,roughness:.77})
  const alloy=new T.MeshStandardMaterial({color:0x7c989a,roughness:.39,metalness:.35})
  const deck=new T.MeshStandardMaterial({color:0xd3c9ab,roughness:.72})

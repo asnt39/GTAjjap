@@ -1,5 +1,5 @@
 import {quayApron} from './quay-plan.js'
-import {seaLevel,shoreNorth,shoreSouth,shoal} from './coast-plan.js'
+import {coastalSurface} from './coastal-surface.js'
 import {loadPortProp} from './port-props.js';
 import * as THREE from 'three';
 
@@ -49,85 +49,6 @@ function containerShape(style) {
     }
   }
   return shape;
-}
-
-function waterSurface() {
-  const material = new THREE.ShaderMaterial({
-    fog: true,
-    transparent:true,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {time:{value:0},rippleQuality:{value:1}}]),
-    vertexShader: `
-      uniform float time;
-      varying vec3 world;
-      #include <fog_pars_vertex>
-      void main() {
-        world = (modelMatrix * vec4(position, 1.)).xyz;
-        world.y+=.081*sin(.17*world.x+.22*world.z+time*1.14)+.032*sin(.33*world.x-.13*world.z-time*1.62);
-        vec4 mvPosition = viewMatrix * vec4(world, 1.);
-        gl_Position = projectionMatrix * mvPosition;
-        #include <fog_vertex>
-      }`,
-    fragmentShader: `
-      uniform float time;
-      uniform float rippleQuality;
-      varying vec3 world;
-      #include <fog_pars_fragment>
-      float hash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-      float noise(vec2 p) {
-        vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
-        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);
-      }
-      void main() {
-        vec2 p=world.xz;
-        float t=time*.45;
-        float detail=(1.-smoothstep(.06,.67,max(fwidth(p.x),fwidth(p.y))))*rippleQuality;
-        float swell=sin(dot(p,vec2(.19,.24))+t*.51+sin(p.y*.067-t*.11));
-        float shore=1.-smoothstep(.0,5.5,length(vec2(p.x-26.05,max(max(-71.-p.y,p.y-43.),0.))));
-        float u=clamp((p.y-${shoreNorth.toFixed(1)})/(${shoreSouth-shoreNorth}.0),0.,1.);
-        float edge=26.+sin(u*3.14159265)*(53.+9.*sin(u*10.)+3.25*sin(u*23.));
-        float isle=(length((p-vec2(${shoal.x}.0,${shoal.z}.0))/vec2(${shoal.rx}.0,${shoal.rz}.0))-1.)*12.;
-        float sandDistance=max(0.,min(p.x-edge,isle));
-        float coast=smoothstep(105.,121.,p.y)*(1.-smoothstep(237.,255.,p.y));
-        p.y+=.32*swell;
-        float turbulence=rippleQuality>.6?noise(p*.16):.43+.28*sin(p.x*.37+p.y*.31);
-        float a=sin(p.y*2.5+p.x*.5+turbulence*4.+t*1.4);
-        float b=sin(p.x*1.1-p.y*3.4+sin(p.x*.53-t)+t);
-        float c=rippleQuality>.6?noise(vec2(p.x*1.2+t*.21,p.y*4.-t*.27)):.5+.30*sin(p.x*1.51+p.y*2.47+t*.63)*b;
-        vec3 n=normalize(vec3(.052*swell+detail*(.084*a+.054*b),gl_FrontFacing?1.:-1.,detail*(.105*b+(c-.5)*.4)));
-        vec3 view=normalize(cameraPosition-world);
-        vec3 reflected=reflect(-view,n);
-        float fres=pow(1.-max(dot(n,view),0.),3.);
-        float peach=pow(max(dot(normalize(vec3(-.42,.05,-.91)),reflected),0.),5.);
-        vec3 sky=mix(vec3(.20,.35,.43),vec3(.78,.41,.25),peach);
-        float shallow=coast*(1.-smoothstep(.0,18.,sandDistance));
-        vec3 col=mix(mix(vec3(.023,.091,.120),vec3(.079,.247,.222),max(shore,shallow)),sky,.22+.57*fres);
-        float ripple=detail*smoothstep(.60,.88,c)*smoothstep(-.45,.8,b);
-        col+=vec3(.12,.16,.16)*ripple*(.27+.73*fres);
-        // Fragmented reflections beneath lamps on the opposite wharf.
-        float lights=exp(-abs(sin((p.y+p.x*.13)*.19))*(8.+p.x*.032))*
-                     smoothstep(.48,.77,c)*smoothstep(40.,79.,p.x);
-        col+=vec3(.53,.28,.11)*lights*detail;
-        float wake=p.x-26.1-.20*swell;
-        float wash=1.-smoothstep(.05,.41,abs(wake));
-        float retreat=(1.-smoothstep(.06,.32,abs(wake-.75-.11*a)))*.41;
-        float breaks=smoothstep(.39,.80,c+.13*b);
-        col+=vec3(.15,.20,.185)*shore*(wash+retreat)*detail*breaks;
-        float breaker=1.-smoothstep(.08,1.15,abs(sandDistance-.6-1.16*(1.+swell)));
-        float backwash=(1.-smoothstep(.08,.74,abs(sandDistance-5.1-1.37*swell)))*.46;
-        float rock=min(abs(length((world.xz-vec2(111.,114.))/vec2(1.2,1.))-4.5),
-          abs(length((world.xz-vec2(129.,224.))/vec2(1.3,1.))-4.8));
-        col+=vec3(.24,.32,.29)*coast*((breaker+backwash)*(.32+.68*breaks)+(1.-smoothstep(.35,1.8,rock))*breaks*.54);
-        gl_FragColor=vec4(col,1.-shallow*.65*(1.-fres*.72));
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-        #include <fog_fragment>
-      }`
-  });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(392, 694, 51, 81), material);
-  mesh.rotation.x = -PI / 2;
-  mesh.position.set(222.05, seaLevel, 0);
-  mesh.name='Harbor and coastal water';
-  return mesh;
 }
 
 export async function buildPort(scene, addCollider) {
@@ -318,7 +239,7 @@ export async function buildPort(scene, addCollider) {
   }
   crane(17.47,-20.4,1,1,true);
   crane(17.48,-50.15,.96,2,true);
-  const water = waterSurface();
+  const water = coastalSurface();
   group.add(water);
   // A shallow-draft feeder alongside, with a raked stem and inset stern.
   function vessel(x,z) {
@@ -469,8 +390,17 @@ export async function buildPort(scene, addCollider) {
     mesh.computeBoundingSphere();
     group.add(mesh);
   }
-  return (_dt,elapsed,low=false)=>{
+  const update=(_dt,elapsed,low=false)=>{
     water.material.uniforms.time.value=elapsed;
     water.material.uniforms.rippleQuality.value=low?.45:1;
   };
+  update.optics=(scene,sun)=>{
+    const uniforms=water.material.uniforms;
+    uniforms.skyMap.value=scene.background;
+    uniforms.skyIntensity.value=scene.backgroundIntensity;
+    uniforms.skyRotation.value=scene.backgroundRotation.y;
+    uniforms.sunDirection.value.copy(sun.position).sub(sun.target.position).normalize();
+    uniforms.sunTint.value.copy(sun.color);
+  };
+  return update;
 }
