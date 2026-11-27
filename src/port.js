@@ -89,9 +89,10 @@ function waterSurface() {
         float sandDistance=max(0.,min(p.x-edge,isle));
         float coast=smoothstep(105.,121.,p.y)*(1.-smoothstep(237.,255.,p.y));
         p.y+=.32*swell;
-        float a=sin(p.y*2.5+p.x*.5+noise(p*.16)*4.+t*1.4);
+        float turbulence=rippleQuality>.6?noise(p*.16):.43+.28*sin(p.x*.37+p.y*.31);
+        float a=sin(p.y*2.5+p.x*.5+turbulence*4.+t*1.4);
         float b=sin(p.x*1.1-p.y*3.4+sin(p.x*.53-t)+t);
-        float c=noise(vec2(p.x*1.2+t*.21,p.y*4.-t*.27));
+        float c=rippleQuality>.6?noise(vec2(p.x*1.2+t*.21,p.y*4.-t*.27)):.5+.30*sin(p.x*1.51+p.y*2.47+t*.63)*b;
         vec3 n=normalize(vec3(.052*swell+detail*(.084*a+.054*b),gl_FrontFacing?1.:-1.,detail*(.105*b+(c-.5)*.4)));
         vec3 view=normalize(cameraPosition-world);
         vec3 reflected=reflect(-view,n);

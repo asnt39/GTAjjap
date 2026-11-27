@@ -1,4 +1,5 @@
 import * as T from 'three'
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {seaLevel,swellAt} from './coast-plan.js'
 
 const clamp=T.MathUtils.clamp
@@ -70,9 +71,11 @@ export function boatArt(scene,boats){
  const rigs=boats.map(b=>{
   const root=new T.Group(),pilot=new T.Object3D();root.name=b.name
   const body=new T.MeshStandardMaterial({color:b.color,roughness:.48,metalness:.19,side:T.DoubleSide})
-  const lower=new T.Mesh(hull(b.length,b.width),body);lower.castShadow=lower.receiveShadow=true;root.add(lower)
+  const pieces=new Map([[body,[hull(b.length,b.width)]]])
   const block=(m,x,y,z,w,h,d,pitch=0)=>{
-   const n=new T.Mesh(rect,m);n.scale.set(w,h,d);n.position.set(x,y,z);n.rotation.x=pitch;n.castShadow=true;root.add(n)
+   const geometry=rect.clone().scale(w,h,d).rotateX(pitch).translate(x,y,z)
+   geometry.deleteAttribute('uv')
+   const list=pieces.get(m)??[];list.push(geometry);pieces.set(m,list)
   }
   block(deck,0,.311,.17,b.width*.88,.066,b.length*.74)
   block(deck,0,.304,-b.length*.32,b.width*.54,.066,b.length*.25)
@@ -88,6 +91,10 @@ export function boatArt(scene,boats){
   block(black,0,.25,b.length*.49,.49,.72,.44)
   block(alloy,0,-.22,b.length*.53,.14,.36,.21)
   block(black,0,-.40,b.length*.56,.38,.07,.14)
+  for(const [mat,list] of pieces){
+   const mesh=new T.Mesh(mergeGeometries(list),mat);mesh.castShadow=mesh.receiveShadow=true;root.add(mesh)
+   for(const piece of list)piece.dispose()
+  }
   pilot.position.set(-b.width*.20,-.39,.61);pilot.rotation.y=Math.PI
   root.add(pilot);scene.add(root)
   return {root,pilot,wake:trail(scene),boat:b}
