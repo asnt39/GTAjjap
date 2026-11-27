@@ -289,7 +289,7 @@ export function createEpisode(options={}) {
     if(record().status!=='active')return null
     const {goal,objective}=step()
     const contract=selectedStory()
-    return {goal,objective,stage:state.index+1,remaining:state.remaining,firstWork:contract===firstWork,storyTitle:contract?.title}
+    return {goal,objective,stage:state.index+1,step:record().step,title:mission().title,missionId:mission().id,remaining:state.remaining,firstWork:contract===firstWork,storyTitle:contract?.title}
   }
   function openingContact(){
     if(state.status==='active'||record().status==='active'||selectedStory()||!canStartOpening())return null

@@ -140,6 +140,16 @@ export function createEquipmentArt(character) {
    rig.offset('Spine2','y',(.16*lift-.21*reloadArc))
    rig.offset('Neck','z',-.10*lift)
   }
+  if(!bat&&weapon!=='grenade'){
+   const sprint=run*(1-lift)*(1-.92*reloadArc)
+   const sway=Math.sin(stride)
+   x+=(long?.018:.043)*sway*sprint
+   y-=sprint*(long?.052:.112)
+   z+=sprint*(long?.115:.046)+Math.cos(stride)*(long?.012:.028)*sprint
+   yaw+=(long?-.34:.19)*sprint+sway*.06*sprint
+   tilt+=(long?-.12:.54)*sprint
+   roll+=sprint*(long?-.09:.21)
+  }
   rig.placeArm(-1,x,y,z,1)
   character.root.getWorldQuaternion(rootQ)
   equipmentQ.setFromEuler(rotation.set(tilt,yaw,roll,'YXZ'))

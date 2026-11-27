@@ -17,11 +17,16 @@ export function equipmentTrace(boxes,cars,residents){
  return (origin,direction,limit,ignoreResident)=>{
   ray.set(origin,direction);let distance=limit,target=null,blocked=false,vehicle=null
   function nearest(t,n=null,car=null){if(t>=0&&t<distance){distance=t;target=n;blocked=!n;vehicle=car}}
+  const endX=origin.x+direction.x*Math.min(limit,512),endZ=origin.z+direction.z*Math.min(limit,512)
+  const west=Math.min(origin.x,endX),east=Math.max(origin.x,endX),north=Math.min(origin.z,endZ),south=Math.max(origin.z,endZ)
   for(const b of boxes){
+   if(Number.isFinite(limit)&&(b[1]<west||b[0]>east||b[3]<north||b[2]>south))continue
    let box=staticBounds.get(b)
    if(!box){
     box=bounds(b[0],b[1],b[6]??-.1,b[4],b[2],b[3])
     staticBounds.set(b,box)
+   }else if(b.moving){
+    box.min.set(b[0],b[6]??-.1,b[2]);box.max.set(b[1],b[4],b[3])
    }
    if(box.containsPoint(origin)){nearest(0);break}
    if(ray.intersectBox(box,hit))nearest(hit.distanceTo(origin))

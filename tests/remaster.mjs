@@ -1,3 +1,4 @@
+import {weaponShop} from '../src/weapon-shop-plan.js'
 import {cityFixtures} from "../src/city-fixtures.js"
 import {citySpots} from "../src/city-life-plan.js"
 import {crossings} from "../src/street-plan.js"
@@ -125,7 +126,7 @@ test('city-wide pedestrian flood reaches every new entrance and existing distric
   }
  }
  const targets=terraceRooms.map(r=>({...terracePoint(r,0,r.depth/2+1.3),name:r.title}))
- for(const [x,z] of [[-129,34],[-212,105],[-163,45],[-68,32],[0,64],[-56,-51],[-47,-50],[-93,-49],[14.5,-68],[14.5,41],[-16,42]])targets.push({x,z,name:x+','+z})
+ for(const [x,z] of [[-129,34],[-212,105],[-163,45],[-68,32],[0,64],[weaponShop.x,weaponShop.z],[-47,-50],[-93,-49],[14.5,-68],[14.5,41],[-16,42]])targets.push({x,z,name:x+','+z})
  for(const {x,z,name} of targets)assert(seen[index(x,z)],name+' must connect to Breakwater Avenue')
  console.log('Connected half-metre samples:',queue.length)
 })

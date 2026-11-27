@@ -1,3 +1,4 @@
+import {safeExit} from './driving.js'
 import {movePlayer} from './navigation.js'
 
 const profiles={
@@ -11,11 +12,8 @@ export function impulse(f,kind,x,z,strength,{vx=0,vz=0,face=0,lift=0}={}){
  const length=Math.hypot(x,z)||1
  const nx=x/length,nz=z/length
  const force=Math.min(8,profile.force+Math.max(0,strength)*profile.gain)
- f.motion={
-  x:nx*force+vx*.33,z:nz*force+vz*.33,
-  lateral:nx*Math.cos(face)-nz*Math.sin(face),front:nx*Math.sin(face)+nz*Math.cos(face),
-  pitch:profile.pitch,decay:profile.decay,lift,time:0
- }
+ f.reaction={lateral:nx*Math.cos(face)-nz*Math.sin(face),front:nx*Math.sin(face)+nz*Math.cos(face),pitch:profile.pitch}
+ f.motion={x:nx*force+vx*.33,z:nz*force+vz*.33,decay:profile.decay,lift,time:0}
 }
 export function moveImpact(f,pos,dt,boxes,occupied){
  const m=f.motion
@@ -46,4 +44,10 @@ export function crashEvents(){
   recent.set(car,clock+.76)
   return {...contact,...crashInjury(contact.speed,car.setup.bike)}
  }
+}
+
+
+export function crashExit(car,collision,boxes,blocked){
+ const toRight=collision.x*Math.cos(car.heading)+collision.z*Math.sin(car.heading)
+ return safeExit(car,boxes,toRight<0?-1:1,blocked)
 }

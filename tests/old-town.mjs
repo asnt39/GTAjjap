@@ -1,3 +1,4 @@
+import {weaponShop} from '../src/weapon-shop-plan.js'
 import {buildWeaponShop} from '../src/weapon-shop.js'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
@@ -37,13 +38,15 @@ const updateArms=buildWeaponShop(model,add)
 const [,rigs]=await Promise.all([buildArchitecture(model,add,surfaceMaps),buildStreet(model,add,surfaceMaps)])
 const traffic=Object.entries(rigs).map(([id,rig])=>newDrive(rig,rig.setup??vehicles[id]))
 const dockBoxes=boxes.length,town=buildOldTown(model,add,boxes,surfaceMaps)
-const armsCustomer={x:-56,z:-37}
-movePlayer(armsCustomer,0,-14.6,boxes)
-assert(Math.abs(armsCustomer.z+51.6)<.02,'the weapons counter remains accessible in the full scene')
+const armsCustomer={x:garage.x,z:garage.z}
+for(const [x,z] of [[garage.x,42],[-9.15,42],[-9.15,weaponShop.z],[weaponShop.x,weaponShop.z]]){
+ movePlayer(armsCustomer,x-armsCustomer.x,z-armsCustomer.z,boxes)
+ assert(Math.hypot(x-armsCustomer.x,z-armsCustomer.z)<.03,JSON.stringify({x,z,armsCustomer}))
+}
 assert(updateArms(armsCustomer))
 assert(!updateArms(armsCustomer))
-movePlayer(armsCustomer,0,14.6,boxes)
-assert(Math.abs(armsCustomer.z+37)<.02)
+movePlayer(armsCustomer,-9.15-armsCustomer.x,0,boxes)
+assert(Math.abs(armsCustomer.x+9.15)<.02)
 assert(updateArms(armsCustomer))
 
 

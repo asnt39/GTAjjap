@@ -40,6 +40,11 @@ people.push(
   patrol:[{x:-151.7,z:89},{x:-153.2,z:96.2}],lines:['교차로 코너에만 차를 세우지 말아 주십시오.','남쪽에서 선착장으로 가는 길은 열려 있습니다.']}
 )
 
-people.push(weaponVendor)
+people.push(weaponVendor,
+ {id:'lantern-host',name:'Ada Fletcher',role:'Lantern Corner 점원',model:'crew',variant:6,x:-26.2,z:34.5,pace:.93,temper:'avoid',
+  lines:['창 쪽은 아직 비어 있어요. 커피 마시기 좋은 자리예요.','저녁 배가 끊기면 저도 여기 불을 끄고 집에 가요.']},
+ {id:'clock-neighbor',name:'Noah Bell',role:'Clock Row 주민',model:'mariner',variant:2,x:-28.8,z:48.3,pace:1.06,temper:'avoid',
+  lines:['Clock Court로 가면 시계탑 아래에 동네 안내도가 있어요.','차는 큰길에 두고 와요. 이 동네는 골목으로 걷는 게 빨라요.']}
+)
 
 export const residentHealth = { civilian:108, officer:132, guard:144 }

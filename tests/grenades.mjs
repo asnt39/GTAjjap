@@ -37,3 +37,17 @@ test('indoor throws ricochet from the ceiling and blasts on furniture still reac
  const cover=[[-1,1,-1,1,.85,true]]
  assert(grenadeBlast(cover)(new Vector3(0,.93,0),new Vector3(0,1.2,-2))>0)
 })
+
+test('preview and actual landing use the same fixed step and the expanded damage limit',async()=>{
+ const {grenadePreview,blastRadius}=await import('../src/grenade-flight.js')
+ const options={origin:new Vector3(1,1.54,7),heading:.24,pitch:-.38,boxes:[[-6,6,-2.9,-2.4,2.2]]}
+ const points=[]
+ const end=grenadePreview(options,p=>points.push(p.clone()))
+ const actual=grenadeFlight(options)
+ for(let i=0;i<600&&!actual.update(1/120);i++){}
+ assert(end.distanceTo(actual.position)<1e-10)
+ assert(points.length>35&&points.length<=42)
+ assert.equal(blastRadius,11)
+ assert(grenadeBlast([])(new Vector3(0,.15,0),new Vector3(10,.15,0))>0)
+ assert.equal(grenadeBlast([])(new Vector3(0,.15,0),new Vector3(blastRadius,.15,0)),0)
+})

@@ -2,7 +2,7 @@ function nearbyDirections(pos){
  if(pos.x<-148)return 'Foundry Garden에서 쉬어 가. 서쪽 끝엔 West Ferry Yard가 있어.'
  if(pos.x<-93)return 'West Bank Works 정비장은 Clock Street 너머 서편에 있어. 남쪽 마당으로 차를 가져가면 돼.'
  if(pos.z>57)return 'Clock Court 시계탑을 찾아봐. 광장에 안내도와 ATM이 있어.'
- if(pos.x<-35)return '시장 북쪽 보도에 Breakwater Arms와 조위 관측소가 나란히 있어.'
+ if(pos.x<-35)return '조위 관측소는 이 시장 북쪽에 있어. 무기 상점은 차고지에서 대로를 따라 남쪽으로 가면 나와.'
  return '대로를 따라 북쪽으로 가면 하역장이고, Market Crossing에서 서쪽으로 가면 시장이야.'
 }
 // Choices live in the existing conversation. Leaving its range closes the shop too.
@@ -66,17 +66,16 @@ export function episodeUI(game,voice,sound=()=>{}) {
  function goal(driving) {
   const state=episode.tracking()
   const practice=!state&&game.mission.goal(driving)
-  if(practice)return practice
+  if(practice)return {...practice,title:'FIRST DRIVE',missionId:'first-drive'}
   const offer=!state&&episode.openingContact()
   if(!state&&!offer)return null
   const reboard=state?.firstWork&&!driving&&!state.goal.vehicle
   const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
-  const label=offer?offer.jobTitle+' · '+offer.resident+'에게 가기':state.storyTitle?
-   state.storyTitle+' · '+(reboard?'Touring에 다시 탑승해.':state.objective):
-   state.stage+'/4 · '+state.objective+(state.remaining===null?'':' · '+Math.ceil(state.remaining)+'초')
-  return {...goal,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
+  const label=offer?offer.resident+'에게 가기':reboard?'Touring에 다시 탑승해':state.objective
+  return {...goal,title:offer?.jobTitle??state?.title,step:state?.step,missionId:state?.missionId,
+   remaining:state?.remaining,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
    y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}
  }
  return {dialogue,goal}

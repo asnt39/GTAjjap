@@ -11,3 +11,11 @@ export const vehicles = Object.freeze({
 })
 
 export const touringSetup=vehicles.touring
+
+// The deployed room server still validates its original speed limits.
+export function soloRoadTuning(setup){
+ if(setup.bike)return null
+ if(setup.top>=20)return {top:32,power:8.3,brake:13.1,handbrake:14.4,weight:.79}
+ if(setup.top<=14)return {top:21,power:4.9,brake:9.25,handbrake:10.4,weight:1.28}
+ return {top:25,power:6.25,brake:10.8,handbrake:12.3,weight:1}
+}

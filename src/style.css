@@ -109,3 +109,21 @@ body.speaking #guide-marker { visibility:hidden }
 .mixer-row input{accent-color:var(--orange);width:100%}
 #dart-power{width:100%;height:26px;accent-color:var(--orange)}
 @media(pointer:coarse){#vehicle-tools{right:max(16px,env(safe-area-inset-right));bottom:172px}}
+
+#objective{display:grid;gap:3px;max-width:min(59vw,390px);border:0;border-left:2px solid #e2a972;padding:5px 0 6px 12px;background:linear-gradient(90deg,#172227e6,#17222700 110%);letter-spacing:0}
+#objective strong{color:#f0c694;font-size:12px;font-weight:800}
+#objective span{color:#fff3de;font-size:14px;line-height:1.45;word-break:keep-all}
+#objective small{color:#d3dfd7;font-size:11px;font-variant-numeric:tabular-nums}
+#mission-event{position:absolute;z-index:3;top:max(120px,23vh);left:50%;width:min(460px,92vw);transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 2px 8px #10191b,0 0 22px #10191b;animation:mission-arrive .30s ease-out}
+#mission-event small,#mission-event strong,#mission-event span{display:block}
+#mission-event small{color:#f2bf86;font:700 13px var(--game-font);letter-spacing:.16em}
+#mission-event strong{margin:.15em 0;font:800 clamp(25px,4vw,47px)/1.22 var(--game-font);color:#fff2dc}
+#mission-event span{color:#fff2dc;font-size:14px}
+@keyframes mission-arrive{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+body.speaking #mission-event,body.speaking #toast{visibility:hidden}
+#conversation{border:0;border-top:1px solid #ead2a34d;background:linear-gradient(180deg,#151f23f0,#0f191df8);box-shadow:0 12px 36px #060e14a8}
+#conversation header small{color:#c7ae95}
+#speaker-name{color:#f1c493}
+#conversation .spoken{margin-top:10px;color:#fff3de;font-size:clamp(.96rem,2.2vw,1.15rem)}
+#conversation .episode-choices button{border:0;border-left:2px solid #c58f5a95;background:#efe3c310;color:#fff3de}
+@media(prefers-reduced-motion:reduce){#mission-event{animation:none}}

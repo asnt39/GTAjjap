@@ -42,6 +42,7 @@ export async function buildArchitecture(scene,addCollider,surfaceMaps){
   [-11.4,-51,13.6,12,0,6],[-11,-65.1,13.3,17,1,5],[-11.2,-80.3,15.9,9.3,3,3],[-11.2,-97,15,12,2,7],[-11,57,12.4,8.8,2,10],
   [11.1,48,18.5,10.8,0,4],[11.4,-72.7,16.7,9,3,3],[11,-90.2,17.6,15,1,9],[11.5,-104,9,11.4,0,11]]
  for(const [idx,[x,z,w,h,skin,shop]] of buildings.entries()){
+  if(x===-11&&z===57)continue // Breakwater Arms occupies this street frontage.
   const dir=x<0?1:-1,depth=10+idx%4,tx=(offset)=>x+dir*offset
   const home=x===garage.front&&z===garage.car.z
   if(x===archive.front && z===26.2){

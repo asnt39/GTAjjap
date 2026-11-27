@@ -1,3 +1,4 @@
+import {shopSite,oldShopWorkshop} from './weapon-shop-plan.js'
 import {citySpots} from './city-life-plan.js'
 import {crossings,loadingCourt,pocketGarden} from './street-plan.js'
 import {terraceRooms,terracePoint} from './terrace-plan.js'
@@ -33,7 +34,8 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
   if(!overview&&Math.hypot(spot.x-player.x,spot.z-player.z)>70)continue
   rect(spot.x-1,spot.z-1,2,2,'#b4dbbe')
  }
- rect(-58.9,-56,5.8,10,'#776c5b')
+ rect(oldShopWorkshop.left,oldShopWorkshop.back,oldShopWorkshop.right-oldShopWorkshop.left,oldShopWorkshop.front-oldShopWorkshop.back,'#5d6256')
+ rect(shopSite.x-5,shopSite.z-2.9,10,5.8,'#a78d66')
  for(const r of terraceRooms){
   const w=r.cos?r.width:r.depth,d=r.cos?r.depth:r.width
   rect(r.x-w/2,r.z-d/2,w,d,'#8f816b')

@@ -4,6 +4,7 @@ import {clearPose,localPoint,nearBody,overlapsCar} from './driving.js'
 import {dentVehicle} from './vehicle-damage.js'
 
 const step=1/90, radius=.08, fuse=1.8
+export const blastRadius=11
 const noFloor=()=>0,noCeiling=()=>Infinity
 
 export function grenadeFlight({origin,heading,pitch,boxes,floor=noFloor,ceiling=noCeiling,vehicles=[]}){
@@ -12,8 +13,10 @@ export function grenadeFlight({origin,heading,pitch,boxes,floor=noFloor,ceiling=
  const velocity=new Vector3(Math.sin(heading)*flat*12,4.7-Math.sin(pitch)*9,-Math.cos(heading)*flat*12)
  let elapsed=0,remainder=0,finished=false
  function solid(x,y,z){
-  return boxes.some(([l,r,n,s,top,,bottom=0])=>y+radius>bottom&&y-radius<top&&x+radius>l&&x-radius<r&&z+radius>n&&z-radius<s)||
-   vehicles.some(v=>y+radius>(v.lift??0)&&y-radius<v.height+(v.lift??0)&&nearBody(v,x,z,radius))
+  for(const [l,r,n,s,top,,bottom=0] of boxes.near?.(x,z,radius)??boxes){
+   if(y+radius>bottom&&y-radius<top&&x+radius>l&&x-radius<r&&z+radius>n&&z-radius<s)return true
+  }
+  return vehicles.some(v=>y+radius>(v.lift??0)&&y-radius<v.height+(v.lift??0)&&nearBody(v,x,z,radius))
  }
  return {position,velocity,update(dt){
   if(finished)return false
@@ -46,14 +49,24 @@ export function grenadeFlight({origin,heading,pitch,boxes,floor=noFloor,ceiling=
  }}
 }
 
+export function grenadePreview(options,sample){
+ const flight=grenadeFlight(options)
+ sample(flight.position)
+ for(let i=0;i<Math.ceil(fuse/(step*4))+1;i++){
+  const exploded=flight.update(step*4)
+  sample(flight.position)
+  if(exploded)break
+ }
+ return flight.position
+}
 export function grenadeBlast(boxes){
  const trace=equipmentTrace(boxes,[],[]),direction=new Vector3()
  return (center,target)=>{
   direction.subVectors(target,center)
   const distance=direction.length()
   if(distance===0)return 1
-  if(distance>=7||trace(center,direction.multiplyScalar(1/distance),distance).blocked)return 0
-  return 1-distance/7
+  if(distance>=blastRadius||trace(center,direction.multiplyScalar(1/distance),distance).blocked)return 0
+  return (1-distance/blastRadius)**1.35
  }
 }
 

@@ -20,7 +20,7 @@ const conversions=[
  [28,'Foundry Flats','home','hinge'],[29,'Pump House Café','cafe','pair'],
  [30,'Parcel Office','office','auto'],[34,'Coopers’ Rooms','home','hinge'],
  [37,'Ferry Surveyors','office','pair'],[5,'Clock Court Cooperative','shop','pair'],[8,'South Row Social Club','cafe','hinge'],
- [10,'Clock Street Dispatch','office','auto'],[31,'West Bank Service Office','office','slide'],
+ [10,'Clock Street Dispatch','office','auto'],[11,'Lantern Corner Café','cafe','pair'],[12,'Clock Row Tailors','shop','hinge'],[31,'West Bank Service Office','office','slide'],
  [42,'Yard Stores','workshop','slide'],[43,'Canvas Loft','workshop','pair']
 ]
 export const terraceRooms=conversions.map(([index,title,use,door])=>{

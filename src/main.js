@@ -1,4 +1,5 @@
-import {crashEvents,impulse,moveImpact} from './impact-motion.js'
+import {grenadeGuide} from './grenade-guide.js'
+import {crashEvents,crashExit,impulse,moveImpact} from './impact-motion.js'
 import {onQuay} from './quay-plan.js'
 import {citySpots} from './city-life-plan.js'
 import {cityFixtures} from './city-fixtures.js'
@@ -11,7 +12,7 @@ import {streamTerraceRooms} from './terrace-interior.js'
 import {buildEstuary,landscapeMaterial} from './estuary.js'
 import {grenadeModel} from './grenade-art.js'
 import {grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
-import {insideWeaponShop} from './weapon-shop-plan.js'
+import {insideWeaponShop,shopSite} from './weapon-shop-plan.js'
 import {buildWeaponShop} from './weapon-shop.js'
 import * as THREE from 'three'
 import {createLoadout,gear} from './equipment.js'
@@ -46,7 +47,7 @@ import {parkedPoses,restoreParkedPoses} from './vehicle-checkpoint.js'
 import {createCheckpoint,resolveCheckpoint} from './play-checkpoint.js'
 import {uprightRider} from './rider-pose.js'
 import {entryPose,entryTime} from './vehicle-entry.js'
-import {vehicles} from './vehicles.js'
+import {soloRoadTuning,vehicles} from './vehicles.js'
 import {createResidents} from './residents.js'
 import {fighter,swing,advance,contact,injure,revive,combatPose} from './melee.js'
 import {createFootwork} from './footwork.js'
@@ -132,12 +133,13 @@ export async function start(onContextLost){
  char.root.traverse(mesh=>{if(mesh.isMesh){playerMeshes.push(mesh);mesh.castShadow=profile().playerShadows}})
  const cars=Object.fromEntries(Object.entries(rigs).map(([id,rig])=>[id,{...newDrive(rig,rig.setup??vehicles[id]),id,localOnly:!!rig.localOnly,door:0}]))
  const fleet=Object.values(cars),traffic=[...fleet],mission=firstDrive(cars.touring),pedals=new Set()
+ const soloTunings=new Map(fleet.map(v=>[v.id,soloRoadTuning(v.setup)]))
  const parkedSpawns=new Map(fleet.map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
- const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point)),updateFittings=streamTerraceRooms(scene)
+ const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite]),updateFittings=streamTerraceRooms(scene)
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={},crashes=crashEvents()
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const trafficRigs=Array.from({length:coarse?2:4},()=>rigs.civilianRig())
@@ -213,17 +215,25 @@ export async function start(onContextLost){
  const loadout=createLoadout(storage,episode)
  const stance=scopeStance()
  let aiming=false,shoulder=0,scopeVisible=false,hideScopeBody=false
- const cancelAim=()=>{aiming=false;stance.update(0,false);scopeVisible=false}
+ const guide=grenadeGuide(scene,boxes)
+ const cancelAim=()=>{aiming=false;stance.update(0,false);scopeVisible=false;guide.hide()}
  const armed=()=>loadout.selected!=='fists'
  const grenades=[],blastTarget=new THREE.Vector3(),grenadeStrength=grenadeBlast(boxes)
- let grenadeShape,shake=0
- function launchGrenade(hand){
-  const from=blastTarget.set(pos.x,pos.y+1.32,pos.z)
-  const origin=cameraFraction(from,hand,boxes)<.98?from:hand
+ let grenadeShape,shake=0,throwPlan=null
+ function currentThrow(){
+  const chest=new THREE.Vector3(pos.x,pos.y+1.32,pos.z)
+  const hand=chest.clone().add(new THREE.Vector3(Math.sin(yaw)*.46,.22,-Math.cos(yaw)*.46))
+  const feet=pos.y
+  return {origin:cameraFraction(chest,hand,boxes)<.98?chest:hand,heading:yaw,pitch,boxes,
+   floor:(x,z)=>floorAt(x,z,feet),ceiling:ceilingHeight,vehicles:traffic}
+ }
+ function launchGrenade(){
+  const options=throwPlan??currentThrow(),flight=grenadeFlight(options)
+  throwPlan=null
   grenadeShape??=grenadeModel()
   const prop=grenadeShape.clone(true)
-  prop.position.copy(origin);scene.add(prop)
-  grenades.push({prop,flight:grenadeFlight({origin,heading:yaw,pitch,boxes,floor:groundHeight,ceiling:ceilingHeight,vehicles:traffic})})
+  prop.position.copy(flight.position);scene.add(prop)
+  grenades.push({prop,flight})
  }
  function updateGrenades(dt){
   shake=Math.max(0,shake-dt*3.4)
@@ -236,7 +246,8 @@ export async function start(onContextLost){
    scene.remove(prop);grenades.splice(i,1)
    const point=flight.position
    ui.sound('blast',point)
-   effects.emit('burst',point.x,point.y+.24,point.z,8)
+   effects.emit('burst',point.x,point.y+.24,point.z,12)
+   effects.emit('dust',point.x,point.y+.08,point.z,8)
    effects.emit('smoke',point.x,point.y+.26,point.z,16)
    effects.emit('sparks',point.x,point.y+.1,point.z,13)
    shake=Math.max(shake,Math.max(0,1-Math.hypot(point.x-pos.x,point.z-pos.z)/17))
@@ -291,6 +302,9 @@ export async function start(onContextLost){
   if(armed()){
    if(player.f.action||pendingSeat||room.phase==='reconnecting')return
    if(loadout.def.capacity||loadout.def.consumable)face=Math.PI-yaw
+   if(loadout.def.consumable&&!equipment.throwing&&!loadout.coolingDown&&loadout.item.reserve){
+    throwPlan=currentThrow();cancelAim()
+   }
    equipment.attack(loadout.def.lethal?sniperAiming()&&scopeVisible:aiming);return
   }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget()}
@@ -311,7 +325,7 @@ export async function start(onContextLost){
   resetWalk(safe.x,safe.z,Math.PI-yaw)
  }
  function respawn(arrested=false){
-  returnToHome()
+  releaseSeat();returnToHome()
   revive(player.f);crowd.wanted.clear();mission.cancel()
   const failed=episode.fail(arrested?'체포로 의뢰 중단':'다운으로 의뢰 중단')
   focus=null
@@ -360,7 +374,7 @@ export async function start(onContextLost){
    for(const id of ids)releasePointer(button,id)
    ids.clear();button.classList.remove('held')
   }
-  cancelAim();equipment.interrupt();resetInput();player.f.queued=false;pedals.clear()
+  cancelAim();throwPlan=null;equipment.interrupt();resetInput();player.f.queued=false;pedals.clear()
  }
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
@@ -426,9 +440,9 @@ export async function start(onContextLost){
   return nearest
  }
  function startTransition(destination,next){
-  if(next==='enter')saveCheckpoint()
+  if(next==='enter'){saveCheckpoint();ui.prepareDriveAudio()}
   mode=next;clearControls()
-  car.speed=car.travel=car.accel=car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
+  car.speed=car.travel=car.accel=car.throttle=car.shiftDelay=car.remainder=car.slip=0;car.braking=false
   lastSide=destination.side
   transition={time:0,from:{x:pos.x,z:pos.z},door:destination.door,side:lastSide,
    x:car.x,z:car.z,heading:car.heading,face}
@@ -507,7 +521,7 @@ export async function start(onContextLost){
   }
   if(!damage||!injure(player.f,damage,x*Math.cos(face)-z*Math.sin(face)>0?1:-1,'body',{weaponHit:true}))return
   ui.impact(true);activity.stop()
-  const exit=(eject||!player.f.hp)&&safeExit(struck,boxes,lastSide,(px,pz)=>blockedAtDoor(struck,px,pz))
+  const exit=(eject||!player.f.hp)&&crashExit(struck,collision,boxes,(px,pz)=>blockedAtDoor(struck,px,pz))
   if(exit){
    mode='walk';transition=vehiclePose=null
    face=Math.atan2(x,z);plantFeet(exit.door.x,exit.door.z);actor.visible=true
@@ -632,7 +646,7 @@ export async function start(onContextLost){
  window.addEventListener('pagehide',saveCheckpoint)
  canvas.addEventListener('mousedown',e=>{
   if(isPaused||crowd.talking||mode!=='walk'||!armed()&&!custody.canPunch)return
-  if(e.button===2)aiming=!custody.active&&!!loadout.def.capacity&&!foot.air&&!player.f.action
+  if(e.button===2)aiming=!custody.active&&(!!loadout.def.capacity||loadout.def.consumable)&&!equipment.throwing&&!foot.air&&!player.f.action
   if(e.button===0)clickOrigin={x:e.clientX,y:e.clientY}
  })
  canvas.addEventListener('mouseup',e=>{
@@ -662,7 +676,7 @@ export async function start(onContextLost){
   const ids=Object.keys(gear).filter(id=>loadout.items[id])
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
- document.querySelector('#gear-aim').onclick=()=>{if(aiming)cancelAim();else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&loadout.def.capacity&&!foot.air&&!player.f.action)aiming=true}
+ document.querySelector('#gear-aim').onclick=()=>{if(aiming)cancelAim();else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&(loadout.def.capacity||loadout.def.consumable)&&!equipment.throwing&&!foot.air&&!player.f.action)aiming=true}
  jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
@@ -841,7 +855,8 @@ export async function start(onContextLost){
    else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
-    stepDrive(car,input,boxes,dt,traffic,room.phase==='offline')
+    const solo=room.phase==='offline'
+    stepDrive(car,input,boxes,dt,traffic,solo,undefined,solo?soloTunings.get(car.id):null)
     handleCrash(car,crashes(car,elapsed))
     const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
      if(!crowd.vehicleHit(resident,car,damage,impact))return false
@@ -926,7 +941,7 @@ export async function start(onContextLost){
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
    player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
    const progress=episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:driving(),driving:driving()&&car===cars.touring,onFoot:player.available})
-   if(progress){ui.toast(progress.message);ui.sound('mission')}
+   if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    player.legacyArrest=room.phase!=='offline'
@@ -968,6 +983,8 @@ export async function start(onContextLost){
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action&&!activity.current,aiming,
     speed,raise:stance.raise,ready:sniperAiming()&&stance.eye===1,alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
    if(!scopeVisible)setZoom(1)
+   if(aiming&&loadout.def.consumable&&loadout.item.reserve&&!equipment.throwing&&canAttack())guide.show(now,currentThrow())
+   else guide.hide()
    if((sampleClock+=dt)>=.5){sampleClock=0;rememberCheckpoint()}
    if((saveClock+=dt)>=4){saveClock=0;saveCheckpoint()}
    effects.update(dt,canvas.height)

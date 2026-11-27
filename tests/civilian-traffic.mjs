@@ -62,3 +62,27 @@ test('a civilian anticipates a crossing and a stationary car, then leaves distan
  ai.update(1/60,{x:1000,z:1000},{enabled:true,walkers})
  assert.equal(traffic.length,0)
 })
+
+test('four active cars clear an obstructed junction after its exit opens without despawning in view',()=>{
+ const traffic=[],ai=civilianTraffic(new Scene(),[],traffic,Array.from({length:4},rig))
+ const player={x:9,z:-35},block={...vehicles.van,x:-12,z: -39.74,heading:-Math.PI/2,speed:0}
+ traffic.push(block)
+ const options={enabled:true,limit:4,walkers:[player]}
+ for(let i=0;i<680;i++)ai.update(1/60,player,options)
+ assert.equal(traffic.length,5)
+ const present=new Set(traffic.filter(v=>v!==block))
+ traffic.splice(traffic.indexOf(block),1)
+ const traveled=new Map(),prior=new Map([...present].map(v=>[v,{x:v.x,z:v.z}]))
+ for(let i=0;i<1600;i++){
+  ai.update(1/60,player,{...options,inView:()=>true})
+  for(const [j,v] of traffic.entries()){
+   assert(present.has(v))
+   assert(!traffic.slice(j+1).some(other=>overlapsCar(v,other)))
+   const old=prior.get(v),step=Math.hypot(v.x-old.x,v.z-old.z)
+   assert(step<.23)
+   traveled.set(v,(traveled.get(v)??0)+step);old.x=v.x;old.z=v.z
+  }
+ }
+ assert.equal(traffic.length,4)
+ assert([...traveled.values()].every(metres=>metres>23),JSON.stringify([...traveled.values()]))
+})

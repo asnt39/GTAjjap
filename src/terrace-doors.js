@@ -3,21 +3,21 @@ import {terracePoint,terraceRooms} from './terrace-plan.js'
 
 const opening=1.8
 const clamp=v=>Math.max(0,Math.min(1,v))
-export function createTerraceDoors(scene,boxes,sound=()=>{}){
- const doors=terraceRooms.map(r=>({r,at:terracePoint(r,0,r.depth/2-.08),progress:0,target:0,
+export function createTerraceDoors(scene,boxes,sound=()=>{},extras=[]){
+ const doors=[...terraceRooms,...extras].map(r=>({r,at:terracePoint(r,0,r.depth/2-.08),progress:0,target:0,
   direction:1,npcOpened:false,leaves:r.door==='pair'||r.door==='auto'?2:1}))
  const leaves=doors.reduce((n,d)=>n+d.leaves,0),unit=new T.BoxGeometry()
  const frames=new T.InstancedMesh(unit,new T.MeshStandardMaterial({color:0x495854,metalness:.34,roughness:.47}),leaves*6)
  const panes=new T.InstancedMesh(unit,new T.MeshStandardMaterial({color:0x9bb6b0,roughness:.18,metalness:.18,transparent:true,opacity:.31,depthWrite:false}),leaves)
  // Each leaf always remains inside a known world box, even mid-swing.
- const sphere=new T.Sphere(new T.Vector3(-145,1.4,67),125)
+ const sphere=new T.Box3().setFromPoints(doors.flatMap(({at})=>[new T.Vector3(at.x-2.4,0,at.z-2.4),new T.Vector3(at.x+2.4,3,at.z+2.4)])).getBoundingSphere(new T.Sphere())
  frames.boundingSphere=sphere;panes.boundingSphere=sphere
  frames.receiveShadow=true;scene.add(frames,panes)
  const stamp=new T.Object3D(),temp=[]
  let first=0
  for(const d of doors){
   d.first=first;first+=d.leaves
-  d.bounds=Array.from({length:d.leaves*4},()=>[0,0,0,0,2.68,false,.08])
+  d.bounds=Array.from({length:d.leaves*4},()=>Object.assign([0,0,0,0,2.68,false,.08],{moving:true}))
 
  }
  function pose(d,progress,actors,write){

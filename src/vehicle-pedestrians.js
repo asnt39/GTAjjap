@@ -27,9 +27,11 @@ export function createPedestrianImpacts(){
     sweep.x=before.x+(car.x-before.x)*part;sweep.z=before.z+(car.z-before.z)*part
     sweep.heading=before.heading+headingDelta*part
     if(!nearBody(sweep,resident.pos.x,resident.pos.z,.30))continue
-    const knockout=speed>=knockoutVehicleSpeed
-    const damage=Math.min(resident.f.hp-1,Math.round(13+(speed-3.6)*5.4))
-    if(onHit(resident,damage,{x,z,speed,knockout})!==false){
+    const walking=Number.isFinite(resident.face)?(resident.speed??0)*(Math.sin(resident.face)*x+Math.cos(resident.face)*z):0
+    const closing=Math.max(1.4,speed-walking)
+    const knockout=closing>=knockoutVehicleSpeed
+    const damage=Math.min(resident.f.hp-1,Math.round(8+Math.max(0,closing-2.75)*5.4))
+    if(onHit(resident,damage,{x,z,speed:closing,knockout})!==false){
      lastContact.set(resident,clock);hits++
     }
     break

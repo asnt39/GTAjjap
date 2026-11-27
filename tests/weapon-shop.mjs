@@ -61,21 +61,30 @@ test('legacy ammo, missing weapons and mission money survive a failed transactio
  assert.deepEqual(JSON.parse(p.records.get(equipmentKey)),legacy)
 })
 
-const {weaponShop,weaponVendor,insideWeaponShop,weaponShopCollision}=await import('../src/weapon-shop-plan.js')
+const {weaponShop,weaponVendor,shopSite,insideWeaponShop,weaponShopCollision}=await import('../src/weapon-shop-plan.js')
 const {movePlayer,canWalk,sights}=await import('../src/navigation.js')
-test('the shop entrance, point of sale and exit are reachable from the Tide Market road',()=>{
+test('the relocated shop has a working door, counter and safe exit',async()=>{
+ const {Scene}=await import('three')
+ const {createTerraceDoors}=await import('../src/terrace-doors.js')
  const boxes=[]
  weaponShopCollision((...box)=>boxes.push(box))
- const player={x:-56,z:-37}
- movePlayer(player,0,-15,boxes)
+ const doors=createTerraceDoors(new Scene(),boxes,undefined,[shopSite])
+ const player={x:-9.8,z:weaponShop.z,y:.082}
+ assert(!canWalk(shopSite.x+4.92,player.z,boxes))
+ assert(doors.toggle(player))
+ for(let i=0;i<60;i++)doors.update(1/60,player,[])
+ movePlayer(player,weaponShop.x-player.x,0,boxes)
  assert(insideWeaponShop(player.x,player.z))
- assert(Math.abs(player.z+52)<1e-6)
+ assert(Math.abs(player.x-weaponShop.x)<.02)
  assert.equal(sights.find(s=>s.tag==='ARM'),weaponShop)
  assert(canWalk(weaponVendor.x,weaponVendor.z,boxes))
- movePlayer(player,0,-4,boxes)
- assert(player.z>-53,'counter must prevent walking straight through the vendor')
- movePlayer(player,0,20,boxes)
- assert(player.z>-34)
+ movePlayer(player,-4,0,boxes)
+ assert(player.x>-18.7)
+ movePlayer(player,10,0,boxes)
+ assert(player.x>-10)
+ assert(doors.toggle({x:-9.8,z:weaponShop.z,y:.082}))
+ for(let i=0;i<60;i++)doors.update(1/60,player,[])
+ assert(!canWalk(shopSite.x+4.92,weaponShop.z,boxes))
 })
 
 test('a stale tab does not overwrite a purchase made in another tab',()=>{

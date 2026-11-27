@@ -22,9 +22,9 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const throwRelease=.28,throwLength=.53
  const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
- function hit(n,point,amount){
+ function hit(n,point,amount,kind='shot'){
   const zone=point.y>n.pos.y+n.height*.77?'upper':'body'
-  if(crowd.receive(n,player.pos,zone,point,amount))onHit(n)
+  if(crowd.receive(n,player.pos,zone,point,amount,kind))onHit(n)
  }
  function segment(from,to){
   direction.subVectors(to,from);const length=direction.length()
@@ -83,7 +83,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   contact.copy(from).addScaledVector(direction,result.distance)
   const cover=segment(origin(),contact)
   if(cover.blocked)return false
-  hit(result.target,contact,loadout.def.damage);mark(contact);return true
+  hit(result.target,contact,loadout.def.damage,'melee');mark(contact);return true
  }
  function interrupt(){
   queued=hasPrevious=batConnected=false;throwTime=null;loadout.interrupt();impact.visible=false

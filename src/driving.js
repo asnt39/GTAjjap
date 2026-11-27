@@ -59,7 +59,7 @@ export function overlapsCar(a,b){
   Math.abs(back.x)*2<b.width+a.width*c+a.length*s &&
   Math.abs(back.z)*2<b.length+a.width*s+a.length*c
 }
-export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,pedestrianBlocked){
+export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,pedestrianBlocked,tuning=null){
  const setup=car.setup??touringSetup
  const clear=contact=>{
   if(!clearPose(car,boxes,true,allowSidewalk,contact))return false
@@ -71,6 +71,7 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
  const contact={}
  const heldBrake=!!input.handbrake||input.forward>0&&input.back>0
  const command=input.forward-input.back
+ let slip=car.slip??0
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
  car.hardContact=null
@@ -78,29 +79,31 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
  while(car.remainder+1e-10>=step){
   car.remainder-=step
   const old=car.speed,mag=Math.abs(old)
-  const target=input.steer*(setup.steer/(1+mag*.064))
+  const target=input.steer*(setup.steer/(1+mag*(tuning?.weight ? .081 : .064)))
   const steerRate=input.steer?setup.steerRate/(1+mag*.055):2.1
   car.steer=approach(car.steer,target,step*steerRate)
   const opposite=command*old<0
   car.braking=heldBrake||opposite
   if(!command||car.braking||car.shiftDelay>0||command*car.throttle<0)car.throttle=0
   if(heldBrake||opposite){
-   car.speed=approach(old,0,(heldBrake?setup.handbrake:setup.brake)*step)
+   car.speed=approach(old,0,(heldBrake?(tuning?.handbrake??setup.handbrake):(tuning?.brake??setup.brake))*step)
    if(opposite&&car.speed===0)car.shiftDelay=setup.bike?.16:.13
   }else if(car.shiftDelay>0){
    car.shiftDelay-=step
   }else if(command){
-   const max=command>0?setup.top:setup.reverse,power=command>0?setup.power:setup.reversePower
+   const max=command>0?(tuning?.top??setup.top):setup.reverse,power=command>0?(tuning?.power??setup.power):setup.reversePower
    car.throttle=approach(car.throttle,command,step*6.5)
    car.speed=old+car.throttle*power*(1-(mag/max)**1.4)*step
   }else{
    car.speed=approach(old,0,(.63+.006*mag*mag)*step)
   }
+  const slipTarget=tuning&&input.handbrake&&old>6.2?input.steer*Math.min(.32,(old-6.2)*.026)/tuning.weight:0
+  slip+=(slipTarget-slip)*(1-Math.exp(-(slipTarget?5.5:3.8)*step))
   const travel=(old+car.speed)*.5*step
   const turn=travel*Math.tan(car.steer)/(car.length*setup.wheelbase)
   // Advance the rear axle, then reconstruct the body centre. This lets the
   // nose pull away from a close curb without swinging the whole rear across it.
-  const angle=car.heading+turn*.5,rearOffset=car.length*.312
+  const angle=car.heading+turn*.5-slip,rearOffset=car.length*.312
   const dx=Math.sin(angle)*travel+rearOffset*(Math.sin(car.heading+turn)-Math.sin(car.heading))
   const dz=-Math.cos(angle)*travel-rearOffset*(Math.cos(car.heading+turn)-Math.cos(car.heading))
   if(travel!==0){
@@ -163,7 +166,7 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
   }
   car.accel=approach(car.accel,clamp((car.speed-old)/step,-9,6),step*32)
  }
- car.impact=impact
+ car.impact=impact;car.slip=slip
  return impact
 }
 export function doorPoint(car,side,extra=.47){return worldPoint(car,side*(car.width/2+extra),car.setup?.doorZ??-.16)}
