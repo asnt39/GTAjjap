@@ -6,6 +6,8 @@ The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, drivi
 
 The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls.
 
+[Urban & Coastal Remaster](docs/urban-coastal-remaster.md) records the current artwork, traffic reproduction, verification and open items.
+
 ## Run
 
 Use Node.js 22 or newer. Run `npm ci` and `npm run dev`. Use `npm run build` to generate the static site in `dist/`. Assets ship with the game. The renderer requires WebGL 2.
