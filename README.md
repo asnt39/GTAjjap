@@ -2,7 +2,7 @@
 
 Player & Living City is a third-person exploration and driving game in a fictional working harbor. The first district joins Breakwater Avenue, Market Crossing and West Quay. Buildings, signage, the container terminal, vessels and street layout were authored for the game.
 
-The [city life update](CITY-LIFE.md) documents pedestrian crossings, new destinations, and the score. The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
+The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, driving measurements, audio sources, and the new shop location. The [city life update](CITY-LIFE.md) documents pedestrian crossings, new destinations, and the score. The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
 
 ## Run
 
