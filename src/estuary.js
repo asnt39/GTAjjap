@@ -1,3 +1,4 @@
+import {distanceToBasin} from './south-basin-plan.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {inOldTown,oldTownLand,oldTownRoads} from './old-town-plan.js'
@@ -36,11 +37,11 @@ export function landscapeMaterial(){
 }
 export function buildEstuary(scene,ground){
  // Undulating salt meadow below the paved quay level. Distant ridges remain outside play.
- const terrain=new T.PlaneGeometry(430,510,30,32).rotateX(-Math.PI/2).translate(-189,0,-8)
+ const terrain=new T.PlaneGeometry(430,590,48,62).rotateX(-Math.PI/2).translate(-189,0,-8)
  const pos=terrain.attributes.position,uv=terrain.attributes.uv
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),z=pos.getZ(i)
-  const distance=Math.max(0,-230-x,z-148,-110-z)
+  const distance=Math.min(Math.max(0,-230-x,z-148,-110-z),Math.max(0,distanceToBasin(x,z)-10))
   const ridge=Math.min(distance*.15,8)*(.62+.25*Math.sin(x*.057)+.13*Math.sin(z*.11))
   pos.setY(i,-1.1+ridge+.28*Math.sin(x*.15+z*.10)*Math.cos(z*.12));uv.setXY(i,x/5,z/5)
  }

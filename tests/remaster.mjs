@@ -1,3 +1,8 @@
+import {buildSouthBasin} from '../src/south-basin.js'
+import {basinCarLayout} from '../src/basin-navigation.js'
+import {civilianTraffic} from '../src/civilian-traffic.js'
+import {basinSights} from '../src/south-basin-plan.js'
+import {Group} from 'three'
 import {weaponShop} from '../src/weapon-shop-plan.js'
 import {cityFixtures} from "../src/city-fixtures.js"
 import {citySpots} from "../src/city-life-plan.js"
@@ -21,10 +26,11 @@ import {terracePoint,terraceRooms} from '../src/terrace-plan.js'
 import {streamTerraceRooms} from '../src/terrace-interior.js'
 import {createTerraceDoors} from '../src/terrace-doors.js'
 import {waterfrontEdges} from '../src/estuary.js'
-import {canWalk,movePlayer,inDistrict} from '../src/navigation.js'
+import {canWalk,movePlayer,inDistrict,cameraFraction,sights} from '../src/navigation.js'
+import {nearbyAction} from '../src/city-actions.js'
 import {motorcycleSetup} from '../src/motorcycle.js'
 import {vehicles} from '../src/vehicles.js'
-import {clearPose,newDrive,stepDrive} from '../src/driving.js'
+import {clearPose,newDrive,overlapsCar,stepDrive} from '../src/driving.js'
 
 globalThis.self=globalThis
 const paint=new Proxy({},{get:()=>()=>paint})
@@ -36,6 +42,7 @@ GLTFLoader.prototype.loadAsync=async function(url){
 }
 const scene=new Scene(),boxes=worldColliders(),maps={},add=(...b)=>boxes.push(b)
 await Promise.all([buildStreet(scene,add,maps),buildArchitecture(scene,add,maps),buildPort(scene,add)])
+const updateBasin=buildSouthBasin(scene,add,maps)
 buildOldTown(scene,add,boxes,maps);buildWestBank(scene,add,maps,boxes)
 beacons(scene,add);districtGates(scene,add);stationColliders(add);marketCollision(add);buildWeaponShop(scene,add)
 const system=createTerraceDoors(scene,boxes)
@@ -105,7 +112,7 @@ test('retaining rails only run along actual Old Town boundaries',()=>{
 test('city-wide pedestrian flood reaches every new entrance and existing district gateways',()=>{
  // A 0.5 m survey samples real shell, terminal and prop colliders. Doors stay
  // closed here; each threshold is separately tested through its full animation.
- const step=.5,x0=-225,z0=-101,width=502,height=491,seen=new Uint8Array(width*height)
+ const step=.5,x0=-225,z0=-101,width=510,height=621,seen=new Uint8Array(width*height)
  const index=(x,z)=>Math.round((z-z0)/step)*width+Math.round((x-x0)/step)
  const queue=[index(-3.5,25)];seen[queue[0]]=1
  // Bin static bounds for this exhaustive survey; canWalk still decides clearance.
@@ -127,6 +134,7 @@ test('city-wide pedestrian flood reaches every new entrance and existing distric
  }
  const targets=terraceRooms.map(r=>({...terracePoint(r,0,r.depth/2+1.3),name:r.title}))
  for(const [x,z] of [[-129,34],[-212,105],[-163,45],[-68,32],[0,64],[weaponShop.x,weaponShop.z],[-47,-50],[-93,-49],[14.5,-68],[14.5,41],[-16,42]])targets.push({x,z,name:x+','+z})
+ targets.push(...basinSights.map(s=>({...s,name:s.title})))
  for(const {x,z,name} of targets)assert(seen[index(x,z)],name+' must connect to Breakwater Avenue')
  console.log('Connected half-metre samples:',queue.length)
 })
@@ -135,7 +143,7 @@ test('market and West Bank sidewalks lead to interaction fixtures without walkin
  const fixtureScene=new Scene()
  cityFixtures(fixtureScene,add)
  advance({x:0,z:0,y:0})
- for(const s of citySpots){
+ for(const s of citySpots.filter(s=>s.type!=='discovery')){
   assert(canWalk(s.x,s.z,boxes,.32,.083),s.id+' approach')
  }
  for(const c of crossings){
@@ -151,4 +159,64 @@ test('vans and motorcycles enter the new repair court from West Bank road',()=>{
   for(let i=0;i<1200&&car.x>-127;i++)stepDrive(car,{forward:1,back:0,steer:0},boxes,1/60,[],true)
   assert(car.x<=-127&&clearPose(car,boxes,true,true),setup.name+' reached the garage')
  }
+})
+
+test('the south approach carries a car and bike into the new blocks with no seam impact',()=>{
+ for(const setup of [vehicles.touring,motorcycleSetup]){
+  const car=Object.assign(newDrive(setup,setup),{x:0,z:79,heading:Math.PI})
+  for(let i=0;i<1500&&car.z<170;i++){
+   stepDrive(car,{forward:car.speed<7?1:0,steer:0,back:0},boxes,1/60,[],true)
+   assert.equal(car.impact,0)
+   assert(clearPose(car,boxes,true,true))
+  }
+  assert(car.z>=170)
+ }
+})
+
+test('the generated South Basin lane allows two civilian cars to run multiple turns without overlap',()=>{
+ const layout=basinCarLayout(),player={x:5,z:154}
+ const rigs=Array.from({length:2},()=>({...vehicles.sport,setup:vehicles.sport,root:new Group(),updatePose(){}}))
+ const traffic=[]
+ const ai=civilianTraffic(new Scene(),boxes,traffic,rigs,{entries:layout.entries,nextNode:layout.next,junction:null})
+ const spans=new Map()
+ for(let i=0;i<5400;i++){
+  ai.update(1/60,player,{enabled:true,walkers:[]})
+  for(const car of traffic){
+   const previous=spans.get(car)??{x:car.x,z:car.z,metres:0}
+   spans.set(car,{x:car.x,z:car.z,metres:previous.metres+Math.hypot(car.x-previous.x,car.z-previous.z)})
+   assert(clearPose(car,boxes))
+  }
+  if(traffic.length===2)assert(!overlapsCar(traffic[0],traffic[1]))
+ }
+ assert.equal(traffic.length,2)
+ assert([...spans.values()].every(v=>v.metres>220),JSON.stringify([...spans.values()]))
+})
+
+test('basin scenery streams out with its GPU geometry while roads and colliders stay available',async()=>{
+ const starting=boxes.length,near={x:0,z:152},far={x:0,z:-110}
+ updateBasin(far)
+ assert(!scene.getObjectByName('South Basin foliage and planters'))
+ // A fast northbound-to-southbound approach loads the detail ahead of the car.
+ const approach={x:0,z:8}
+ updateBasin(approach,28,Math.PI)
+ for(let i=0;i<30&&!scene.getObjectByName('South Basin foliage and planters');i++){
+  await new Promise(resolve=>setTimeout(resolve,3));updateBasin(approach,28,Math.PI)
+ }
+ const detail=scene.getObjectByName('South Basin foliage and planters')
+ assert(detail)
+ updateBasin(near)
+ let freed=false
+ detail.children[0].geometry.addEventListener('dispose',()=>{freed=true})
+ assert(updateBasin(far))
+ assert(freed&&!detail.parent)
+ assert.equal(boxes.length,starting)
+ assert(canWalk(0,173,boxes))
+})
+
+test('the unmarked signal plate can be found and reached from the public garden path',()=>{
+ const spot=citySpots.find(s=>s.type==='discovery'),pos={x:spot.x,y:.083,z:spot.z-1.1}
+ assert(!sights.some(s=>s.x===spot.x&&s.z===spot.z))
+ assert(canWalk(pos.x,pos.z,boxes))
+ const visible=()=>cameraFraction({...pos,y:pos.y+1.36},{x:spot.x,y:spot.targetY,z:spot.z},boxes)>.84
+ assert.equal(nearbyAction([spot],pos,Math.PI,visible),spot)
 })

@@ -10,7 +10,7 @@ const bounds=(left,right,bottom,top,north,south)=>new Box3(new Vector3(left,bott
 export function equipmentTrace(boxes,cars,residents){
  const staticBounds=new WeakMap()
  const [garageBack,,garageNorth,garageSouth]=garage.bounds
- const solids=[bounds(-225,200,-2,0,-250,150),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south),
+ const solids=[bounds(-225,200,-2,0,-250,225),bounds(archive.back,archive.front,archive.ceiling,archive.ceiling+1,archive.north,archive.south),
   bounds(garageBack,garage.front,garage.ceiling,8.8,garageNorth,garageSouth)]
  for(const p of premises)solids.push(bounds(p.x-5.5,p.x+5.5,3.44,4,back,front))
  const ray=new Ray(),localRay=new Ray(),hit=new Vector3(),carBox=new Box3(),sphere=new Sphere()

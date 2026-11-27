@@ -1,3 +1,4 @@
+import {basinWalkLayout} from './basin-navigation.js'
 import {archive} from './chart-room.js'
 import {front,premises} from './market-plan.js'
 
@@ -45,9 +46,16 @@ Object.assign(points,{
 links.push(['clockBench','clockSouth','clockFront'],['lanternCounter','lanternDoor','clockSidewalk','clockTailors'],['westMail','westLane','westSteps'],['westLane','parcelApron','parcelDesk'],
  ['gardenGate','gardenWalk','gardenNorth'],['ferryDesk','ferryDoor','ferrySignal'])
 
+const basin=basinWalkLayout()
+Object.assign(points,basin.points)
+links.push(...basin.links)
+
 // A stop includes a reason to pause and a dwell time. The four quest givers
 // have local rounds so they stay easy to locate and remain with the same quests.
 export const residentRounds={
+ 'basin-host':[['basin.cafe',8,'serve'],['basin.terrace',4,'watch'],['basin.registry-square',5,'walk']],
+ 'basin-clerk':[['basin.registry',12,'work'],['basin.registry-square',6,'break'],['basin.cafe',5,'visit']],
+ 'basin-resident':[['basin.cooper',7,'rest'],['basin.coastal-rest',7,'look'],['basin.garden',9,'break']],
  foreman:[['charts',6,'check'],['gate',8,'watch'],['westGateMeet',5,'watch']],
  merchant:[['rest',4,'break'],['counter',11,'serve'],['news',4,'check']],
  courier:[['eastGateMeet',3,'check'],['westGateMeet',4,'deliver'],['courierHome',6,'wait']],

@@ -106,7 +106,7 @@ function waterSurface() {
         #include <fog_fragment>
       }`
   });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(340, 400), material);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(340, 548), material);
   mesh.rotation.x = -PI / 2;
   mesh.position.set(196.05, -1.18, -57);
   return mesh;

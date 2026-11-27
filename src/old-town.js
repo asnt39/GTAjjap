@@ -1,3 +1,4 @@
+import {basinLand,distanceToBasin,insideBasin} from './south-basin-plan.js'
 import {streetDetails,reservedSurfaces} from './town-streets.js'
 import {within,crossings} from './street-plan.js'
 import {buildClockLane} from './clock-lane.js'
@@ -13,8 +14,10 @@ import {buildRowShell} from './market-row-shell.js'
 
 export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards,meadow}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
+ const basinGround=new T.Group(),basinStructures=new T.Group()
  town.name='Old Town';structures.name='Clock Court and terraces'
- town.add(structures,westStructures,barriers);scene.add(town)
+ basinGround.name='South Basin road and pavement';basinStructures.name='South Basin buildings'
+ town.add(structures,westStructures,basinGround,basinStructures,barriers);scene.add(town)
  const standard=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.81,...extra})
  const surface=standard(0x716c62,{map:street[0],normalMap:street[1],normalScale:new T.Vector2(.56,.56)})
  const pavement=standard(0xa9a094,{map:street[2],normalMap:street[3],normalScale:new T.Vector2(.56,.56)})
@@ -56,16 +59,24 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  function box(x,y,z,w,h,d,material,group=structures){
   batch(solidBox.clone().scale(w,h,d).translate(x,y,z),material,group)
  }
- function floor([x0,x1,z0,z1],height,material){
+ function floor([x0,x1,z0,z1],height,material,group=town){
   const g=new T.PlaneGeometry(x1-x0,z1-z0).rotateX(-Math.PI/2)
   const uv=g.attributes.uv
   for(let i=0;i<uv.count;i++)uv.setXY(i,(x0+(x1-x0)*uv.getX(i))/4.5,(-z1+(z1-z0)*uv.getY(i))/4.5)
-  batch(g.translate((x0+x1)/2,height,(z0+z1)/2),material,town)
+  batch(g.translate((x0+x1)/2,height,(z0+z1)/2),material,group)
  }
- for(const rect of townRoadSurface)floor(rect,0,surface)
+ const basinNorth=basinLand[0][2]
+ function districtFloor(rect,height,material){
+  const [a,b,n,s]=rect
+  // The older West Bank quay shares the latitude, but sits far to the west.
+  if(a<basinLand[1][0]||s<=basinNorth){floor(rect,height,material);return}
+  if(n<basinNorth)floor([a,b,n,basinNorth],height,material)
+  floor([a,b,Math.max(n,basinNorth),s],height,material,basinGround)
+ }
+ for(const rect of townRoadSurface)districtFloor(rect,0,surface)
  const pavementTiles=townTiles([...townPavement,...reservedSurfaces],(x,z)=>
   townPavement.some(r=>within(r,x,z))&&!reservedSurfaces.some(r=>within(r,x,z)))
- for(const rect of pavementTiles)floor(rect,.082,pavement)
+ for(const rect of pavementTiles)districtFloor(rect,.082,pavement)
  streetDetails({floor,addCollider,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
   materials:{stone,paint:trafficPaint,asphalt:surface,paving:pavement,planted:meadow??standard(0x626b49),iron}})
  for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
@@ -98,7 +109,8 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   const sideways=Math.abs(Math.sin(angle))>.5
   const w=sideways?depth:width,d=sideways?width:depth
   if(!room&&!terrace)addCollider(x-w/2,x+w/2,z-d/2,z+d/2,height+.36)
-  let group=inWestBank(x,z)?westStructures:structures
+  const basin=insideBasin(x,z)
+  let group=basin?basinStructures:inWestBank(x,z)?westStructures:structures
   const facade=walls[skin],face=depth/2
   function part(px,y,pz,pw,ph,pd,mat,tileSurface=false,tilt=0,target=group){
    const g=solidBox.clone().scale(pw,ph,pd)
@@ -162,7 +174,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    }
    part(0,2.63,face+.41,1.92,.145,.83,stone)
   }
-  const top=height>8.35?2:1
+  const top=basin?Math.max(1,Math.floor((height-2.8)/2.55)):height>8.35?2:1
   for(let level=0;level<top;level++)for(const side of [-1,1]){
    const y=4.45+2.42*level,xWall=width/2
    for(const bay of [-.23,.22]){
@@ -243,10 +255,17 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   // of the shadow map until the player approaches either side of the loop.
   const shadows=Math.hypot(Math.max(0,position.x+23,-86-position.x),Math.max(0,17-position.z,position.z-126))<38
   const westShadows=position.x<-69
+  const basinDistance=distanceToBasin(position.x,position.z),basinVisible=basinDistance<156
   let changed=structures.children[0].castShadow!==shadows||westStructures.children[0].castShadow!==westShadows
   if(changed){
    for(const mesh of structures.children)mesh.castShadow=shadows
    for(const mesh of westStructures.children)mesh.castShadow=westShadows
+  }
+  const basinShadows=basinDistance<(low?23:39)
+  if(basinStructures.children[0].castShadow!==basinShadows||basinStructures.visible!==basinVisible){
+   basinGround.visible=basinStructures.visible=basinVisible
+   for(const mesh of basinStructures.children)mesh.castShadow=basinShadows
+   changed=true
   }
   for(const block of blocks.values()){
    const d=Math.max(0,Math.abs(position.x-block.x)-31)**2+Math.max(0,Math.abs(position.z-block.z)-31)**2

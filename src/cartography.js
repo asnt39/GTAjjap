@@ -1,3 +1,4 @@
+import {basinGreen,basinLots} from './south-basin-plan.js'
 import {shopSite,oldShopWorkshop} from './weapon-shop-plan.js'
 import {citySpots} from './city-life-plan.js'
 import {crossings,loadingCourt,pocketGarden} from './street-plan.js'
@@ -10,7 +11,7 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
  const c=canvas.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h)
- const scale=overview? Math.min(w/274,h/274):1.78, cx=overview?-99:player.x,cz=overview?20:player.z
+ const scale=overview? Math.min(w/274,h/330):1.78, cx=overview?-99:player.x,cz=overview?53:player.z
  c.translate(w*.5,h*.5);c.scale(scale,scale);c.translate(-cx,-cz)
  const rect=(x,z,a,b,fill)=>{c.fillStyle=fill;c.fillRect(x,z,a,b)}
  rect(-400,-400,800,800,'#283534');rect(26,-400,400,800,'#294950')
@@ -24,6 +25,8 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  for(const [bounds,color] of [[loadingCourt,'#45575a'],[pocketGarden,'#475943']]){
   const [a,b,n,s]=bounds;rect(a,n,b-a,s-n,color)
  }
+ for(const {bounds:[a,b,n,s]} of basinGreen)rect(a,n,b-a,s-n,'#52674e')
+ for(const [a,b,n,s] of basinLots)rect(a,n,b-a,s-n,'#5d6158')
  for(const crossing of crossings){
   const along=crossing.axis==='z'
   rect(crossing.x-(along?crossing.span:crossing.width)*.5,crossing.z-(along?crossing.width:crossing.span)*.5,

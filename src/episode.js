@@ -1,4 +1,5 @@
 import {firstWork,goods,missions,storyContracts} from './episode-data.js'
+import {basinPlate} from './south-basin-plan.js'
 
 const saveKey = 'harborline.episode.v1'
 const driveSeconds = 65
@@ -6,7 +7,7 @@ const emptyRun=()=>({step:0,status:'available',reason:''})
 const initial = () => ({
   index:0, step:0, status:'available', money:5000,
   inventory:Object.fromEntries(goods.map(item=>[item.id,0])), remaining:null, reason:'',
-  bank:0, firstJob:emptyRun(),
+  bank:0, firstJob:emptyRun(), discoveries:[],
   followups:Object.fromEntries(storyContracts.slice(1).map(contract=>[contract.id,emptyRun()]))
 })
 const storyRun=(state,contract)=>contract===firstWork?state.firstJob:state.followups[contract.id]
@@ -32,6 +33,7 @@ function read(raw) {
     if (state.status==='active' && natural(saved.step) && saved.step<missions[state.index].steps.length) state.step=saved.step
     if (natural(saved.money)) state.money=saved.money
     if (natural(saved.bank)) state.bank=saved.bank
+    if (Array.isArray(saved.discoveries)&&saved.discoveries.includes(basinPlate.id)) state.discoveries.push(basinPlate.id)
     for (const item of goods) {
       if (natural(saved.inventory?.[item.id])) state.inventory[item.id]=saved.inventory[item.id]
     }
@@ -100,6 +102,16 @@ export function createEpisode(options={}) {
   function saveEquipment(equipment){
     state.equipment=equipment
     save()
+  }
+  const discovered=id=>state.discoveries.includes(id)
+  function discover(id){
+    if(id!==basinPlate.id||discovered(id))return wrong('이미 기록했거나 확인할 수 없는 물건이야.')
+    const money=state.money+basinPlate.reward,discoveries=[...state.discoveries,id]
+    if(!natural(money))return wrong('보상을 저장할 수 없어.')
+    const saved=write({money,discoveries})
+    if(!saved.ok)return saved
+    Object.assign(state,{money,discoveries})
+    return result(true,'도선 신호판을 수첩에 기록했어. 조사 보상 +₩'+basinPlate.reward.toLocaleString('ko-KR'))
   }
   function advance(message) {
     const run=record()
@@ -280,6 +292,7 @@ export function createEpisode(options={}) {
       objective:status==='complete' ? '마지막 교대가 떠났다. 항구를 자유롭게 둘러봐.' : status==='failed' ? reason : step().objective,
       goal:status==='active' ? {...step().goal} : null,
       items:goods.map(item=>({...item,count:state.inventory[item.id]})),
+      found:discovered(basinPlate.id)?[basinPlate.title]:[],
       completed:missions.slice(0,state.status==='complete'?missions.length:index).map(item=>item.id),
       firstJobCompleted:state.firstJob.status==='complete',
       storyCompleted:storyContracts.filter(contract=>storyRun(state,contract).status==='complete').map(contract=>contract.id)
@@ -297,7 +310,7 @@ export function createEpisode(options={}) {
     if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
     return {...next.contact,jobTitle:next.title}
   }
-  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,
+  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,discovered,discover,
     get savedEquipment(){return state.equipment},
     get openingActive(){return !!selectedStory()&&record().status==='active'},
     get roadClosed(){return selectedStory()===firstWork&&this.openingActive&&!!step().roadClosed}}

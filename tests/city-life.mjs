@@ -4,6 +4,7 @@ import {nearbyAction,cityAction} from '../src/city-actions.js'
 import {createEpisode} from '../src/episode.js'
 import {dartPower,dartScore} from '../src/darts-round.js'
 import {cityAudio,musicCue,readMixer} from '../src/city-audio.js'
+import {basinPlate} from '../src/south-basin-plan.js'
 
 test('interaction selects a visible target in reach and respects approach side and floor',()=>{
  const pos={x:0,y:.083,z:0}
@@ -48,6 +49,26 @@ test('dart scoring rewards stopping near the centre and oscillates every 1.8 sec
  assert.equal(dartScore(0),0)
  assert.equal(dartPower(.9),1)
  assert.equal(dartPower(1.8),0)
+})
+
+test('the signal plate reward is saved once without overwriting legacy wallet or equipment',()=>{
+ const old={version:1,index:0,money:1420,bank:950,equipment:{items:{pistol:{owned:true}}}}
+ let data=JSON.stringify(old)
+ const storage={getItem:()=>data,setItem:(_,value)=>{data=value}}
+ const play=createEpisode({storage}),stale=createEpisode({storage})
+ assert(play.discover(basinPlate.id).ok)
+ assert(!play.discover(basinPlate.id).ok)
+ assert(!stale.discover(basinPlate.id).ok)
+ const restored=createEpisode({storage})
+ assert(restored.discovered(basinPlate.id))
+ assert.deepEqual(restored.snapshot().found,[basinPlate.title])
+ assert.equal(restored.snapshot().money,old.money+basinPlate.reward)
+ assert.equal(restored.snapshot().bank,old.bank)
+ assert.deepEqual(restored.savedEquipment,old.equipment)
+ const unavailable=createEpisode({storage:{getItem:()=>JSON.stringify(old),setItem(){throw new Error('quota')}}})
+ assert(!unavailable.discover(basinPlate.id).ok)
+ assert.equal(unavailable.snapshot().money,old.money)
+ assert(!unavailable.discovered(basinPlate.id))
 })
 
 class FakeParam {

@@ -1,3 +1,4 @@
+import {basinParcels} from './south-basin-plan.js'
 import {westBankFrontages} from './west-bank-plan.js'
 // Each frontage faces the street. Leave the gap at Clock Court and the
 // passages at z=67 and z=96 open to pedestrians.
@@ -10,7 +11,8 @@ export const rows=[
  [-25.4,34.5,7.2,7.1,4.2,2,-Math.PI/2],[-25.3,52,7.6,8.5,4.4,0,-Math.PI/2],
  [-23.2,68.5,7.8,7.0,8.2,1,-Math.PI/2],[-23.3,101.6,7.8,7.1,8.0,2,-Math.PI/2],
  [-68,120,10,6.8,7.7,1,Math.PI],[-53.3,120,10.1,7.6,7.8,0,Math.PI],[-37.2,120,10.8,6.4,8.1,2,Math.PI],
- ...westBankFrontages
+ ...westBankFrontages,
+ ...basinParcels.map(parcel=>parcel.row)
 ]
 
 const conversions=[
@@ -23,7 +25,9 @@ const conversions=[
  [10,'Clock Street Dispatch','office','auto'],[11,'Lantern Corner Café','cafe','pair'],[12,'Clock Row Tailors','shop','hinge'],[31,'West Bank Service Office','office','slide'],
  [42,'Yard Stores','workshop','slide'],[43,'Canvas Loft','workshop','pair']
 ]
-export const terraceRooms=conversions.map(([index,title,use,door])=>{
+const basinStart=rows.length-basinParcels.length
+const basinConversions=basinParcels.flatMap((parcel,index)=>parcel.door?[[basinStart+index,parcel.title,parcel.type,parcel.door]]:[])
+export const terraceRooms=[...conversions,...basinConversions].map(([index,title,use,door])=>{
  const [x,z,width,height,depth,,angle]=rows[index]
  return {index,title,use,door,x,z,width,height,depth,angle,cos:Math.round(Math.cos(angle)),sin:Math.round(Math.sin(angle))}
 })

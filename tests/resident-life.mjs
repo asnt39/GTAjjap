@@ -1,3 +1,4 @@
+import {buildSouthBasin} from '../src/south-basin.js'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
 import {PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
@@ -32,6 +33,7 @@ const add=(a,b,c,d,h=3,standable=false,bottom)=>{if(h>.15)boxes.push([Math.min(a
 beacons(scene,add);districtGates(scene,add);marketCollision(add);stationColliders(add)
 const maps={}
 const [,rigs]=await Promise.all([buildArchitecture(scene,add,maps),buildStreet(scene,add,maps)])
+buildSouthBasin(scene,add,maps)
 buildOldTown(scene,add,boxes,maps);buildWestBank(scene,add,maps)
 const fleet=Object.values(rigs).map(rig=>({...rig,speed:0}))
 const graph=walkingGraph((a,b)=>{

@@ -1,3 +1,4 @@
+import {insideBasin} from './south-basin-plan.js'
 import {cityAudio} from './city-audio.js'
 import {dartPower,dartScore} from './darts-round.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
@@ -42,7 +43,7 @@ export function createUI(game){
   if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
   const menu={
-   bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')],
+   bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
    pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
    audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
     button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
@@ -324,7 +325,7 @@ export function createUI(game){
    const label=near?.tag==='ARM'?near.name:game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

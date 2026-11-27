@@ -47,4 +47,13 @@ people.push(weaponVendor,
   lines:['Clock Court로 가면 시계탑 아래에 동네 안내도가 있어요.','차는 큰길에 두고 와요. 이 동네는 골목으로 걷는 게 빨라요.']}
 )
 
+people.push(
+ {id:'basin-host',name:'Leona Pike',role:'Tidelight Café 운영',model:'crew',variant:7,x:-12.3,z:100,pace:.97,temper:'avoid',
+  lines:['선창에서 일 나오면 들러요. 네 시만 지나면 자리가 금방 차요.','대로 쪽 유리문으로 들어오세요. 안쪽에는 따뜻한 커피가 있어요.']},
+ {id:'basin-clerk',name:'Isaac Dunn',role:'남부 등록소 직원',model:'mariner',variant:6,x:9.6,z:101.5,pace:1.05,temper:'avoid',
+  lines:['등록하는 배마다 번호가 있어요. 새로 온 배는 남부 안벽에서 확인하고요.','정원은 안벽 끝에 있어요. 산책로를 끝까지 따라가면 보여요.']},
+ {id:'basin-resident',name:'June Adler',role:'Cooper House 주민',model:'crew',variant:3,x:-21.2,z:157,pace:.93,temper:'flee',
+  lines:['새 아파트 들어오기 전에는 이 길이 온통 철도 창고였어요.','비가 오기 전까지 안벽을 한 바퀴 돌아요. 저 끝 정원에선 바람이 좋아요.']}
+)
+
 export const residentHealth = { civilian:108, officer:132, guard:144 }

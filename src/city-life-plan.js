@@ -1,11 +1,15 @@
 import {terracePoint,terraceRooms} from './terrace-plan.js'
 import {clockCourt} from './old-town-plan.js'
+import {basinPlate} from './south-basin-plan.js'
 
-const indoors=(index,x,z)=>terracePoint(terraceRooms.find(room=>room.index===index),x,z)
+const indoors=(id,x,z)=>terracePoint(terraceRooms.find(room=>room.index===id||room.title===id),x,z)
 export const citySpots=[
  {id:'meal',...indoors(15,1.9,-1.55),title:'South Row Kitchen',label:'따뜻한 식사 주문',price:480,pose:'eat',heal:25},
  {id:'coffee',...indoors(0,1.9,-2),title:'Gull Street Bakery',label:'커피 주문',price:320,pose:'drink',energy:24},
  {id:'cafe',...indoors(29,2.35,-1.42),title:'Pump House Café',label:'커피 주문',price:350,pose:'drink',energy:24},
+ {id:'basin-coffee',...indoors('Tidelight Café',1.55,-1.4),title:'Tidelight Café',label:'커피 주문',price:340,pose:'drink',energy:24},
+ {id:'basin-seat',x:12.0,z:198.06,seatZ:198.8,seatY:.55,fromZ:-1,title:'Pilothouse Garden',label:'안벽 벤치에 앉기',pose:'sit'},
+ {...basinPlate,range:1.45,targetY:1.14,label:'낡은 신호판 확인',type:'discovery'},
  {id:'lantern-coffee',...indoors(11,1.35,-1.15),title:'Lantern Corner Café',label:'커피 주문',price:340,pose:'drink',energy:24},
  {id:'grocer',...indoors(23,0,-.25),title:'West Bank Grocer',label:'응급 붕대 구매',goods:'bandage'},
  {id:'vending',x:-48.35,z:57.6,fromZ:1,title:'Clock Court',label:'자판기 · 생수 구매',price:120,heal:8,pose:'drink'},

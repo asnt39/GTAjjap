@@ -5,10 +5,10 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value))
 const angle=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b))
 const heading=node=>Math.atan2(node.dx,-node.dz)
-const junction={x:0,z:-37}
+const dockJunction={x:0,z:-37}
 const spawnNear=25,spawnFar=92,despawnAt=108
 
-export function civilianTraffic(scene,boxes,traffic,rigs){
+export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntries,nextNode=civilianNext,junction=dockJunction}={}){
  const units=rigs.map((rig,index)=>{
   const setup={...rig.setup,top:7.8+index*.25,power:3.25,steer:.86,steerRate:3}
   const car=newDrive(rig,setup)
@@ -24,8 +24,8 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
   if(junctionOwner===unit)junctionOwner=null
  }
  function spawn(unit,player,walkers,inView){
-  for(let i=0;i<civilianEntries.length;i++){
-   const node=civilianEntries[(spawnCursor+i)%civilianEntries.length]
+  for(let i=0;i<entries.length;i++){
+   const node=entries[(spawnCursor+i)%entries.length]
    const range=distance(node,player)
    if(range<spawnNear||range>spawnFar||inView(node)&&range<72)continue
    const pose={...newDrive(unit.rig,unit.car.setup),x:node.x,z:node.z,heading:heading(node)}
@@ -34,7 +34,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
    Object.assign(unit,{path:[node],stopped:0,waiting:0,recover:0,retry:0,active:true})
    unit.rig.updatePose(unit.car)
    unit.rig.root.visible=true;traffic.push(unit.car)
-   spawnCursor=(spawnCursor+i+1)%civilianEntries.length
+   spawnCursor=(spawnCursor+i+1)%entries.length
    return true
   }
   return false
@@ -50,6 +50,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
   return curve.edges[0]??curve
  }
  function reserved(unit){
+  if(!junction)return false
   const gap=distance(unit.car,junction)
   return gap<14&&unit.path.some(node=>node.curve&&distance(node,junction)<7.5)
  }
@@ -58,6 +59,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
   return exit&&traffic.some(v=>v!==unit.car&&Math.abs(v.speed)<1.05&&distance(v,exit)<4.0)
  }
  function updateJunction(){
+  if(!junction)return
   if(junctionOwner){
    const inside=distance(junctionOwner.car,junction)<10.25
    if((inside&&junctionOwner.stopped<4.2)||(!inside&&reserved(junctionOwner)&&junctionOwner.stopped<2.0))return
@@ -80,7 +82,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
   const {car,path}=unit
   while(path.length<10){
    const current=path.at(-1)
-   const next=civilianNext(current,unit.turn)
+   const next=nextNode(current,unit.turn)
    if(current.edges.length>1)unit.turn++
    path.push(next)
   }
@@ -92,7 +94,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs){
   const look=path.find(node=>distance(car,node)>2.2+car.speed*.22)??path.at(-1)
   const error=angle(Math.atan2(look.x-car.x,car.z-look.z),car.heading)
   const turning=look.curve||Math.abs(error)>.25
-  const vicinity=distance(car,junction)
+  const vicinity=junction?distance(car,junction):Infinity
   const wait=reserved(unit)&&junctionOwner!==unit
   unit.waiting=wait?unit.waiting+dt:0
   const obstacles=traffic.filter(other=>other!==car&&distance(car,other)<21)

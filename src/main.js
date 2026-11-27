@@ -1,3 +1,6 @@
+import {basinCarLayout} from './basin-navigation.js'
+import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
+import {buildSouthBasin} from './south-basin.js'
 import {grenadeGuide} from './grenade-guide.js'
 import {crashEvents,crashExit,impulse,moveImpact} from './impact-motion.js'
 import {onQuay} from './quay-plan.js'
@@ -113,6 +116,7 @@ export async function start(onContextLost){
  const storeFloor=new THREE.MeshStandardMaterial({color:0xa99c85,roughness:.86,map:surfaceMaps.street[2],normalMap:surfaceMaps.street[3]})
  const rowBoards=new THREE.MeshStandardMaterial({color:0x877665,roughness:.82})
  surfaceMaps.storeFloor=storeFloor;surfaceMaps.rowBoards=rowBoards
+ const updateBasin=buildSouthBasin(scene,addCollider,surfaceMaps)
  const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
  const updateRow=buildRowDetail(scene,boxes,storeFloor,rowBoards,surfaceMaps.street)
  updateRow(pos,0)
@@ -142,9 +146,10 @@ export async function start(onContextLost){
  const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite]),updateFittings=streamTerraceRooms(scene)
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={},crashes=crashEvents()
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
- const trafficRigs=Array.from({length:coarse?2:4},()=>rigs.civilianRig())
+ const dockCapacity=coarse?2:4,basinCapacity=coarse?1:2
+ const trafficRigs=Array.from({length:dockCapacity+basinCapacity},()=>rigs.civilianRig())
  await Promise.all(trafficRigs.map(async(rig,index)=>{
-  const driver=await createCharacter({variant:[1,4,7,2][index]})
+  const driver=await createCharacter({variant:[1,4,7,2][index%4]})
   driver.update(0,0)
   driver.root.scale.setScalar(.76)
   driver.root.position.set(-.39,-.18,-.11)
@@ -153,7 +158,9 @@ export async function start(onContextLost){
   rig.cabin.add(driver.root)
   rig.driver=driver.root
  }))
- const civilians=civilianTraffic(scene,boxes,traffic,trafficRigs)
+ const civilians=civilianTraffic(scene,boxes,traffic,trafficRigs.slice(0,dockCapacity))
+ const basinRoads=basinCarLayout()
+ const basinTraffic=civilianTraffic(scene,boxes,traffic,trafficRigs.slice(dockCapacity),{entries:basinRoads.entries,nextNode:basinRoads.next,junction:null})
  const trafficView=new THREE.Frustum(),trafficProjection=new THREE.Matrix4(),trafficPoint=new THREE.Vector3()
  const trafficInView=point=>trafficView.containsPoint(trafficPoint.set(point.x,1,point.z))
  const walkers=[]
@@ -391,9 +398,16 @@ export async function start(onContextLost){
   if(!canAct()&&!driving())return null
   if(driving()&&(room.phase!=='offline'||Math.abs(car.speed)>.45||!car.dents))return null
   return nearbyAction(driving()?repairSpots:walkSpots,pos,yaw,spot=>
-   driving()||cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84)
+   driving()||(spot.type!=='discovery'||room.phase==='offline'&&!episode.discovered(spot.id))&&
+   cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84)
  }
  function useCity(spot){
+  if(spot.type==='discovery'){
+   if(room.phase!=='offline')return
+   const result=episode.discover(spot.id);ui.toast(result.message)
+   if(result.ok)ui.sound('mission',pos)
+   return
+  }
   if(spot.type==='repair'){
    const result=episode.spend(spot.price)
    if(result.ok){car.dents=undefined;car.collision=null;ui.sound('repair',pos)}
@@ -568,7 +582,7 @@ export async function start(onContextLost){
  const room=createRoomClient({
   change(){ui.updateRoom();if(room.phase==='offline'&&room.message&&!ui.isOpen())ui.toast(room.message)},
   join(p,resumed){
-   civilians.clear()
+   civilians.clear();basinTraffic.clear()
    if(!resumed)offline={x:pos.x,y:pos.y,z:pos.z,face,yaw,pitch,distance,cars:fleet.map(vehicle=>({...vehicle,collision:null}))}
    localSeat=null
    const frame=room.sample(performance.now())
@@ -614,7 +628,7 @@ export async function start(onContextLost){
   if(custody.active){ui.toast('석방 후에 방에 입장할 수 있어');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
-  saveCheckpoint();civilians.clear();room.start(endpoint,request)
+  saveCheckpoint();civilians.clear();basinTraffic.clear();room.start(endpoint,request)
  }
  const ui=createUI({cityCandidate,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=nextQuality(quality);writeQuality(quality)
   const settings=profile()
@@ -749,13 +763,14 @@ export async function start(onContextLost){
   if(saved){yaw=saved.yaw;pitch=saved.pitch;distance=saved.distance;face=saved.face}
   plantFeet(restored.x,restored.z,restored.y)
  }
- updateFittings(pos);updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
+ updateFittings(pos);updateBasin(pos);updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
  trackedX=pos.x;trackedZ=pos.z
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
  positionCamera(0,true)
  function footSurface(){
   const {x,z,y}=pos
+  if(insideBasin(x,z)&&basinGreen.some(g=>within(g.bounds,x,z)))return 'grass'
   if(within(pocketGarden,x,z)||x>-174.4&&x<-159.6&&z>39.6&&z<54.8)return 'grass'
   if(insideTerrace(x,z)||rowRoomAt(x,z))return y>1.8?'stairs':'wood'
   if(x>15&&onQuay(x,z))return 'metal'
@@ -951,8 +966,12 @@ export async function start(onContextLost){
    walkers.length=0
    if(!driving()&&pos.y<1.35&&!foot.air)walkers.push(pos)
    for(const resident of crowd.all)if(resident.pos.y<1.35&&!resident.policeOrder?.aboard)walkers.push(resident.pos)
-   remoteShadow=civilians.update(dt,pos,{enabled:room.phase==='offline'&&!custody.active,
-    limit:coarse&&recentFrameMs>34?1:trafficRigs.length,walkers,inView:trafficInView})||remoteShadow
+   const trafficLocal=room.phase==='offline'&&!custody.active
+   const lowTraffic=coarse&&recentFrameMs>34
+   remoteShadow=civilians.update(dt,pos,{enabled:trafficLocal,limit:lowTraffic?1:dockCapacity,
+    walkers,inView:trafficInView})||remoteShadow
+   remoteShadow=basinTraffic.update(dt,pos,{enabled:trafficLocal&&pos.z>80,limit:lowTraffic?1:basinCapacity,
+    walkers,inView:trafficInView})||remoteShadow
    for(let i=fleet.length;i<traffic.length;i++){
     const vehicle=traffic[i]
     effects.vehicle(vehicle,dt,Math.hypot(vehicle.x-pos.x,vehicle.z-pos.z))
@@ -975,9 +994,10 @@ export async function start(onContextLost){
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
    const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos,quality==='low'),rowChanged=updateRow(pos,dt)
+   const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action&&!activity.current,aiming,
@@ -1007,8 +1027,8 @@ export async function start(onContextLost){
   }
   ui.updateAudio(now,()=>{
    const {x,z}=pos
-   const harbor=x>10&&z<43||x<-200&&z>96
-   const park=x<-156&&x>-177&&z>37&&z<58
+   const harbor=x>10&&z<43||x<-200&&z>96||insideBasin(x,z)&&x>20
+   const park=x<-156&&x>-177&&z>37&&z<58||insideBasin(x,z)&&z>187&&x>7
    const indoor=insideTerrace(x,z)||rowRoomAt(x,z)||insidePremises(x,z)||insideWeaponShop(x,z)||atGarage(x,z)||atStation(x,z)||insideWorks(x,z)
    let policeDistance=Infinity,passing=null,passingDistance=32
    for(const unit of squads.units)if(['approach','chase','stopping'].includes(unit.stage)){

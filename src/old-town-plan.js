@@ -1,3 +1,4 @@
+import {basinLand,basinRoadBounds,basinLots} from './south-basin-plan.js'
 import {shopApron} from './weapon-shop-plan.js'
 import {crossingRamp,loadingCourt,serviceApron,within} from './street-plan.js'
 import {quayApron} from './quay-plan.js'
@@ -12,16 +13,16 @@ export const oldTownRoads=[
  [-73.5,-29.5,103.5,114.5],    // South Row
  [-35,6,78.5,89.5],           // Breakwater link
  [-6,6,63,89.5],
- ...westBankRoads
+ ...westBankRoads,...basinRoadBounds
 ]
 export const oldTownLand=[
  [-86,-23,17,126],[-29,-19,65,126],
  [-76.5,-59.5,-28,21],[-39,9,75.5,92.5],[-9,9,56,91],
- ...westBankLand
+ ...westBankLand,...basinLand
 ]
 export const clockCourt={x:-51.5,z:51}
 const contains=([a,b,c,d],x,z,r=0)=>x>=a+r&&x<=b-r&&z>=c+r&&z<=d-r
-const walkableLand=[...oldTownLand,...westBankRoads]
+const walkableLand=[...oldTownLand,...westBankRoads,...basinRoadBounds]
 // Adjacent land tiles share a surface. Check the combined footprint when
 // its centre lies on a tile seam, including gaps in concave outer edges.
 const landBreaks=[...new Set(walkableLand.flatMap(([left,right])=>[left,right]))].sort((a,b)=>a-b)
@@ -45,6 +46,7 @@ export function inOldTown(x,z,r=0){
 }
 const approachRoads=[...oldTownRoads,[-6,6,52,63],[...marketEntrance,-34,-31]]
 export function oldTownHeight(x,z){
+ if(basinLots.some(r=>within(r,x,z)))return .008
  if(within(loadingCourt,x,z)||within(serviceApron,x,z))return .008
  const rampHeight=crossingRamp(x,z)
  if(rampHeight<1)return .008+.075*rampHeight
@@ -79,11 +81,11 @@ export function townTiles(rects,filter){
 }
 
 export const townRoadSurface=townTiles(oldTownRoads,(x,z)=>oldTownRoads.some(r=>contains(r,x,z)))
-const pavedLand=[...oldTownLand.slice(0,2),[-76.5,-59.5,-27,21],oldTownLand[3],[-9,9,63,92.5],...westBankLand]
+const pavedLand=[...oldTownLand.slice(0,2),[-76.5,-59.5,-27,21],oldTownLand[3],[-9,9,63,92.5],...westBankLand,...basinLand]
 export const townPavement=townTiles([...pavedLand,...oldTownRoads],(x,z)=>
  pavedLand.some(r=>contains(r,x,z))&&!oldTownRoads.some(r=>contains(r,x,z)))
 const roadBlend=[...oldTownRoads,[-6.05,6.05,-43,63],[-97,25.3,-43,-31]]
-export const townDriveBounds=[-97,25.3,-43,114.5]
+export const townDriveBounds=[-97,29,-43,209]
 export const townCurbBlocks=townTiles(roadBlend,(x,z)=>!roadBlend.some(r=>contains(r,x,z)))
 
 const dockPavement=[
@@ -96,11 +98,11 @@ const dockPavement=[
 const drivePavement=[...dockPavement,...townPavement]
 const driveRoads=[[-6,6,-101,63],[-97,25.3,-43,-31],...oldTownRoads]
 const driveSurfaces=[...driveRoads,...drivePavement]
-export const pavedDriveBounds=[-225,25.3,-101,144]
+export const pavedDriveBounds=[-225,29,-101,209]
 export const unpavedDriveBlocks=townTiles([...driveSurfaces,pavedDriveBounds],
  (x,z)=>!driveSurfaces.some(rect=>contains(rect,x,z)))
 export function drivePavementHeight(x,z){
- if(within(loadingCourt,x,z)||within(serviceApron,x,z))return 0
+ if(within(loadingCourt,x,z)||within(serviceApron,x,z)||basinLots.some(r=>within(r,x,z)))return 0
  return drivePavement.some(rect=>contains(rect,x,z))?.083*crossingRamp(x,z):0
 }
 
