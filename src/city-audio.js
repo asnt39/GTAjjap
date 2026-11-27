@@ -15,7 +15,8 @@ const sounds={
  drink:[143,490,.24,.10],eat:[116,980,.15,.12],repair:[328,1900,.32,.16],
  mission:[392,2400,.38,.12],ui:[345,1550,.10,.085],horn:[330,1300,.52,.20],
  tire:[55,920,.17,.17],gear:[67,390,.16,.12],bird:[1660,2300,.23,.07],gull:[980,1400,.38,.13],
- harborBell:[510,1230,.42,.14],wallHit:[91,1200,.11,.13]
+ harborBell:[510,1230,.42,.14],wallHit:[91,1200,.11,.13],
+ sand:[69,610,.115,.095],splash:[83,2180,.34,.19],boatStart:[47,580,.52,.19]
 }
 
 export function readMixer(storage){
@@ -217,11 +218,11 @@ export function cityAudio(browser=globalThis){
     ctx.currentTime-lastPlayback>1.4&&settings.music>0){
     lastPlayback=ctx.currentTime;startTrack(zone)
    }
-   const {indoor,driving,car,harbor,wanted,t}=frame
+   const {indoor,driving,car,harbor,wanted,t,boat,underwater,coastal}=frame
    if(driving||frame.passing)prepareRoad()
-   fade(roomFilter.frequency,indoor?1140:14000,.23);fade(echo.send.gain,indoor?.20:.035,.21)
-   fade(windGain.gain,(indoor?.04:.25)*(frame.park?1.2:.67),.31)
-   fade(waterGain.gain,harbor?(.14+.06*Math.sin(t*1.15))*(indoor?.42:1):frame.park?.047:0,.26)
+   fade(roomFilter.frequency,underwater?420:indoor?1140:14000,.23);fade(echo.send.gain,indoor?.20:.035,.21)
+   fade(windGain.gain,underwater?.025:(indoor?.04:.25)*(frame.park?1.2:.67),.31)
+   fade(waterGain.gain,underwater?.16:coastal?.29+.12*Math.sin(t*1.45):harbor?(.14+.06*Math.sin(t*1.15))*(indoor?.42:1):frame.park?.047:0,.26)
    const nearby=frame.passing?Math.max(0,1-frame.passingDistance/32)*.18:0
    fade(cityGain.gain,(indoor?.065:.105)+nearby*(indoor?.24:1),.34)
    if(!paused&&!indoor&&t>nextAmbience&&(harbor||frame.park)){
@@ -236,14 +237,17 @@ export function cityAudio(browser=globalThis){
    const band=ratios.reduce((n,v)=>n+(speed>v?1:0),0)
    const rpm=Math.min(1,Math.max(0,(speed-(ratios[band-1]??0)*.78)/(ratios[band]??29)))
    const throttle=Math.max(0,Math.min(1,(car.throttle??0)+Math.max(0,car.accel)*.075))
-   const pitch=(bike?68:sport?49:37)+(bike?183:sport?152:114)*rpm+throttle*22
-   fade(motor.frequency,pitch,.11);fade(motorHarmonic.frequency,pitch*(bike?2.03:sport?2.50:1.51),.105)
-   fade(harmonicGain.gain,bike?.50:sport?.34:.18,.12)
-   fade(motorFilter.frequency,(bike?970:sport?740:420)+throttle*690,.18)
+   const marineSpeed=Math.abs(boat?.speed??0),marineRPM=boat?Math.min(1,marineSpeed/boat.top+.21*Math.abs(boat.throttle??0)):0
+   const sportBoat=boat?.id==='launch'
+   const pitch=boat?(sportBoat?57:45)+marineRPM*(sportBoat?118:85):
+    (bike?68:sport?49:37)+(bike?183:sport?152:114)*rpm+throttle*22
+   fade(motor.frequency,pitch,.11);fade(motorHarmonic.frequency,pitch*(boat?2.14:bike?2.03:sport?2.50:1.51),.105)
+   fade(harmonicGain.gain,boat?.33:bike?.50:sport?.34:.18,.12)
+   fade(motorFilter.frequency,boat?340+marineRPM*480:(bike?970:sport?740:420)+throttle*690,.18)
    const driveLevel=driving&&!paused?1:0
    const synthetic=roadMedia?.low&&!bike ? .57 : 1
-   fade(motorGain.gain,driveLevel*(.049+rpm*.053+throttle*.095)*synthetic,.13)
-   fade(roadGain.gain,driving&&!paused?Math.min(.19,speed*.012):0,.18)
+   fade(motorGain.gain,boat&&!paused?.037+marineRPM*.086:driveLevel*(.049+rpm*.053+throttle*.095)*synthetic,.13)
+   fade(roadGain.gain,boat&&!paused?Math.min(.15,marineSpeed*.018):driving&&!paused?Math.min(.19,speed*.012):0,.18)
    const slip=Math.abs(car.slip??0)
    const skid=Math.min(.26,slip*.74+(car.braking?Math.max(0,speed-5)*.007:0))
    fade(traction.gain,driveLevel*skid*(roadMedia?.skid ? .38 : 1),.17)

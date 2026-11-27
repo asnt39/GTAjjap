@@ -6,15 +6,27 @@ import {terraceRooms,terracePoint} from './terrace-plan.js'
 import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
 import {premises} from './market-plan.js'
 import {sights} from './navigation.js'
+import {beachGate,coastalBoats,coastalRocks,dock,shoreNorth,shoreSouth,shoreX,shoal} from './coast-plan.js'
 export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
  const d=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth,h=canvas.clientHeight
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
  const c=canvas.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h)
- const scale=overview? Math.min(w/274,h/330):1.78, cx=overview?-99:player.x,cz=overview?53:player.z
+ const scale=overview? Math.min(w/448,h/386):1.78, cx=overview?-12:player.x,cz=overview?84:player.z
  c.translate(w*.5,h*.5);c.scale(scale,scale);c.translate(-cx,-cz)
  const rect=(x,z,a,b,fill)=>{c.fillStyle=fill;c.fillRect(x,z,a,b)}
  rect(-400,-400,800,800,'#283534');rect(26,-400,400,800,'#294950')
+ c.beginPath();c.moveTo(26,shoreNorth)
+ for(let z=shoreNorth;z<=shoreSouth;z+=2)c.lineTo(shoreX(z),z)
+ c.lineTo(26,shoreSouth);c.closePath();c.fillStyle='#a49472';c.fill()
+ c.beginPath();c.ellipse(shoal.x,shoal.z,shoal.rx,shoal.rz,0,0,Math.PI*2);c.fill()
+ rect(24,beachGate.z-2.1,24,4.2,'#91816a')
+ rect(dock.west,dock.z-dock.half,dock.east-dock.west,dock.half*2,'#b09b78')
+ c.fillStyle='#615e54'
+ for(const rock of coastalRocks){
+  c.beginPath();c.ellipse(rock.x,rock.z,rock.rx*.82,rock.rz*.80,0,0,Math.PI*2);c.fill()
+ }
+ for(const boat of coastalBoats)rect(boat.x-1.15,boat.z-1.15,2.3,2.3,'#abd5cb')
  for(let j=-4;j<=4;j++){const z=j*44+8;rect(26,z,9,6,'#34403d');rect(26,z+6,9,1,'#6c7468')}
  for(let j=0;j<19;j++){const z=-90+j*8;rect(14,z,7.5,3,'#46524a');rect(17,z+3.6,6,2,'#424e46')}
  function road(points,width){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.strokeStyle='#84908a';c.lineWidth=width+1.2;c.stroke();c.strokeStyle='#576662';c.lineWidth=width;c.stroke()}

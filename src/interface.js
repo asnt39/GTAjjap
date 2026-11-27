@@ -1,4 +1,5 @@
 import {insideBasin} from './south-basin-plan.js'
+import {inCoast,offBeach,inPier} from './coast-plan.js'
 import {cityAudio} from './city-audio.js'
 import {dartPower,dartScore} from './darts-round.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
@@ -273,11 +274,16 @@ export function createUI(game){
   const p=game.pos,y=game.yaw(),degrees=(y*180/Math.PI)%360
   const law=game.crowd.wanted;wanted.hidden=!law.level
   if(law.level)wanted.textContent='수배 '+law.level+' · '+({investigate:'조사',pursuit:'추격',search:'수색'}[law.phase])
-  const driving=game.driving(),goal=missionGoal()
+  const carDriving=game.driving(),boating=game.boating(),swim=game.swimming()
+  const driving=carDriving||boating,goal=missionGoal()
   document.body.classList.toggle('driving',driving)
-  $('#vehicle-tools').hidden=!driving||!!panel
+  document.body.classList.toggle('boating',boating)
+  document.body.classList.toggle('swimming',!!swim)
+  $('#vehicle-tools').hidden=!carDriving||!!panel
   $('#speed').hidden=!driving;$('#speed b').textContent=Math.round(Math.abs(game.car.speed)*3.6)
-  $('#speed small').textContent=game.car.speed<-.08?'R':'D'
+  $('#speed small').textContent=boating?'≈':game.car.speed<-.08?'R':'D'
+  const oxygen=$('#oxygen');oxygen.hidden=!swim||!!panel||!swim.diving&&swim.air>=.998
+  if(!oxygen.hidden)oxygen.querySelector('meter').value=swim.air
   updateMission(t,goal)
   const equipped=game.loadout,gun=!!equipped.def.capacity,throwable=!!equipped.def.consumable,walking=game.mode()==='walk'&&!game.crowd.talking&&!panel
   $('#equipment-hud').hidden=!walking
@@ -295,7 +301,12 @@ export function createUI(game){
   $('#gear-status').textContent=equipped.def.name+(gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):throwable?' · '+equipped.item.reserve+'개':'')
   $('#punch').textContent=throwable&&!game.inCell()?'투척':'공격'
   $('#punch').setAttribute('aria-label',game.inCell()?'주먹 공격':gun?'발사':throwable?'수류탄 투척':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
-  $('#jump').disabled=!game.canJump()
+  const jump=$('#jump')
+  jump.disabled=!swim&&!game.canJump()
+  jump.textContent=swim?(swim.diving?'수면으로':'잠수'):'점프'
+  jump.setAttribute('aria-label',jump.textContent)
+  const dive=$('#dive-toggle');dive.hidden=!swim||!!panel
+  if(!dive.hidden)dive.querySelector('span').textContent=jump.textContent
   $('#punch').disabled=!game.canAttack()
   const dialogue=game.crowd.dialogue,box=conversation
   const opened=!!dialogue&&!panel&&(box.hidden||box.inert)
@@ -325,7 +336,9 @@ export function createUI(game){
    const label=near?.tag==='ARM'?near.name:game.prompt()||near?.name;interact.hidden=!label
    if(label)interact.querySelector('span').textContent=label
   }
-  $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
+  $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
+   (inPier(p.x,p.z)?'Meridian Pier':offBeach(p.x,p.z)?'Meridian Bay':'Meridian Beach'):
+   inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal)
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})

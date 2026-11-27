@@ -25,9 +25,10 @@ import {districtGates,beacons} from '../src/atmosphere.js'
 import {terracePoint,terraceRooms} from '../src/terrace-plan.js'
 import {streamTerraceRooms} from '../src/terrace-interior.js'
 import {createTerraceDoors} from '../src/terrace-doors.js'
-import {waterfrontEdges} from '../src/estuary.js'
-import {canWalk,movePlayer,inDistrict,cameraFraction,sights} from '../src/navigation.js'
+import {buildEstuary,waterfrontEdges} from '../src/estuary.js'
+import {canWalk,movePlayer,inCoreDistrict,inDistrict,cameraFraction,sights} from '../src/navigation.js'
 import {nearbyAction} from '../src/city-actions.js'
+import {beachGate} from '../src/coast-plan.js'
 import {motorcycleSetup} from '../src/motorcycle.js'
 import {vehicles} from '../src/vehicles.js'
 import {clearPose,newDrive,overlapsCar,stepDrive} from '../src/driving.js'
@@ -104,9 +105,20 @@ test('retaining rails only run along actual Old Town boundaries',()=>{
  const edges=waterfrontEdges();assert(edges.length>15)
  for(const e of edges){
   const mid=(e.start+e.end)/2
-  const valid=side=>inDistrict(e.vertical?e.fixed+side*e.inward*.03:mid,e.vertical?mid:e.fixed+side*e.inward*.03)
+  const valid=side=>inCoreDistrict(e.vertical?e.fixed+side*e.inward*.03:mid,e.vertical?mid:e.fixed+side*e.inward*.03)
   assert(valid(1));assert(!valid(-1),JSON.stringify(e))
  }
+})
+
+test('the existing South Basin railing is physically open at the beach entrance only',()=>{
+ const barriers=worldColliders()
+ buildEstuary(new Scene(),undefined,(...b)=>barriers.push(b))
+ const crossing={x:24,z:beachGate.z}
+ movePlayer(crossing,12,0,barriers,undefined,.083)
+ assert.equal(Math.round(crossing.x),36)
+ const railing={x:25,z:beachGate.z+4}
+ movePlayer(railing,12,0,barriers,undefined,.083)
+ assert(railing.x<29)
 })
 
 test('city-wide pedestrian flood reaches every new entrance and existing district gateways',()=>{

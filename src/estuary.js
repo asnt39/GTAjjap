@@ -3,6 +3,7 @@ import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {inOldTown,oldTownLand,oldTownRoads} from './old-town-plan.js'
 import {inDocklands} from './navigation.js'
+import {beachGate} from './coast-plan.js'
 
 // Trace the union. Internal tile seams and both connections to Docklands stay open.
 export function waterfrontEdges(){
@@ -35,7 +36,7 @@ export function landscapeMaterial(){
  })
  return mat
 }
-export function buildEstuary(scene,ground){
+export function buildEstuary(scene,ground,addCollider=()=>{}){
  // Undulating salt meadow below the paved quay level. Distant ridges remain outside play.
  const terrain=new T.PlaneGeometry(430,590,48,62).rotateX(-Math.PI/2).translate(-189,0,-8)
  const pos=terrain.attributes.position,uv=terrain.attributes.uv
@@ -55,7 +56,15 @@ export function buildEstuary(scene,ground){
   t.setHex(color);for(let j=0;j<24;j++)colors.push(t.r,t.g,t.b)
   g.setAttribute('color',new T.Float32BufferAttribute(colors,3));pieces.push(g)
  }
- for(const {fixed,vertical,start,end,inward} of waterfrontEdges()){
+ const railsPlan=waterfrontEdges().flatMap(edge=>{
+  const {fixed,vertical,start,end,inward}=edge
+  if(!vertical||inward!==-1||fixed<25||start>=222||end<=102)return [edge]
+  const left=beachGate.z-beachGate.half,right=beachGate.z+beachGate.half
+  const split=left<end&&right>start?[{...edge,end:left},{...edge,start:right}]:[edge]
+  for(const e of split)if(e.start<e.end)addCollider(fixed-.16,fixed+.12,e.start,e.end,1)
+  return split.filter(e=>e.start<e.end)
+ })
+ for(const {fixed,vertical,start,end,inward} of railsPlan){
   const edge=fixed-inward*.07,mid=(start+end)/2,len=end-start
   function beam(y,height,width,color){block(vertical?edge:mid,y,vertical?mid:edge,vertical?width:len,height,vertical?len:width,color)}
   beam(-.66,1.48,.27,0x796f5c);beam(.17,.18,.29,0xb6a286)

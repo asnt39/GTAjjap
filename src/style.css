@@ -127,3 +127,13 @@ body.speaking #mission-event,body.speaking #toast{visibility:hidden}
 #conversation .spoken{margin-top:10px;color:#fff3de;font-size:clamp(.96rem,2.2vw,1.15rem)}
 #conversation .episode-choices button{border:0;border-left:2px solid #c58f5a95;background:#efe3c310;color:#fff3de}
 @media(prefers-reduced-motion:reduce){#mission-event{animation:none}}
+#oxygen{position:absolute;left:50%;bottom:138px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid #aee2da77;border-radius:4px;background:#172f39d9;color:#ddfaf4;font-size:13px}
+#oxygen[hidden]{display:none}
+#oxygen meter{width:108px;height:8px;appearance:none}
+#oxygen meter::-webkit-meter-bar{background:#284a56;border:0;border-radius:2px}
+#oxygen meter::-webkit-meter-optimum-value{background:#72c7cf;border-radius:2px}
+.swimming #punch,.swimming .shortcuts{display:none}
+.boating .shortcuts .driving-label{display:none}
+@media(pointer:coarse){.swimming #jump{min-width:62px}.swimming #interact{bottom:96px}}
+.marine-action{position:absolute;right:30px;bottom:38px;padding:9px 15px;border:1px solid #aee2da77;background:#172f39d9}
+@media(pointer:coarse){.marine-action{display:none}}

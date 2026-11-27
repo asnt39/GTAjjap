@@ -103,6 +103,29 @@ export async function createCharacter({variant,model='resident'}={}){
    posture.position.z-=.88*Math.sin(riderLean)
    layer.motorcycle(pose.motorcycle)
   }
+  if(pose.marineSeat){
+   const w=pose.marineSeat
+   layer.offset('Spine1','x',.18*w)
+   for(const leg of ['L','R']){
+    layer.offset(leg+' Thigh','x',-1.39*w);layer.offset(leg+' Calf','x',1.51*w)
+    layer.offset(leg+' UpperArm','x',-.73*w);layer.offset(leg+' Forearm','x',-.56*w)
+   }
+  }
+  if(pose.swim){
+   const {phase,dive,motion}=pose.swim
+   posture.rotation.x=1.04+.41*Math.max(dive,motion)
+   posture.position.y+=.88*(1-Math.cos(posture.rotation.x))-.20*(1-motion)
+   posture.position.z-=.88*Math.sin(posture.rotation.x)
+   layer.offset('Neck','x',-.43*(1-dive))
+   for(const [i,limb] of ['L','R'].entries()){
+    const stroke=Math.sin(phase*Math.PI+i*Math.PI)
+    layer.offset(limb+' UpperArm','x',-.66-.95*stroke*motion)
+    layer.offset(limb+' UpperArm','z',(i===0?-1:1)*(.19+.41*(1-Math.abs(stroke))))
+    layer.offset(limb+' Forearm','x',-.23-.64*Math.max(0,stroke))
+    layer.offset(limb+' Thigh','x',.27*Math.sin(phase*5+i*Math.PI))
+    layer.offset(limb+' Calf','x',.23+.26*Math.max(0,-stroke))
+   }
+  }
   if(pose.custody)layer.custody(pose.custody)
   if(pose.nod){
    layer.offset('Head','x',.17*pose.nod)

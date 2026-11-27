@@ -1,6 +1,10 @@
 import {basinCarLayout} from './basin-navigation.js'
 import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
 import {buildSouthBasin} from './south-basin.js'
+import {beachGround,coastFloor,inCoast,inPier,seaLevel,swimLadder} from './coast-plan.js'
+import {buildCoast} from './coast-scene.js'
+import {boatArt} from './boat-art.js'
+import {boatExit,canStartSwimming,createBoats,driveBoat,nearestBoat,steerTo,swimmer} from './coastal-motion.js'
 import {grenadeGuide} from './grenade-guide.js'
 import {crashEvents,crashExit,impulse,moveImpact} from './impact-motion.js'
 import {onQuay} from './quay-plan.js'
@@ -63,7 +67,8 @@ import {illumination,sky,beacons,footShadow,districtGates} from './atmosphere.js
 import {createUI} from './interface.js'
 import {missionGuide} from './mission-guide.js'
 import {accelerateOnFoot} from './on-foot-motion.js'
-import {spawn,canWalk,movePlayer,supportHeight,cameraFraction} from './navigation.js'
+import {spawn,canWalk,inDocklands,movePlayer,supportHeight,cameraFraction} from './navigation.js'
+import {inOldTown} from './old-town-plan.js'
 
 // The downloadable preview resolves the same site assets from its embedded manifest.
 if(window.harborPreviewAssets)THREE.DefaultLoadingManager.setURLModifier(url=>window.harborPreviewAssets[url]||url)
@@ -97,8 +102,11 @@ export async function start(onContextLost){
  const mealProp=new THREE.Mesh(new THREE.CylinderGeometry(.040,.032,.102,10),new THREE.MeshStandardMaterial({color:0xc2a785,roughness:.72}))
  mealProp.visible=false;scene.add(mealProp)
  const surfaceMaps={meadow:landscapeMaterial()}
- buildEstuary(scene,surfaceMaps.meadow)
+ buildEstuary(scene,surfaceMaps.meadow,addCollider)
+ const coastUpdate=buildCoast(scene,addCollider)
+ const landFog=scene.fog.color.clone(),landDensity=scene.fog.density,waterColor=new THREE.Color(0x497a79)
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
+ const landBackground=scene.background
  document.querySelector('#status').querySelector('b').textContent='주민과 거리를 준비하는 중'
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('colliders')){
   const lines=[],point=(x,y,z)=>new THREE.Vector3(x,y,z)
@@ -141,6 +149,8 @@ export async function start(onContextLost){
  const parkedSpawns=new Map(fleet.map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
+ const swimming=swimmer(),boats=createBoats(),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
+ let boat=null,seaTransition=null,wetView=0,splashAt=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
  const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite]),updateFittings=streamTerraceRooms(scene)
@@ -357,6 +367,35 @@ export async function start(onContextLost){
   clearControls();crowd.beginTalk(n);player.f.queued=false;return true
  }
  const driving=()=>mode==='drive'
+ const boating=()=>mode==='boat'
+ const inWater=()=>mode==='swim'
+ const operating=()=>driving()||boating()
+ const pierLadder=()=>inWater()&&Math.hypot(pos.x-swimLadder.x,pos.z-swimLadder.z)<1.45&&!swimming.diving
+ const boatNearby=()=>room.phase==='offline'&&(inWater()&&!swimming.diving||canAct())?nearestBoat(pos,boats,inWater()):null
+ function enterWater(){
+  mode='swim';swimming.start(pos);foot.reset(pos.y)
+  activity.stop();crowd.endTalk();cancelAim();equipment.interrupt()
+  ui.sound('splash',pos,.85)
+ }
+ function toggleDive(){
+  if(inWater()&&!swimming.toggle(pos))ui.toast('수심이 더 깊은 곳에서 잠수할 수 있어')
+ }
+ function waterInteraction(){
+  if(seaTransition)return true
+  const next=boatNearby()
+  if(next){
+   saveCheckpoint();boat=next
+   seaTransition={to:'boat',time:0,from:actor.position.clone(),turn:face}
+  }else if(boating()){
+   if(Math.abs(boat.speed)>.65){ui.toast('속도를 줄인 뒤 하선해');return true}
+   const exit=boatExit(boat,(x,z)=>inPier(x,z)&&canWalk(x,z,boxes,.32,beachGround(x,z)),boats)
+   if(!exit){ui.toast('하선할 공간이 없어. 다른 곳에 멈춰 줘');return true}
+   seaTransition={to:exit.dry?'walk':'swim',time:0,from:actor.position.clone(),exit,turn:face}
+  }else if(pierLadder()){
+   seaTransition={to:'walk',time:0,from:actor.position.clone(),exit:{x:swimLadder.x,z:swimLadder.deckZ},turn:face}
+  }else return inWater()
+  clearControls();mode='transfer';return true
+ }
  const sniperAiming=()=>loadout.selected==='sniper'&&aiming&&mode==='walk'&&!isPaused&&!custody.active&&!foot.air&&!player.f.action
  function vehicleAction(action){
   if(!driving()||isPaused)return
@@ -385,6 +424,11 @@ export async function start(onContextLost){
  }
  function prompt(){
   if(pendingSeat)return '운전석 확인 중…'
+  if(seaTransition)return ''
+  if(boating())return Math.abs(boat.speed)>.65?'감속 후 하선':'보트에서 내리기'
+  const boarding=boatNearby();if(boarding)return boarding.name+' 탑승'
+  if(pierLadder())return '사다리로 올라가기'
+  if(inWater())return ''
   if(activity.current)return activity.current.spot.pose==='sit'?'일어서기':'취소'
   if(driving()){const site=cityCandidate();return site?site.label+' · ₩'+site.price:Math.abs(car.speed)>.45?'정차 후 하차':'하차'}
   if(crowd.talking)return '대화 마치기'
@@ -464,6 +508,7 @@ export async function start(onContextLost){
   ui.sound('doorOpen',pos)
  }
  function interactCar(){
+  if(waterInteraction())return true
   if(activity.current){activity.leave();return true}
   if(mode==='walk'){
    if(crowd.talking){crowd.endTalk();return true}
@@ -557,7 +602,7 @@ export async function start(onContextLost){
   if(!room.send({t:'release',p:playerPacket()}))room.interrupt()
  }
  function resetWalk(x,z,direction,floor){
-  pendingSeat=localSeat=transition=vehiclePose=null;mode='walk';car=cars.touring
+  pendingSeat=localSeat=transition=vehiclePose=seaTransition=boat=null;mode='walk';car=cars.touring
   face=direction;plantFeet(x,z,floor)
   actor.visible=true
   crowd.endTalk();clearControls();walkSpeed=0
@@ -630,7 +675,7 @@ export async function start(onContextLost){
   if(episode.openingActive){ui.toast('스토리 의뢰를 마치거나 수첩에서 중단한 뒤 방에 입장해');return}
   saveCheckpoint();civilians.clear();basinTraffic.clear();room.start(endpoint,request)
  }
- const ui=createUI({cityCandidate,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=nextQuality(quality);writeQuality(quality)
+ const ui=createUI({cityCandidate,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return fleet},room,startRoom,missionEnabled:()=>!offline&&!custody.active&&!episode.openingActive,mission,driving,boating,swimming:()=>inWater()?swimming:null,prompt,interactCar,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()},quality:()=>({auto:'자동',high:'높음',low:'낮음'}[quality]),cycleQuality:()=>{quality=nextQuality(quality);writeQuality(quality)
   const settings=profile()
   renderer.setPixelRatio(settings.pixelRatio)
   sunlight.castShadow=renderer.shadowMap.enabled=settings.worldShadows
@@ -640,6 +685,7 @@ export async function start(onContextLost){
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||document.querySelector('#game').inert)return;
   const cabinKey={KeyH:'horn',KeyL:'lights',KeyB:'radio'}[e.code]
   if(driving()&&cabinKey&&!e.repeat){e.preventDefault();vehicleAction(cabinKey);return}
+  if(inWater()&&e.code==='Space'&&!e.repeat){e.preventDefault();toggleDive();return}
   if(!e.repeat&&mode==='walk'){
    const slot={Digit1:'fists',Digit2:'pistol',Digit3:'shotgun',Digit4:'bat',Digit5:'sniper',Digit6:'grenade'}[e.code]
    if(slot){selectEquipment(slot);return}
@@ -679,7 +725,7 @@ export async function start(onContextLost){
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
  const adjust=e=>{const b=stick.getBoundingClientRect();joystick.set((e.clientX-b.left-b.width/2)/30,(e.clientY-b.top-b.height/2)/30).clampLength(0,1);knob.style.transform='translate('+joystick.x*24+'px,'+joystick.y*24+'px)'}
  for(const b of document.querySelectorAll('[data-pedal]')){
-  const ids=new Set();pedalPointers.set(b,ids);b.onpointerdown=e=>{if(!driving()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
+  const ids=new Set();pedalPointers.set(b,ids);b.onpointerdown=e=>{if(!operating()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
   b.onlostpointercapture=e=>{ids.delete(e.pointerId);if(!ids.size){pedals.delete(b.dataset.pedal);b.classList.remove('held')}}
  }
  stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=e=>{if(stickId!==e.pointerId)return;stickId=null;joystick.set(0,0);knob.style.transform=''}
@@ -691,7 +737,8 @@ export async function start(onContextLost){
   selectEquipment(ids[(ids.indexOf(loadout.selected)+1)%ids.length])
  }
  document.querySelector('#gear-aim').onclick=()=>{if(aiming)cancelAim();else if(!custody.active&&!isPaused&&mode==='walk'&&!crowd.talking&&(loadout.def.capacity||loadout.def.consumable)&&!equipment.throwing&&!foot.air&&!player.f.action)aiming=true}
- jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);jump()}
+ jumpButton.onpointerdown=e=>{e.preventDefault();jumpButton.setPointerCapture(e.pointerId);if(inWater())toggleDive();else jump()}
+ document.querySelector('#dive-toggle').onclick=toggleDive
  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)})
  const cameraDirection=new THREE.Vector3(),anchor=new THREE.Vector3(),eye=new THREE.Vector3(),aim=new THREE.Vector3(),reach=new THREE.Vector3()
  const lens=new THREE.Vector3(),scopeStart=new THREE.Vector3()
@@ -721,13 +768,14 @@ export async function start(onContextLost){
   const localRoom=rowRoomAt(pos.x,pos.z)
   const roomDistance=localRoom?Math.min(distance,2.65):distance
   const viewDistance=THREE.MathUtils.lerp(roomDistance,Math.min(roomDistance,2.45),shoulder)
-  const arm=viewDistance+cameraBlend*car.setup.camera
+  wetView=damp(wetView,inWater()?swimming.wet:0,5,dt)
+  const arm=viewDistance+cameraBlend*car.setup.camera+(boating()?2.1:0)-wetView
   const tilt=pitch+cameraBlend*.115-loadout.recoil*(loadout.selected==='sniper'?.038:.021)
   const sn=Math.sin(yaw),cs=Math.cos(yaw),lift=Math.sin(tilt),flat=Math.cos(tilt)
   followHeight=initial?actor.position.y:damp(followHeight,actor.position.y,12,dt)
   const vehicleHeight=car.setup.cameraHeight+(room.phase==='offline'?car.lift:0)
   const sideOffset=(.26+.43*shoulder)*(1-cameraBlend)
-  const height=1.54-.08*shoulder
+  const height=(inWater()?1.13-.82*wetView:1.54)-.08*shoulder
   anchor.set(pos.x+sideOffset*cs,
    (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn)
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
@@ -752,7 +800,14 @@ export async function start(onContextLost){
   const availableArm=arm*fraction
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
-  camera.position.copy(anchor).add(reach);camera.position.y=Math.max(.24,camera.position.y)
+  camera.position.copy(anchor).add(reach)
+  if(coastFloor(pos.x,pos.z)&&!inOldTown(pos.x,pos.z)){
+   camera.position.y=wetView>.53?Math.min(seaLevel-.18,camera.position.y):Math.max(seaLevel+.20,camera.position.y)
+  }else camera.position.y=Math.max(.24,camera.position.y)
+  const submerged=camera.position.y<seaLevel-.06
+  scene.fog.color.copy(submerged?waterColor:landFog)
+  scene.fog.density=submerged?.078+Math.max(0,seaLevel-camera.position.y)*.006:landDensity
+  scene.background=submerged?waterColor:landBackground
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
   if(shake){camera.position.x+=Math.sin(elapsed*63)*.1*shake;camera.position.y+=Math.cos(elapsed*80)*.075*shake}
   camera.lookAt(aim)
@@ -763,13 +818,14 @@ export async function start(onContextLost){
   if(saved){yaw=saved.yaw;pitch=saved.pitch;distance=saved.distance;face=saved.face}
   plantFeet(restored.x,restored.z,restored.y)
  }
- updateFittings(pos);updateBasin(pos);updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
+ updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos)
  trackedX=pos.x;trackedZ=pos.z
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
  positionCamera(0,true)
  function footSurface(){
   const {x,z,y}=pos
+  if(coastFloor(x,z)&&!inOldTown(x,z))return inPier(x,z)?'wood':y<seaLevel+.10?'splash':'sand'
   if(insideBasin(x,z)&&basinGreen.some(g=>within(g.bounds,x,z)))return 'grass'
   if(within(pocketGarden,x,z)||x>-174.4&&x<-159.6&&z>39.6&&z<54.8)return 'grass'
   if(insideTerrace(x,z)||rowRoomAt(x,z))return y>1.8?'stairs':'wood'
@@ -777,6 +833,7 @@ export async function start(onContextLost){
   return groundHeight(x,z)<.04?'asphalt':'concrete'
  }
  function groundHeight(x,z){
+  if(coastFloor(x,z)&&!inOldTown(x,z)&&!inDocklands(x,z))return beachGround(x,z)
   if(useTownDriveMask(x,z))return oldTownHeight(x,z)
   if(atStation(x,z))return .092
   if(atGarage(x,z))return .083
@@ -800,14 +857,14 @@ export async function start(onContextLost){
  }
  function plantFeet(x,z,floor=groundHeight(x,z)){
   foot.reset(floor)
-  pos.set(x,foot.height,z);actor.position.copy(pos);shadow.position.y=.014
+  pos.set(x,foot.height,z);actor.position.copy(pos);shadow.position.y=.014;shadow.visible=true
   uprightRider(actor,char,face)
  }
  let saveClock=0,sampleClock=0,checkpointEnabled=false
  function rememberCheckpoint(){
-  if(!checkpointEnabled||room.phase!=='offline'||offline||custody.active||transition||player.f.hp<=0)return
+  if(!checkpointEnabled||room.phase!=='offline'||offline||custody.active||transition||mode!=='walk'&&!driving()||player.f.hp<=0)return
   const point=driving()?safeExit(car,boxes,lastSide,(x,z)=>blockedAtDoor(car,x,z))?.door:pos
-  if(!point||(!driving()&&foot.air))return
+  if(!point||(!driving()&&foot.air)||canStartSwimming(point.x,point.z))return
   const {x,z}=point,y=floorAt(x,z,driving()?groundHeight(x,z):foot.height)
   checkpoint.sample({x,y,z,face:driving()?Math.PI-car.heading:face,yaw,pitch,distance},{
    offline:true,grounded:driving()||Math.abs(y-foot.height)<.08,safe:canRestore(x,z,y)
@@ -835,6 +892,37 @@ export async function start(onContextLost){
    actor.quaternion.slerp(bikeRotation,seated)
   }
   char.update(dt,driving()?0:vehiclePose.speed,{motorcycle:{seated,rig}})
+ }
+ function poseAshore(dt){
+  const transfer=seaTransition
+  const weight=clamp((transfer.time+=dt)/.66,0,1),blend=weight*weight*(3-2*weight)
+  if(transfer.to==='boat')boatRigs.pilot(boat).getWorldPosition(pilotPoint)
+  else{
+   const {x,z}=transfer.exit
+   pilotPoint.set(x,transfer.to==='walk'?groundHeight(x,z):seaLevel-.73,z)
+  }
+  actor.position.copy(transfer.from).lerp(pilotPoint,blend)
+  actor.position.y+=Math.sin(weight*Math.PI)*.46
+  const turn=transfer.to==='boat'?Math.PI-boat.heading:transfer.turn
+  face=transfer.turn+steerTo(transfer.turn,turn)*blend
+  actor.rotation.set(0,face,0);pos.copy(actor.position)
+  char.update(dt,0,{marineSeat:transfer.to==='boat'?blend:1-blend})
+  shadow.visible=false
+  if(weight<1)return
+  seaTransition=null;mode=transfer.to
+  if(boating()){yaw=boat.heading;ui.sound('boatStart',pos);ui.toast(boat.name+' · W 가속 · E 하선')}
+  else{
+   boat=null
+   if(inWater())enterWater()
+   else {plantFeet(pos.x,pos.z);shadow.visible=true}
+  }
+ }
+ function poseBoat(dt){
+  const pilot=boatRigs.pilot(boat)
+  pilot.getWorldPosition(pilotPoint);pilot.getWorldQuaternion(pilotRotation)
+  actor.position.copy(pilotPoint);actor.quaternion.copy(pilotRotation)
+  actor.visible=true;shadow.visible=false;face=Math.PI-boat.heading
+  char.update(dt,0,{marineSeat:1})
  }
  let slowSamples=0,performanceHint=false
  const draw=now=>{
@@ -867,7 +955,41 @@ export async function start(onContextLost){
     renderer.shadowMap.needsUpdate=true
    }else if(custody.locked){walkSpeed=0}
    else if(transition){updateTransition(dt)}
-   else if(driving()){
+   else if(seaTransition){
+    boatRigs.update(dt,elapsed,pos,null);poseAshore(dt)
+   }else if(boating()){
+    const steer=clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1)
+    const forward=Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas')))
+    const back=Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake')))
+    boat.throttle=forward-back
+    const hit=driveBoat(boat,{forward,back,steer,brake:pressed('Space')||pedals.has('hold')},dt,boats)
+    pos.set(boat.x,seaLevel,boat.z);speed=Math.abs(boat.speed)
+    boatRigs.update(dt,elapsed,pos,boat);poseBoat(dt)
+    lookHold=Math.max(0,lookHold-dt)
+    if(!drag&&!lookHold)yaw+=steerTo(yaw,boat.heading)*(1-Math.exp(-2.4*dt))
+    if(hit>2.4){ui.sound('wallHit',pos,Math.min(1.4,hit/5));shake=Math.min(.8,hit*.07)}
+   }else if(inWater()){
+    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
+    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
+    const matchLand=(x,z)=>canWalk(x,z,boxes,.32,beachGround(x,z))
+    const wet=swimming.step(pos,dt,(ax*cs+az*sn)/length,(ax*sn-az*cs)/length,elapsed,matchLand,
+     (x,z)=>boats.some(b=>Math.hypot(x-b.x,z-b.z)<.67&&pos.y>seaLevel-1.7))
+    speed=wet.speed
+    if(wet.land){
+     mode='walk';plantFeet(pos.x,pos.z);shadow.visible=true
+    }else{
+     if(speed>.06)face+=steerTo(face,wet.face)*(1-Math.exp(-9*dt))
+     actor.position.copy(pos);actor.rotation.set(0,face,0);shadow.visible=false
+     char.update(dt,0,{swim:{motion:Math.min(1,speed/2.35),phase:swimming.stroke,dive:swimming.wet}})
+     if(speed>.75&&swimming.wet<.5&&elapsed>splashAt){
+      splashAt=elapsed+.68;ui.sound('splash',pos,.30)
+     }
+     if(wet.damage){
+      player.f.hp=Math.max(0,player.f.hp-wet.damage);ui.impact(true)
+      if(!player.f.hp)respawn()
+     }
+    }
+   }else if(driving()){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     const solo=room.phase==='offline'
@@ -923,7 +1045,11 @@ export async function start(onContextLost){
    }
    if(action&&speed<.08)renderer.shadowMap.needsUpdate=true
    char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,city:action,
-    step:foot.air?null:()=>ui.sound(footSurface(),pos,.49),
+    step:foot.air?null:()=>{
+     const surface=footSurface()
+     ui.sound(surface,pos,.49)
+     if(surface==='sand'&&pos.x>46)coastUpdate.footstep(pos.x,pos.z,face,elapsed)
+    },
     guard:feedbackTime>0&&focus?.f.hp>0&&Math.hypot(focus.pos.x-pos.x,focus.pos.z-pos.z)<8,
     turn:dt>0?(face-previousFace)/dt:0})
    if(action?.spot.pose==='eat'||action?.spot.pose==='drink'){
@@ -935,7 +1061,10 @@ export async function start(onContextLost){
    if(!custody.active&&player.f.action==='punch')contact(player.f,char,pos,crowd.all,crowd.lineClear,(n,zone,point)=>{
     if(crowd.receive(n,pos,zone,point)){focus=n;feedbackTime=4;ui.impact(false)}
    })
+   if(room.phase==='offline'&&!custody.active&&player.f.hp>0&&pos.y<seaLevel+.05&&canStartSwimming(pos.x,pos.z))enterWater()
    }
+   if(!boating()&&!seaTransition)boatRigs.update(dt,elapsed,pos,null)
+   boatRigs.swimTrail(pos.x,pos.z,Math.PI-face,inWater()&&swimming.wet<.55?speed:0,elapsed,.55)
    updateGrenades(dt)
    for(const vehicle of fleet){
     const mounted=vehicle===car&&(driving()||(vehiclePose?.ride??0)>.6)
@@ -952,10 +1081,10 @@ export async function start(onContextLost){
    }
    if(car.setup.bike&&(driving()||vehiclePose?.ride))poseMotorcycle(dt)
    if(!transition&&mode==='walk')walkSpeed=speed
-   else if(driving())walkSpeed=0
+   else walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
    player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
-   const progress=episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:driving(),driving:driving()&&car===cars.touring,onFoot:player.available})
+   const progress=episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:operating(),driving:driving()&&car===cars.touring,onFoot:player.available})
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
@@ -987,17 +1116,17 @@ export async function start(onContextLost){
     if(vehicle)effects.emit('sparks',to.x,to.y,to.z,4)
     else if(player.exposed)hitPlayer(officer,'body',to,18,'shot')
    })
-   if(typeof portUpdate==='function')portUpdate(dt,elapsed)
+   portUpdate(dt,elapsed,quality==='low')
    if(Math.abs(pos.x-trackedX)>10||Math.abs(pos.z-trackedZ)>10){trackedX=pos.x;trackedZ=pos.z;sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}
    const playerShadow=driving()?speed>.06:quality==='high'&&(speed>.06||foot.air||foot.land>0||!!player.f.action)
    if(((playerShadow||remoteShadow)&&elapsed-shadowTick>.09)||(crowd.shadowDirty&&elapsed-shadowTick>.32)){renderer.shadowMap.needsUpdate=true;shadowTick=elapsed;remoteShadow=false}
    if(custody.officer)custodyView.camera(camera,actor,custody.officer,dt)
    else positionCamera(dt)
    const shopChanged=updateWeaponShop(pos),districtChanged=market.update(pos),stationChanged=updateStation(pos),westChanged=westBank.update(dt,elapsed,pos,quality==='low'),rowChanged=updateRow(pos,dt)
-   const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw)
+   const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw),coastChanged=coastUpdate(pos,elapsed)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true
+   if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||coastChanged||doorsChanged||fittingsChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action&&!activity.current,aiming,
@@ -1027,7 +1156,8 @@ export async function start(onContextLost){
   }
   ui.updateAudio(now,()=>{
    const {x,z}=pos
-   const harbor=x>10&&z<43||x<-200&&z>96||insideBasin(x,z)&&x>20
+   const coastal=inCoast(x,z)&&x>30
+   const harbor=x>10&&z<43||x<-200&&z>96||insideBasin(x,z)&&x>20||coastal
    const park=x<-156&&x>-177&&z>37&&z<58||insideBasin(x,z)&&z>187&&x>7
    const indoor=insideTerrace(x,z)||rowRoomAt(x,z)||insidePremises(x,z)||insideWeaponShop(x,z)||atGarage(x,z)||atStation(x,z)||insideWorks(x,z)
    let policeDistance=Infinity,passing=null,passingDistance=32
@@ -1038,7 +1168,7 @@ export async function start(onContextLost){
     const v=traffic[i],distance=Math.hypot(v.x-x,v.z-z)
     if(Math.abs(v.speed)>1&&distance<passingDistance){passingDistance=distance;passing=v}
    }
-   return {x,z,t:elapsed,yaw,car,radio,harbor,park,indoor,policeDistance,passing,passingDistance,driving:driving(),
+   return {x,z,t:elapsed,yaw,car,boat:boating()?boat:null,underwater:inWater()&&swimming.wet>.55,coastal,radio,harbor,park,indoor,policeDistance,passing,passingDistance,driving:driving(),
     dialogue:!!crowd.talking,combat:feedbackTime>2.4,wanted:crowd.wanted.level,
     story:episode.openingActive,night:x<-82||elapsed>120}
   })
