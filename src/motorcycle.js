@@ -20,10 +20,10 @@ export function createMotorcycle({scene}){
   riderRotation(out){return lean.getWorldQuaternion(out).multiply(forward)},
   gripPosition(side,out){return fork.localToWorld(out.set(side*.313,-.016,0))},
   pegPosition(side,out){return scene.localToWorld(out.set(side*.22,.42,-.19))},
-  updatePose({x,z,heading,speed=0,steer=0,lift=0,dt=0,travel=0,mounted=false}){
+  updatePose({x,z,heading,speed=0,steer=0,lift=0,roadPitch=0,roadRoll=0,dt=0,travel=0,mounted=false}){
    const moving=Math.abs(speed),bank=MathUtils.clamp(-steer*speed*.24,-.47,.47)
    roll=MathUtils.damp(roll,mounted?bank:.105,11,dt)
-   lean.rotation.z=roll;root.rotation.y=-heading;root.position.set(x,lift,z)
+   lean.rotation.z=roll;root.rotation.set(roadPitch,-heading,roadRoll,'YXZ');root.position.set(x,lift,z)
    spin=(spin+travel/.31)%(Math.PI*2)
    for(const wheel of wheels)wheel.rotation.x=spin
    fork.rotation.y=-steer*(moving>.25?.78:.56)

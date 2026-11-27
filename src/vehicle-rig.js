@@ -63,9 +63,10 @@ export function createVehicleRig(id, model, parking) {
   })
   return {
     ...config, setup:config, root, hinged, cabin:body,
-    updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,impact=0,lift=0,dents}) {
-      root.position.set(x, dt ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
-      root.rotation.y = -heading
+    updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,impact=0,lift=0,
+      roadLift=0,roadPitch=0,roadRoll=0,dents}) {
+      root.position.set(x, dt && !roadLift ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
+      root.rotation.set(roadPitch,-heading,roadRoll,'YXZ')
       deform(dents)
       spin = (spin - travel/radius) % (Math.PI*2)
       for (let i=0; i<wheels.length; i++) {
@@ -181,8 +182,10 @@ export function createPoliceVehicleRig(id,{police=false}={}) {
  }
  let spin=0,impactPitch=0
  return {root,...config, hinged:true,
-  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0,impact=0,lift=0,dents}){
-   root.position.set(x,dt?T.MathUtils.damp(root.position.y,lift,15,dt):lift,z);root.rotation.y=-heading
+  updatePose({x,z,heading,speed=0,dt=0,travel=speed*dt,steer=0,accel=0,braking=false,door=0,signal=0,impact=0,lift=0,
+   roadLift=0,roadPitch=0,roadRoll=0,dents}){
+   root.position.set(x,dt&&!roadLift?T.MathUtils.damp(root.position.y,lift,15,dt):lift,z)
+   root.rotation.set(roadPitch,-heading,roadRoll,'YXZ')
    deform(dents)
    spin=(spin-travel/tireRadius)%(Math.PI*2)
    for(const {pivot,axle,front} of wheels){pivot.rotation.y=front?-steer:0;axle.rotation.x=spin}

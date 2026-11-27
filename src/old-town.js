@@ -12,6 +12,7 @@ import {inWestBank} from './west-bank-plan.js'
 import {clockCourt,townTiles,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
 import {rowRooms} from './market-row-plan.js'
 import {buildRowShell} from './market-row-shell.js'
+import {approachStations,breakwaterApproach,breakwaterGradeAt} from './breakwater-approach.js'
 
 export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards,meadow,citySurfaces}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
@@ -71,14 +72,71 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  function districtFloor(rect,height,material){
   const [a,b,n,s]=rect
   // The older West Bank quay shares the latitude, but sits far to the west.
-  if(a<basinLand[1][0]||s<=basinNorth){floor(rect,height,material);return}
+  if(a<basinLand[1][0]||s<=basinNorth){approachFloor(rect,height,material);return}
   if(n<basinNorth)floor([a,b,n,basinNorth],height,material)
   floor([a,b,Math.max(n,basinNorth),s],height,material,basinGround)
+ }
+ function approachFloor(rect,height,material){
+  const [a,b,n,s]=rect,{west,east,north,south}=breakwaterApproach
+  const left=Math.max(a,west),right=Math.min(b,east),top=Math.max(n,north),bottom=Math.min(s,south)
+  if(left>=right||top>=bottom){floor(rect,height,material);return}
+  for(const piece of [[a,left,n,s],[right,b,n,s],[left,right,n,top],[left,right,bottom,s]]){
+   if(piece[0]<piece[1]&&piece[2]<piece[3])floor(piece,height,material)
+  }
+  const xs=[left,...approachStations.map(p=>p.x).filter(x=>x>left&&x<right),right]
+  const scale=material===surface?asphaltScale:material===pavement?pavingScale:4.5
+  const positions=[],uv=[],indices=[]
+  for(const [i,x] of xs.entries()){
+   const y=height+breakwaterGradeAt(x,top)
+   positions.push(x,y,top,x,y,bottom)
+   uv.push(x/scale,-top/scale,x/scale,-bottom/scale)
+   const at=2*i
+   if(i)indices.push(at-2,at-1,at,at-1,at+1,at)
+  }
+  const mesh=new T.BufferGeometry()
+  mesh.setAttribute('position',new T.Float32BufferAttribute(positions,3))
+  mesh.setAttribute('uv',new T.Float32BufferAttribute(uv,2))
+  mesh.setIndex(indices);mesh.computeVertexNormals()
+  batch(mesh,material,town)
  }
  for(const rect of townRoadSurface)districtFloor(rect,0,surface)
  const pavementTiles=townTiles([...townPavement,...reservedSurfaces],(x,z)=>
   townPavement.some(r=>within(r,x,z))&&!reservedSurfaces.some(r=>within(r,x,z)))
  for(const rect of pavementTiles)districtFloor(rect,.082,pavement)
+ const {west,east,north,south,roadNorth,roadSouth}=breakwaterApproach
+ const roadCenter=(roadNorth+roadSouth)/2
+ const raisedEdge=(z,upper,lower,material,side)=>{
+  const positions=[],uv=[],indices=[]
+  for(const [i,{x,y}] of approachStations.entries()){
+   positions.push(x,y+upper,z,x,lower(y),z)
+   uv.push(x/4.5,(y+upper)/4.5,x/4.5,lower(y)/4.5)
+   const at=i*2
+   if(i)indices.push(...(side<0?[at-2,at,at-1,at-1,at,at+1]:[at-2,at-1,at,at-1,at+1,at]))
+  }
+  const face=new T.BufferGeometry()
+  face.setAttribute('position',new T.Float32BufferAttribute(positions,3))
+  face.setAttribute('uv',new T.Float32BufferAttribute(uv,2))
+  face.setIndex(indices);face.computeVertexNormals()
+  batch(face,material,town)
+ }
+ for(const side of [-1,1]){
+  const edge=side<0?north:south,z=edge-side*.14
+  raisedEdge(edge,.082,()=>0,stone,side)
+  raisedEdge(side<0?roadNorth:roadSouth,.082,y=>y,stone,-side)
+  for(let i=1;i<approachStations.length-2;i++){
+   const a=approachStations[i],b=approachStations[i+1]
+   const width=b.x-a.x,rise=b.y-a.y,angle=Math.atan2(rise,width)
+   for(const height of [.50,.98])batch(new T.BoxGeometry(Math.hypot(width,rise)+.012,.068,.078)
+    .rotateZ(angle).translate((a.x+b.x)/2,(a.y+b.y)/2+.082+height,z),iron,town)
+  }
+  for(let i=1;i<approachStations.length-1;i+=5){
+   const {x,y}=approachStations[i]
+   box(x,y+.59,z,.115,1.015,.115,iron,town)
+   const next=approachStations[i+5]
+   if(next)addCollider(x-.0575,next.x+.0575,z-.06,z+.06,Math.max(y,next.y)+1.1)
+  }
+ }
+ for(const z of [roadNorth+.32,roadSouth-.32])approachFloor([west,east,z-.045,z+.045],.008,trafficPaint)
  streetDetails({floor,addCollider,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
   materials:{stone,paint:trafficPaint,asphalt:surface,paving:pavement,planted:meadow??standard(0x626b49),iron}})
  for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
@@ -89,13 +147,14 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  // Painted dashes stop before corners and junctions.
  for(const [axis,mid,from,to] of [
   ['z',0,64,78],['z',-68,-28,23],['z',-68,40,102],['z',-35,40,75],['z',-35,93,101],
-  ['x',32,-60,-43],['x',109,-60,-43],['x',84,-27,-9],
+  ['x',32,-60,-43],['x',109,-60,-43],['x',roadCenter,-27,-9],
   ['x',23,-183,-152],['x',23,-140,-117],['x',64.5,-212,-149],['x',100.5,-181,-155],['x',100.5,-141,-112],
   ['z',-187,29,39],['z',-187,72,83],['z',-146,28,57],['z',-146,72,96],['z',-110,30,92],['z',-216,50,82],
   ['x',23,-210,-193],['z',-216,29,37]
  ])for(let p=from+1.5;p<to-1;p+=5.1){
   const z=axis==='z',x= z?mid:p,depth=z?p:mid
   if(crossings.some(c=>c.axis===axis&&Math.hypot(x-c.x,depth-c.z)<c.width/2+1.2))continue
+  if(!z&&mid===roadCenter){approachFloor([x-1.025,x+1.025,depth-.05,depth+.05],.007,paint);continue}
   box(x,.004,depth,z?.10:2.05,.006,z?2.05:.10,paint,town)
  }
  const rotate=(x,z,angle,geometry)=>geometry.rotateY(angle).translate(x,0,z)

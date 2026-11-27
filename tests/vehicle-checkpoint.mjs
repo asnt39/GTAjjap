@@ -57,6 +57,14 @@ test('rejects stale and blocked poses, but supports two vehicles exchanging park
  assert.equal(other.z,8)
 })
 
+test('a parked car restores its height and pitch on the Breakwater grade',()=>{
+ const car=fresh('touring',vehicles.touring)
+ restoreParkedPoses([car],{touring:{x:-24,z:85.65,heading:Math.PI/2}},[])
+ assert(car.lift>.25&&car.lift<.40)
+ assert(car.roadPitch>.065)
+ assert(Math.abs(car.roadRoll)<.002)
+})
+
 test('old records restore the player before any vehicle history exists',()=>{
  const old=walk(2,24)
  const local=createCheckpoint({getItem:()=>JSON.stringify(old)})

@@ -127,12 +127,13 @@ export function createTouring(model, x, z, length) {
   let impactPitch = 0
   const vehicle = {
     root, x, z, hinged: true, heading: 0, width: size.x * scale, length, height: size.z * scale,
-    updatePose({ x, z, heading, speed = 0, steer = 0, accel = 0, braking = 0, dt = 0, travel = speed * dt, impact = 0, door = 0, lift = 0, dents }) {
+    updatePose({ x, z, heading, speed = 0, steer = 0, accel = 0, braking = 0, dt = 0, travel = speed * dt, impact = 0, door = 0, lift = 0,
+      roadLift = 0, roadPitch = 0, roadRoll = 0, dents }) {
       vehicle.x = x
       vehicle.z = z
       vehicle.heading = heading
-      root.position.set(x, dt ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
-      root.rotation.y = -heading
+      root.position.set(x, dt && !roadLift ? T.MathUtils.damp(root.position.y,lift,15,dt) : lift, z)
+      root.rotation.set(roadPitch,-heading,roadRoll,'YXZ')
       deform(dents)
       spin = (spin - travel / (tireRadius * scale)) % (2 * Math.PI)
       for (let i = 0; i < wheels.length; i++) {

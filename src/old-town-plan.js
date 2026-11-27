@@ -4,6 +4,7 @@ import {crossingRamp,loadingCourt,serviceApron,within} from './street-plan.js'
 import {quayApron} from './quay-plan.js'
 import {westBankLand,westBankRoads} from './west-bank-plan.js'
 import {garage} from './garage.js'
+import {breakwaterApproach,breakwaterGradeAt} from './breakwater-approach.js'
 // Rectangles use [west, east, north, south] in Docklands metres.
 export const marketEntrance=[-73.5,-62.5]
 export const oldTownRoads=[
@@ -11,7 +12,7 @@ export const oldTownRoads=[
  [-40.5,-29.5,26.5,114.5],     // Clock Street
  [-73.5,-29.5,26.5,37.5],      // North Row
  [-73.5,-29.5,103.5,114.5],    // South Row
- [-35,6,78.5,89.5],           // Breakwater link
+ [-35,6,breakwaterApproach.roadNorth,breakwaterApproach.roadSouth],
  [-6,6,63,89.5],
  ...westBankRoads,...basinRoadBounds
 ]
@@ -46,6 +47,9 @@ export function inOldTown(x,z,r=0){
 }
 const approachRoads=[...oldTownRoads,[-6,6,52,63],[...marketEntrance,-34,-31]]
 export function oldTownHeight(x,z){
+ return townCurbHeight(x,z)+breakwaterGradeAt(x,z)
+}
+function townCurbHeight(x,z){
  if(basinLots.some(r=>within(r,x,z)))return .008
  if(within(loadingCourt,x,z)||within(serviceApron,x,z))return .008
  const rampHeight=crossingRamp(x,z)

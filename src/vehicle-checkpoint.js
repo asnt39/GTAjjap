@@ -1,4 +1,4 @@
-import {clearPose,overlapsCar,vehicleLift} from './driving.js'
+import {clearPose,overlapsCar,resetVehicleGround} from './driving.js'
 
 export function parkedPoses(fleet,spawnById){
  const moved={}
@@ -42,7 +42,8 @@ export function restoreParkedPoses(fleet,saved,boxes){
 
  for(const [car,pose] of placements){
   const {x,z,heading}=pose
-  Object.assign(car,{x,z,heading,lift:vehicleLift(pose)})
+  Object.assign(car,{x,z,heading})
+  resetVehicleGround(car)
  }
 }
 
@@ -50,6 +51,7 @@ export function restoreTrafficVehicle(car,pose,boxes,traffic){
  if(!validPose(pose))return false
  const candidate={...car,x:pose.x,z:pose.z,heading:pose.heading}
  if(!clearPose(candidate,boxes,true,true)||traffic.some(other=>other!==car&&overlapsCar(candidate,other)))return false
- Object.assign(car,{x:pose.x,z:pose.z,heading:pose.heading,lift:vehicleLift(candidate)})
+ Object.assign(car,{x:pose.x,z:pose.z,heading:pose.heading})
+ resetVehicleGround(car)
  return true
 }

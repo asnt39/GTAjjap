@@ -2,7 +2,8 @@ import {weaponShop} from '../src/weapon-shop-plan.js'
 import {buildWeaponShop} from '../src/weapon-shop.js'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
-import {Scene, Texture, TextureLoader} from 'three'
+import {test} from 'node:test'
+import {Raycaster, Scene, Texture, TextureLoader, Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {buildOldTown} from '../src/old-town.js'
 import {buildWestBank} from '../src/west-bank.js'
@@ -125,6 +126,58 @@ for(const [x,z,dx,dz] of [[-40.5,66,-1,0],[-73.5,-28,-1,0],[6,64,1,0]]){
  assert(edge>road&&edge<road+.04,'an Old Town curb should rise progressively')
  assert.equal(oldTownHeight(x+dx*.19,z+dz*.19),.083)
 }
+
+test('the Breakwater road and sidewalk follow one continuous grade',()=>{
+ const ray=new Raycaster(),origin=new Vector3(),down=new Vector3(0,-1,0)
+ const town=model.getObjectByName('Old Town')
+ town.updateMatrixWorld(true)
+ for(const [z,base,from,to] of [[84,.008,-32,-5],[77,.083,-29.2,-6.5]]){
+  const walker={x:from,z},foot=createFootwork()
+  foot.reset(oldTownHeight(from,z))
+  let peak=base,previous=foot.height
+  for(let i=0;i<Math.round((to-from)/.05);i++){
+   movePlayer(walker,.05,0,boxes,undefined,foot.height)
+   foot.advance(1/60,oldTownHeight(walker.x,z))
+   assert(!foot.air&&Math.abs(foot.height-previous)<.008,`surface step at ${walker.x}, ${z}`)
+   if(i%21===0){
+    ray.set(origin.set(walker.x,2,z),down)
+    const [hit]=ray.intersectObject(town,true)
+    assert(hit&&Math.abs(hit.point.y-foot.height)<.01,`surface visible at ${walker.x}, ${z}`)
+   }
+   previous=foot.height
+   peak=Math.max(peak,foot.height)
+  }
+  assert(walker.x>to-.01,'the path reaches the eastern approach')
+  assert(peak>base+.58,'the grade rises across the full paved width')
+  assert(Math.abs(foot.height-base)<.001,'the approach rejoins the existing street level')
+ }
+ const edge={x:-25,z:76.1}
+ movePlayer(edge,0,-1.2,boxes,undefined,oldTownHeight(edge.x,edge.z))
+ assert(edge.z>75.5,'the retaining rail blocks stepping off the raised sidewalk')
+})
+
+test('the Breakwater grade raises and pitches vehicles without a curb impact',()=>{
+ for(const [heading,x,allowSidewalk] of [[Math.PI/2,-34,true],[-Math.PI/2,-4,false]]){
+  const rig=rigs.touring
+  const car=newDrive({...rig,x,z:85.65,heading},rig.setup??vehicles.touring)
+  let peak=0,pitchUp=0,pitchDown=0
+  for(let i=0;i<420&&Math.abs(car.x-x)<30;i++){
+   stepDrive(car,{forward:car.speed<8?1:0,back:0,steer:0},boxes,1/60,[],allowSidewalk)
+   assert.equal(car.impact,0)
+   peak=Math.max(peak,car.lift)
+   pitchUp=Math.max(pitchUp,car.roadPitch)
+   pitchDown=Math.min(pitchDown,car.roadPitch)
+   if(i%24===0){
+    rig.updatePose({...car,dt:1/60})
+    if(car.roadLift>0)assert.equal(rig.root.position.y,car.lift)
+    assert.equal(rig.root.rotation.x,car.roadPitch)
+   }
+  }
+  assert(Math.abs(car.x-x)>29,'the vehicle crosses the full approach')
+  assert(peak>.58&&pitchUp>.065&&pitchDown<-.065,'the suspension follows both sides of the crest')
+  assert.equal(car.lift,0)
+ }
+})
 
 function path(points){
  const result=[points[0]]

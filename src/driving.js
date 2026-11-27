@@ -3,6 +3,7 @@ import {canWalk} from './navigation.js'
 import {drivePavementHeight,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpavedDriveBlocks,useTownDriveMask} from './old-town-plan.js'
 import {touringSetup} from './vehicles.js'
 import {dentVehicle} from './vehicle-damage.js'
+import {breakwaterApproach,breakwaterGradeAt} from './breakwater-approach.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 const approach=(a,b,step)=>a+clamp(b-a,-step,step)
 const step=1/120
@@ -39,7 +40,7 @@ export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false,contac
  return !block
 }
 
-export function vehicleLift(car){
+function vehicleCurbLift(car){
  const c=Math.cos(car.heading),s=Math.sin(car.heading)
  const across=car.width*.39,axle=car.length*(car.setup?.wheelbase??touringSetup.wheelbase)*.5
  let height=0
@@ -47,6 +48,30 @@ export function vehicleLift(car){
   height+=drivePavementHeight(car.x+c*across*side-s*axle*end,car.z+s*across*side+c*axle*end)
  }
  return height/4
+}
+
+function updateRoadGrade(car){
+ const {west,east,north,south}=breakwaterApproach
+ const reach=car.length*.5+car.width*.39
+ let lift=0,pitch=0,roll=0
+ if(car.x>west-reach&&car.x<east+reach&&car.z>north-reach&&car.z<south+reach){
+  const c=Math.cos(car.heading),s=Math.sin(car.heading)
+  const across=car.width*.39,axle=car.length*(car.setup?.wheelbase??touringSetup.wheelbase)*.5
+  const wheel=(side,end)=>breakwaterGradeAt(car.x+c*across*side-s*axle*end,car.z+s*across*side+c*axle*end)
+  const frontLeft=wheel(-1,-1),frontRight=wheel(1,-1),rearLeft=wheel(-1,1),rearRight=wheel(1,1)
+  lift=(frontLeft+frontRight+rearLeft+rearRight)/4
+  pitch=Math.atan2((frontLeft+frontRight-rearLeft-rearRight)*.5,axle*2)
+  roll=Math.atan2((frontRight+rearRight-frontLeft-rearLeft)*.5,across*2)
+ }
+ car.roadLift=lift
+ car.roadPitch=pitch
+ car.roadRoll=roll
+ car.lift=car.curbLift+lift
+}
+
+export function resetVehicleGround(car){
+ car.curbLift=vehicleCurbLift(car)
+ updateRoadGrade(car)
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){
@@ -156,16 +181,17 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
     }
    }
    if(allowSidewalk){
-    const lift=vehicleLift(car),rise=Math.max(0,lift-car.lift)
+    const lift=vehicleCurbLift(car),rise=Math.max(0,lift-car.curbLift)
     if(rise){
      car.speed*=1-.28*rise/.083
      impact=Math.max(impact,Math.min(2.2,.55+mag*.12))
     }
-    car.lift=lift
+    car.curbLift=lift
    }
   }
   car.accel=approach(car.accel,clamp((car.speed-old)/step,-9,6),step*32)
  }
+ updateRoadGrade(car)
  car.impact=impact;car.slip=slip
  return impact
 }
@@ -196,6 +222,6 @@ export function safeExit(car,boxes,preferred=-1,blocked){
 }
 export function newDrive(rig,setup=touringSetup){
  const car={setup,x:rig.x,z:rig.z,width:rig.width,length:rig.length,height:rig.height,heading:rig.heading,speed:0,throttle:0,steer:0,remainder:0,shiftDelay:0,braking:false,accel:0,impact:0,dents:undefined,collision:null}
- car.lift=vehicleLift(car)
+ resetVehicleGround(car)
  return car
 }
