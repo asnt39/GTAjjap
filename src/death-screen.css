@@ -1,0 +1,87 @@
+#world {
+ transition:filter 380ms ease-out;
+}
+
+#game.player-death #world {
+ filter:grayscale(1);
+ transition-duration:1200ms;
+}
+
+#game.player-death > :not(#world,#shade,#death-screen) {
+ visibility:hidden;
+}
+
+#death-screen {
+ position:fixed;
+ inset:0;
+ width:100%;
+ height:100%;
+ max-width:none;
+ max-height:none;
+ margin:0;
+ border:0;
+ padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right))
+  max(clamp(24px,12dvh,126px),calc(env(safe-area-inset-bottom) + 18px))
+  max(clamp(22px,8vw,124px),calc(env(safe-area-inset-left) + 14px));
+ background:transparent;
+ color:#f6f2e9;
+}
+
+#death-screen[open] {
+ display:flex;
+ flex-direction:column;
+ justify-content:flex-end;
+ align-items:flex-start;
+}
+
+#death-screen::backdrop {
+ background:linear-gradient(24deg,#090d12ed 2%,#090d1290 30%,transparent 67%);
+ animation:death-shade 1200ms ease-out both;
+}
+
+#death-title {
+ margin:0 0 clamp(10px,2.4vh,28px);
+ font:900 clamp(4.4rem,min(15vw,29dvh),12rem)/.84 'Barlow Condensed',Impact,sans-serif;
+ letter-spacing:.045em;
+ text-shadow:0 2px 18px #0009;
+ opacity:0;
+ translate:0 8px;
+ transition:opacity 320ms ease-out,translate 320ms ease-out;
+}
+
+#death-screen[data-phase='title'] #death-title {
+ opacity:1;
+ translate:0;
+}
+
+#death-continue {
+ min-width:10rem;
+ min-height:48px;
+ padding:10px 18px;
+ border:1px solid #ff9d6d;
+ border-radius:3px;
+ background:#161a20;
+ box-shadow:0 4px 18px #0007;
+}
+
+#death-continue:disabled {
+ visibility:hidden;
+}
+
+#death-screen[data-automatic] #death-continue {
+ display:none;
+}
+
+#death-continue:hover {
+ background:#443128;
+}
+
+@keyframes death-shade {
+ from {opacity:0}
+ to {opacity:1}
+}
+
+@media (prefers-reduced-motion:reduce) {
+ #game.player-death #world,#death-screen::backdrop {transition-duration:400ms;animation-duration:400ms}
+ #death-title {translate:none;transition:none}
+}

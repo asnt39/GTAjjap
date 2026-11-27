@@ -100,7 +100,7 @@ export function createUI(game){
   $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
   if(name==='darts'){round={at:performance.now(),points:[],next:0};drawRound()}
   if(name==='rooms')updateRoom()
-  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal())
+  if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal(),game.storyMarkers())
   if(name==='credits'){for(const [label,path] of [['도시 음악과 효과음','city-audio/CREDITS.md'],['엔진과 타이어 음원','driving-audio/CREDITS.md'],['휴대 장비','equipment/CREDITS.md'],['구시가지 상점과 숙소','market-row/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
  }
@@ -277,12 +277,12 @@ export function createUI(game){
  }
  interact.onclick=e=>{const button=e.target.closest('[data-interaction]');if(button)activate(button.dataset.interaction)}
  window.addEventListener('keydown',e=>{
-  if(!e.repeat&&e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.code==='KeyR'&&!$('#game').inert){
+  if(!e.repeat&&e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.code==='KeyR'&&!$('#game').inert&&!$('#death-screen').open){
    e.preventDefault();e.stopImmediatePropagation();recover('all')
   }
  },true)
  window.addEventListener('keydown',e=>{
-  if(e.repeat)return
+  if(e.repeat||$('#death-screen').open)return
   if(e.target instanceof HTMLInputElement&&!['Escape','Tab'].includes(e.code))return
   if(game.crowd.talking && (e.code==='Escape'||e.code==='KeyE')){
    e.preventDefault();game.crowd.endTalk();return
@@ -416,7 +416,7 @@ export function createUI(game){
   $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
    (inPier(p.x,p.z)?'Meridian Pier':offBeach(p.x,p.z)?'Meridian Bay':'Meridian Beach'):
    inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
-  drawMap($('#mini'),p,y,false,game.cars,goal)
+  drawMap($('#mini'),p,y,false,game.cars,goal,game.storyMarkers())
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
  }
