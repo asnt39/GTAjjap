@@ -14,7 +14,7 @@ import {cityAction,nearbyAction} from './city-actions.js'
 import {within,loadingCourt,pocketGarden} from './street-plan.js'
 import {worldColliders} from './world-colliders.js'
 import {createTerraceDoors} from './terrace-doors.js'
-import {insideTerrace,terraceCeiling} from './terrace-plan.js'
+import {insideTerrace,terraceRoomAt,terraceFloorAt,terraceCeilingAt} from './terrace-plan.js'
 import {streamTerraceRooms} from './terrace-interior.js'
 import {buildEstuary,landscapeMaterial} from './estuary.js'
 import {grenadeModel} from './grenade-art.js'
@@ -850,14 +850,15 @@ export async function start(onContextLost){
   return .008+.083*clamp(edge/.18,0,1)
  }
  function ceilingHeight(x,z,feet){
-  const room=rowRoomAt(x,z)
+  const room=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   return room?rowCeiling(room,x,feet):x<archive.front&&archiveAccess(x,z,0)?archive.ceiling:
-   insideTerrace(x,z)?terraceCeiling:atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
+   terrace?terraceCeilingAt(terrace,x,z,feet):atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?3.75:
    (insidePremises(x,z)||insideWeaponShop(x,z))?3.44:Infinity
  }
  function floorAt(x,z,feet,airborne=false){
-  const localRoom=rowRoomAt(x,z)
-  const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):groundHeight(x,z)
+  const localRoom=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
+  const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):
+   terrace?.loft?terraceFloorAt(terrace,x,z,feet,airborne):groundHeight(x,z)
   return supportHeight(x,z,feet,base,surfaces)
  }
  function plantFeet(x,z,floor=groundHeight(x,z)){

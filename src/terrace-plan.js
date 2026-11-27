@@ -29,7 +29,7 @@ const basinStart=rows.length-basinParcels.length
 const basinConversions=basinParcels.flatMap((parcel,index)=>parcel.door?[[basinStart+index,parcel.title,parcel.type,parcel.door]]:[])
 export const terraceRooms=[...conversions,...basinConversions].map(([index,title,use,door])=>{
  const [x,z,width,height,depth,,angle]=rows[index]
- return {index,title,use,door,x,z,width,height,depth,angle,cos:Math.round(Math.cos(angle)),sin:Math.round(Math.sin(angle))}
+ return {index,title,use,door,x,z,width,height,depth,angle,loft:basinParcels[index-basinStart]?.loft,cos:Math.round(Math.cos(angle)),sin:Math.round(Math.sin(angle))}
 })
 export function terracePoint(r,x,z){return {x:r.x+x*r.cos+z*r.sin,z:r.z-x*r.sin+z*r.cos}}
 export function terraceBounds(r,x,z,w,d,bottom,top){
@@ -37,6 +37,23 @@ export function terraceBounds(r,x,z,w,d,bottom,top){
  return [p.x-rx,p.x+rx,p.z-rz,p.z+rz,top,false,bottom]
 }
 export const terraceCeiling=3.22
-export function insideTerrace(x,z){
- return terraceRooms.some(r=>Math.abs((x-r.x)*r.cos-(z-r.z)*r.sin)<r.width/2&&Math.abs((x-r.x)*r.sin+(z-r.z)*r.cos)<r.depth/2)
+export const loftHome={ground:.09,upper:2.73,stair:{left:.91,right:2.48,bottom:2.65,top:-1.52,count:16},ceiling:5.48}
+const localX=(r,x,z)=>(x-r.x)*r.cos-(z-r.z)*r.sin
+const localZ=(r,x,z)=>(x-r.x)*r.sin+(z-r.z)*r.cos
+export function terraceRoomAt(x,z){
+ return terraceRooms.find(r=>Math.abs(localX(r,x,z))<r.width/2&&Math.abs(localZ(r,x,z))<r.depth/2)
+}
+export const insideTerrace=(x,z)=>!!terraceRoomAt(x,z)
+export function terraceFloorAt(room,x,z,feet,airborne){
+ const {ground,upper,stair}=loftHome
+ const across=localX(room,x,z),front=localZ(room,x,z)
+ if(across>=stair.left&&across<=stair.right&&front>=stair.top&&front<=stair.bottom){
+  const height=ground+(upper-ground)*(stair.bottom-front)/(stair.bottom-stair.top)
+  if(!airborne||feet>=height-.19)return height
+ }
+ return front<stair.top&&feet>=upper-.17?upper:ground
+}
+export function terraceCeilingAt(room,x,z,feet){
+ if(!room.loft)return terraceCeiling
+ return localZ(room,x,z)<loftHome.stair.top&&feet<loftHome.upper-.19?loftHome.upper-.16:loftHome.ceiling
 }

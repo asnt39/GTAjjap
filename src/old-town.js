@@ -1,5 +1,5 @@
 import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
-import {basinLand,distanceToBasin,insideBasin} from './south-basin-plan.js'
+import {basinParcels,basinLand,distanceToBasin,insideBasin} from './south-basin-plan.js'
 import {streetDetails,reservedSurfaces} from './town-streets.js'
 import {within,crossings} from './street-plan.js'
 import {buildClockLane} from './clock-lane.js'
@@ -142,6 +142,34 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
    const peak=new T.Shape()
    peak.moveTo(-width/2,0);peak.lineTo(0,1.23);peak.lineTo(width/2,0);peak.closePath()
    batch(rotate(x,z,angle,new T.ExtrudeGeometry(peak,{depth:depth+.18,bevelEnabled:false}).translate(0,height+.40,-depth/2-.09)),roof,group)
+  }
+  const tower=basinParcels.find(parcel=>parcel.row===rows[i])?.tower
+  if(tower){
+   const {floors,rise,shape}=tower
+   const baseY=height+.43,crown=baseY+rise*floors
+   const setback=shape==='office'?.68:.79,w=width*setback,d=depth*(shape==='housing'?.78:.72)
+   const rear=shape==='mixed'?-.32:-.10
+   part(0,(baseY+crown)*.5,rear,w,rise*floors,d,facade,true)
+   part(0,crown+.18,rear,w+.24,.36,d+.21,shape==='office'?iron:stone)
+   part(shape==='office'?w*.14:-w*.23,crown+.82,rear,w*.38,1.18,d*.54,facade,true)
+   if(shape==='office')part(w*.16,crown+2.2,rear,.09,2.4,.09,iron)
+   const detail=detailBlock(x,z)
+   for(let level=0;level<floors;level++){
+    const y=baseY+rise*(level+.53),facing=rear+d*.5
+    part(0,y-rise*.45,rear,w+.18,.14,d+.15,trim,false,0,detail)
+    for(const side of [-1,1])for(const bay of [-.30,0,.30]){
+     const xx=bay*w,ww=w*(shape==='office'?.24:.20),wh=rise*.66
+     part(xx,y,rear+side*(d*.5+.04),ww+.13,wh+.17,.11,shape==='office'?iron:trim,false,0,detail)
+     panels(ww,wh,xx,y,rear+side*(d*.5+.103),20+(level+i)%4,angle,x,z,side===1?0:Math.PI,detail)
+     if(shape==='housing'&&side===1&&bay!==0){
+      part(xx,y-wh*.5-.14,facing+.38,ww+.22,.17,.82,stone,false,0,detail)
+      part(xx,y-wh*.5+.33,facing+.74,ww+.22,.075,.065,iron,false,0,detail)
+      for(const z of [-1,1])part(xx+z*ww*.44,y-wh*.5+.13,facing+.74,.057,.39,.062,iron,false,0,detail)
+     }
+    }
+   }
+   // Outer mullions also provide silhouette at medium distance.
+   for(const side of [-1,1])part(side*w*.49,(baseY+crown)*.5,rear,.14,rise*floors,d+.15,trim)
   }
   group=detailBlock(x,z)
   detailTerrace({i,width,height,depth,part,panels,terrace,group,x,z,angle,rotate,batch,signs,materials:{iron,stone,trim,wood,roof,facade,lamp}})

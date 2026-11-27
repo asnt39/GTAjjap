@@ -18,12 +18,12 @@ export const basinRoadBounds=basinRoads.map(roadRect)
 
 export const basinParcels=[
  {id:'ferry-cafe',title:'Tidelight Café',type:'cafe',door:'pair',row:[-12.3,100,8,8.4,7.5,0,Math.PI/2]},
- {id:'registry',title:'South Basin Registry',type:'office',door:'auto',row:[9.6,101.5,9.5,13.9,5.6,2,-Math.PI/2]},
+ {id:'registry',title:'South Basin Registry',type:'office',door:'auto',tower:{floors:5,rise:3.1,shape:'office'},row:[9.6,101.5,9.5,13.9,5.6,2,-Math.PI/2]},
  {id:'station-flats',title:'Meridian Flats',type:'home',door:'hinge',row:[-13,117,9,10.4,8.8,1,Math.PI/2]},
- {id:'clockmaker',title:'Mariner Supply',type:'shop',door:'pair',row:[9.6,128.5,8,8.9,5.6,0,Math.PI/2]},
+ {id:'clockmaker',title:'Mariner Supply',type:'shop',door:'pair',tower:{floors:4,rise:2.85,shape:'mixed'},row:[9.6,128.5,8,8.9,5.6,0,Math.PI/2]},
  {id:'customs',title:'Customs House',type:'office',door:'slide',row:[-14.2,133,12,15.4,10,1,Math.PI/2]},
- {id:'cooper',title:'Cooper House',type:'home',door:'hinge',row:[-21.2,157,9,7.9,8.4,0,-Math.PI/2]},
- {id:'staff-flats',title:'Basin Court Apartments',type:'home',row:[-20.2,170,10.2,11.4,9.6,2,-Math.PI/2]},
+ {id:'cooper',title:'Cooper House',type:'home',door:'hinge',loft:true,row:[-21.2,157,9,7.9,8.4,0,-Math.PI/2]},
+ {id:'staff-flats',title:'Basin Court Apartments',type:'home',tower:{floors:7,rise:2.9,shape:'housing'},row:[-20.2,170,10.2,11.4,9.6,2,-Math.PI/2]},
  {id:'stores',title:'Pilothouse Stores',type:'workshop',door:'slide',row:[-42.4,158,9.6,8.8,7.05,0,Math.PI/2]},
  {id:'repair',title:'Switchyard Service Shed',type:'workshop',row:[-42.4,169,9,8.2,7.05,1,Math.PI/2]},
  {id:'post',title:'Mariner Post Office',type:'office',row:[9.5,162,12,10.4,5.5,2,Math.PI/2]},

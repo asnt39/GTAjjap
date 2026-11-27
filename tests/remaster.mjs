@@ -22,7 +22,7 @@ import {stationColliders} from '../src/custody.js'
 import {buildWeaponShop} from '../src/weapon-shop.js'
 import {marketCollision} from '../src/market-plan.js'
 import {districtGates,beacons} from '../src/atmosphere.js'
-import {terracePoint,terraceRooms} from '../src/terrace-plan.js'
+import {loftHome,terraceCeilingAt,terraceFloorAt,terracePoint,terraceRooms} from '../src/terrace-plan.js'
 import {streamTerraceRooms} from '../src/terrace-interior.js'
 import {createTerraceDoors} from '../src/terrace-doors.js'
 import {buildEstuary,waterfrontEdges} from '../src/estuary.js'
@@ -80,6 +80,26 @@ test('doors pause for occupants and a visiting NPC can pass in either direction'
  npc.pos=stand(r,0,r.depth/2-1);advance(off,[npc]);assert.equal(d.progress,1)
  advance(off);assert.equal(d.progress,0)
 })
+test('Cooper House stairs join two supported floors and the upstairs rail blocks falls',()=>{
+ const r=terraceRooms.find(room=>room.loft),stairs=loftHome.stair
+ const across=(stairs.left+stairs.right)*.5
+ const start=terracePoint(r,across,stairs.bottom+.1),p={...start,y:loftHome.ground}
+ const visit=z=>{
+  const next=terracePoint(r,across,z)
+  movePlayer(p,next.x-p.x,next.z-p.z,boxes,undefined,p.y)
+  assert(Math.hypot(p.x-next.x,p.z-next.z)<.01)
+  p.y=terraceFloorAt(r,p.x,p.z,p.y,false)
+  assert(terraceCeilingAt(r,p.x,p.z,p.y)-p.y>1.8)
+ }
+ for(let i=0;i<=54;i++)visit(stairs.bottom-.082*i)
+ assert.equal(p.y,loftHome.upper)
+ const rail=terracePoint(r,0,stairs.top-.12)
+ assert(!canWalk(rail.x,rail.z,boxes,.32,loftHome.upper))
+ assert(canWalk(rail.x,rail.z,boxes,.32,loftHome.ground))
+ for(let i=54;i>=0;i--)visit(stairs.bottom-.082*i)
+ assert(Math.abs(p.y-loftHome.ground)<1e-8)
+})
+
 test('fittings stream out while shell collision stays resident',()=>{
  const update=streamTerraceRooms(scene),r=terraceRooms[0],count=boxes.length
  assert(update(r));const mesh=scene.getObjectByName(r.title+' fittings');assert(mesh)
