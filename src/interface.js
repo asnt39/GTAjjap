@@ -21,9 +21,14 @@ const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
  const selection=interactionSelection(),entries=new Map(),options=$('#interaction-options')
+ const missionEvent=$('#mission-event'),toastElement=$('#toast')
  const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
  let timer
- const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
+ const toast=message=>{
+  missionEvent.hidden=true
+  toastElement.textContent=message;toastElement.style.display='block'
+  clearTimeout(timer);timer=setTimeout(()=>toastElement.style.display='none',3000)
+ }
  const wanted=document.createElement('aside');wanted.id='wanted';wanted.hidden=true;document.querySelector('#game').append(wanted)
  const voice=dialogueVoice(globalThis,()=>audio.settings.voice),story=episodeUI(game,voice,audio.sound)
  const conversation=$('#conversation'),dialogueClose=$('#dialogue-close')
@@ -293,7 +298,7 @@ export function createUI(game){
   if(e.code==='Enter'&&panel==='pause'&&document.activeElement===$('#close')){e.preventDefault();close()}
   if(e.code==='Tab'&&panel){const f=[...$('#panel').querySelectorAll('button,a,input')];if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f.at(-1).focus()}else if(!e.shiftKey&&document.activeElement===f.at(-1)){e.preventDefault();f[0].focus()}}
  })
- const missionEvent=$('#mission-event'),objective=$('#objective')
+ const objective=$('#objective')
  let beforeMission=null,missionNotice=null,nextMissionRead=0
  const setText=(node,value)=>{if(node.textContent!==value)node.textContent=value}
  function updateMission(t,goal){
@@ -334,8 +339,9 @@ export function createUI(game){
    beforeMission={title:journal.title,id:journal.missionId,status:journal.status,wins,completed,practice,money:journal.money,
     goal:goal?.missionId,label:goal?.label}
   }
-  if(missionNotice?.pending&&blocked)missionNotice.until=t+3.4
-  const display=!!missionNotice&&!blocked&&t<missionNotice.until
+  const announcementBlocked=blocked||toastElement.style.display==='block'
+  if(missionNotice?.pending&&announcementBlocked)missionNotice.until=t+3.4
+  const display=!!missionNotice&&!announcementBlocked&&t<missionNotice.until
   if(display&&missionNotice.pending){
    missionNotice.pending=false
    audio.sound('mission',null,missionNotice.complete?1:.64)

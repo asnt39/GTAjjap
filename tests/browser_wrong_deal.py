@@ -1,4 +1,4 @@
-"""Verify that parking the motorcycle at Quay Transfer advances the first mission."""
+"""Verify the motorcycle arrival and objective notification at Quay Transfer."""
 
 import json
 import math
@@ -45,6 +45,21 @@ with ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=str(d
             """)
             page.goto(f"http://127.0.0.1:{server.server_port}/", wait_until="domcontentloaded")
             page.locator("#intro-skip").dispatch_event("click")
+            page.evaluate("""() => {
+                const banner = document.querySelector('#mission-event');
+                const toast = document.querySelector('#toast');
+                window.noticeCheck = { banner: false, toast: false, overlap: false };
+                const record = () => {
+                    const bannerVisible = !banner.hidden;
+                    const toastVisible = getComputedStyle(toast).display !== 'none';
+                    noticeCheck.banner ||= bannerVisible;
+                    noticeCheck.toast ||= toastVisible;
+                    noticeCheck.overlap ||= bannerVisible && toastVisible;
+                };
+                const observer = new MutationObserver(record);
+                observer.observe(banner, { attributes: true, attributeFilter: ['hidden'] });
+                observer.observe(toast, { attributes: true, attributeFilter: ['style'] });
+            }""")
             page.locator("[data-interaction=car-breakwater-650]").click(timeout=120_000)
             page.wait_for_function("document.body.classList.contains('driving')", timeout=45_000)
             print("Mounted the Breakwater 650 at Quay Transfer", flush=True)
@@ -53,6 +68,9 @@ with ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=str(d
             """, timeout=15_000)
             assert not errors, errors
             print("Quay Transfer accepted the motorcycle and saved the next objective", flush=True)
+            page.wait_for_function("noticeCheck.banner && noticeCheck.toast", timeout=15_000)
+            assert not page.evaluate("noticeCheck.overlap"), "Mission banner obscures Jack's message"
+            print("The message and the mission banner were shown separately", flush=True)
             browser.close()
     finally:
         server.shutdown()

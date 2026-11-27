@@ -27,7 +27,9 @@
 
 `npm ci`, `npm run build`, `node --test tests/*.mjs`를 실행했다. 새 테스트는 주요 도로와 좁은 작업문, 기존 정비동 차량 경로, 상부 작업 통로, 실제 충돌에 따른 차량 추격과 NPC 탈출 경로, 3개 임무 상태 전환, 저장 복원 및 중복 보상을 다룬다. 처음에는 생산동 장비 하나가 Touring의 기존 정면 진입 공간을 좁혔다. 장비를 서쪽으로 옮겨 원래 진입로와 새 엄폐물을 함께 확보했다.
 
-Chromium에서 Jack의 의뢰 수락, 화물 야드 기습 중 총격, 생산동 계단 왕복, 작업문을 통한 Theo 호송과 보상 저장을 단계별로 확인했다. 오토바이 인수 회귀 테스트는 Python Playwright와 Chromium이 설치된 환경에서 `python tests/browser_wrong_deal.py`로 실행할 수 있다. 빌드 후 실행하며 필요한 경우 `CHROMIUM_EXECUTABLE`로 Chromium 경로를 지정한다.
+Chromium에서 Jack의 의뢰 수락, 화물 야드 기습 중 총격, 남쪽 Breakwater 차선에서 추격을 따돌린 뒤 Clock Street에 정차해 제3편 시작, 생산동 계단 왕복, 작업문을 통한 Theo 호송과 보상 저장을 체크포인트별로 확인했다. 짧은 화면에서는 임무 배너가 Jack의 메시지를 덮었다. 메시지가 보이는 동안 배너를 대기시키고 이어서 표시하도록 수정했다.
+
+오토바이 인수와 알림 순서 회귀 테스트는 Python Playwright와 Chromium이 설치된 환경에서 `python tests/browser_wrong_deal.py`로 실행할 수 있다. 빌드 후 실행하며 필요한 경우 `CHROMIUM_EXECUTABLE`로 Chromium 경로를 지정한다.
 
 640×400 Chromium SwiftShader의 낮음 설정에서 같은 카메라로 전후 장면을 캡처했다. 항만 인수 구역은 드로 콜 59→64, 삼각형 127,546→127,860이었다. 정비동 외관은 48→51, 46,136→49,236이었다. 짧은 소프트웨어 표본의 p50은 500→600ms였고 JS 힙 스냅샷은 약 132→115MiB였다. 브라우저 작업과 자산 로드 시점의 영향을 받는 수치다. GPU 메모리와 실기기 성능을 따로 확인해야 한다.
 
