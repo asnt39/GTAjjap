@@ -1296,12 +1296,13 @@ export async function start(onContextLost){
    const stage=prologue?.stage
    const missionWeapon=!!stage?.set&&stage.set!=='pursuit'
    if(loadout.missionLoan(missionWeapon)){cancelAim();equipment.interrupt()}
-   const beats=storyWorld.step(stage,dt,player,player.available,driving()&&!car.setup.bike)
+   const roadDriving=!!player.inVehicle
+   const beats=storyWorld.step(stage,dt,player,player.available,roadDriving)
    storyStatus=stage?.kind==='escort'&&Number.isFinite(beats.escortHealth)?'Theo '+beats.escortHealth+'/130':
     stage?.kind==='evade'&&beats.threats?'추격 차량 '+beats.threats+'대':
     stage?.kind==='fight'&&beats.threats?'남은 조직원 '+beats.threats+'명':''
    const update=beats.failed?prologue?.fail('Theo를 구출하지 못했습니다.'):
-    prologue?.update({x:pos.x,z:pos.z,speed,onFoot:player.available,driving:driving()&&!car.setup.bike,...beats})
+    prologue?.update({x:pos.x,z:pos.z,speed,onFoot:player.available,driving:roadDriving,...beats})
    if(update?.message)ui.toast(update.message)
    player.legacyArrest=room.phase!=='offline'
    const police=squads.update(dt,pos,player.inVehicle,crowd.wanted,!player.legacyArrest)
