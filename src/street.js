@@ -1,3 +1,4 @@
+import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
 import {marketStreetbed,marketWalks} from './street-plan.js'
 import * as T from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -13,80 +14,6 @@ const ROOT = '/assets/street/'
 const PI = Math.PI
 const V = (x, y, z) => new T.Vector3(x, y, z)
 const standard = (color, roughness, metalness = 0) => new T.MeshStandardMaterial({ color, roughness, metalness })
-
-function roadSurface(diffuse, normal) {
-  const material = new T.MeshStandardMaterial({
-    map: diffuse, normalMap: normal, normalScale: new T.Vector2(.32, .32),
-    color: 0x85898f, roughness: .43, metalness: .14, envMapIntensity: .7
-  })
-  material.onBeforeCompile = shader => {
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 streetPoint;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nstreetPoint = (modelMatrix * vec4(transformed,1.)).xyz;')
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 streetPoint;
-      float roadNoise(vec2 p){
-        vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-        vec4 c=vec4(dot(i,vec2(127.1,311.7)))+vec4(0.,127.1,311.7,438.8);
-        c=fract(sin(c)*43758.5453);
-        return mix(mix(c.x,c.y,f.x),mix(c.z,c.w,f.x),f.y);
-      }
-      float finiteStripe(float v,float w){
-        float aa=clamp(fwidth(v),.002,.12);
-        return 1.-smoothstep(w-aa,w+aa,abs(v));
-      }
-      float lampTrace(vec2 hit, float side, float start, float dist, float grain){
-        float nearest=clamp(floor((hit.y-start)/26.+.5),0.,5.);
-        vec2 delta=hit-vec2(side*4.74,start+26.*nearest);
-        vec2 spread=vec2(.30+dist*.033,2.4+dist*.33);
-        float core=exp(-dot(delta/spread,delta/spread));
-        float scatter=exp(-abs(delta.x)/(spread.x*2.8)-abs(delta.y)/(spread.y*1.6));
-        return (core*.74+scatter*.26)*grain;
-      }`)
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      vec2 p=streetPoint.xz;
-      float lane=abs(p.x);
-      float basin=roadNoise(p*vec2(.48,.20))*.54+roadNoise(p*vec2(1.28,.48)+3.)*.32+roadNoise(p*3.2)*.14;
-      float water=smoothstep(.38,.64,basin);
-      float grain=texture2D(map,streetPoint.xz/4.04).r;
-      float wear=clamp(.57+2.*grain+.20*roadNoise(p*19.),.30,1.);
-      float onAvenue=1.-smoothstep(5.99,6.,lane);
-      float crossingArea=abs(p.y+37.);
-      float paired=finiteStripe(lane-.115,.045)*smoothstep(9.2,9.45,crossingArea)*onAvenue;
-      vec2 sideSpace=vec2(lane-4.06,mod(p.y+3.,6.4)-3.2);
-      float bay=finiteStripe(sideSpace.x,.033)*step(abs(sideSpace.y),2.9)+finiteStripe(abs(sideSpace.y)-2.92,.034)*step(0.,sideSpace.x)*step(sideSpace.x,.49);
-      bay*=smoothstep(12.,12.2,crossingArea)*onAvenue;
-      float crosswalkA=(1.-smoothstep(.78,.80,abs(crossingArea-7.20)))*finiteStripe(mod(p.x+.4,1.)-.5,.28)*step(lane,5.75);
-      float crosswalkB=(1.-smoothstep(.70,.72,abs(lane-7.20)))*finiteStripe(mod(p.y+.36,1.)-.5,.28)*step(crossingArea,5.72);
-      float stopLine=finiteStripe(crossingArea-9.36,.13)*step(.26,lane)*step(lane,5.68)*step(0.,-p.x*(p.y+37.));
-      float sideLine=finiteStripe(crossingArea-.11,.038)*smoothstep(9.2,9.8,lane);
-      diffuseColor.rgb*=mix(1.02,.60,water);
-      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.31,.188,.044),clamp((paired+sideLine)*wear,0.,1.));
-      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.44,.425,.355),clamp((bay*.58+max(crosswalkA,crosswalkB)*.85+stopLine*.9)*wear,0.,1.));`)
-    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor=mix(.62,.21,water)*(.86+.26*grain);`)
-    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
-      vec2 ahead=p-cameraPosition.xz;
-      float dist=length(ahead);
-      float eye=max(cameraPosition.y,.65);
-      vec2 reflectedLamp=p+ahead*(6.16/eye);
-      float fleck=.40+roadNoise(p*vec2(8.1,43.))*.65;
-      float lens=lampTrace(reflectedLamp,-1.,-93.,dist,fleck)+lampTrace(reflectedLamp,1.,-83.,dist,fleck);
-      float grazing=smoothstep(.8,14.,dist);
-      float shop=0.;
-      if(abs(ahead.x)>.01){
-        float t=(sign(ahead.x)*10.8-p.x)/ahead.x;
-        float reflectedHeight=eye*t;
-        float zHit=p.y+ahead.y*t;
-        float bays=pow(abs(sin(zHit*.43+sin(zHit*.19))),.75);
-        float lit=smoothstep(.27,.56,roadNoise(vec2(floor(zHit/5.),sign(ahead.x)*7.)));
-        shop=(1.-smoothstep(.9,2.2,abs(reflectedHeight-2.0)))*bays*lit*step(0.,t)*fleck;
-      }
-      float ripple=(.48+.52*water)*(.70+.3*roadNoise(p*vec2(3.,15.)));
-      outgoingLight+=onAvenue*ripple*(vec3(.85,.39,.106)*lens*.86+vec3(.34,.16,.047)*shop*.66)*(.38+.62*grazing);
-      #include <opaque_fragment>`)
-  }
-  return material
-}
 
 function canvasMap(w,h,draw) {
   const c=document.createElement('canvas')
@@ -118,7 +45,7 @@ function floorGeometry(x1, x2, z1, z2, y, scale) {
   const geom = new T.BufferGeometry()
   geom.setAttribute('position',new T.Float32BufferAttribute([x1,y,z1,x1,y,z2,x2,y,z2,x2,y,z1],3))
   geom.setAttribute('normal',new T.Float32BufferAttribute([0,1,0,0,1,0,0,1,0,0,1,0],3))
-  geom.setAttribute('uv',new T.Float32BufferAttribute([x1/scale,z1/scale,x1/scale,z2/scale,x2/scale,z2/scale,x2/scale,z1/scale],2))
+  geom.setAttribute('uv',new T.Float32BufferAttribute([x1/scale,-z1/scale,x1/scale,-z2/scale,x2/scale,-z2/scale,x2/scale,-z1/scale],2))
   geom.setIndex([0,1,2,0,2,3])
   return geom
 }
@@ -163,7 +90,8 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   const round=(x,y,z,r,h,mat,n=14)=>rod(V(x,y-h/2,z),V(x,y+h/2,z),r,r,mat,n)
   const pillarCollider=(x,z,r,h)=>addCollider(x-r,x+r,z-r,z+r,h)
   const asphalt=roadSurface(maps[0],maps[1])
-  const paving=new T.MeshStandardMaterial({color:0xb0aba2,map:maps[2],normalMap:maps[3],normalScale:new T.Vector2(.45,.45),roughness:.64,metalness:.045})
+  const paving=pavingSurface(maps[2],maps[3])
+  if(surfaceMaps)surfaceMaps.citySurfaces={asphalt,paving}
   const concrete=standard(0x8e8a82,.78), curbTop=standard(0x9a9589,.64), gap=standard(0x454849,.88)
   const iron=standard(0x333e41,.52,.58), pole=standard(0x566061,.41,.61), rim=standard(0x8b9390,.43,.55), brown=standard(0x625040,.75)
   const timber=standard(0x84644b,.66), mustard=standard(0x967326,.61,.22), signalBlack=standard(0x252b2a,.48,.28)
@@ -171,12 +99,12 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   const lampOn=illumination(0xffce83), green=illumination(0x7fc193),red=illumination(0xed5840)
   const foundation=standard(0x434442,.92)
   // The three asphalt strips meet edge-to-edge so the intersection has one continuous surface.
-  batch(floorGeometry(-6,6,-107,63,0,4.04),asphalt)
-  batch(floorGeometry(-40,-6,-43,-31,0,4.04),asphalt)
-  batch(floorGeometry(6,26,-43,-31,0,4.04),asphalt)
-  batch(floorGeometry(...marketStreetbed,0,4.04),asphalt)
+  batch(floorGeometry(-6,6,-107,63,0,asphaltScale),asphalt)
+  batch(floorGeometry(-40,-6,-43,-31,0,asphaltScale),asphalt)
+  batch(floorGeometry(6,26,-43,-31,0,asphaltScale),asphalt)
+  batch(floorGeometry(...marketStreetbed,0,asphaltScale),asphalt)
   function sidewalk(x1,x2,z1,z2){
-    batch(floorGeometry(x1,x2,z1,z2,.083,2.65),paving)
+    batch(floorGeometry(x1,x2,z1,z2,.083,pavingScale),paving)
   }
   for(const rect of marketWalks)sidewalk(...rect)
   for(const side of [-1,1]){

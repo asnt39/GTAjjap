@@ -1,3 +1,4 @@
+import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {basinRoads,basinGreen,basinLots,basinPlate,basinPromenade,basinCrossings,basinSights,distanceToBasin} from './south-basin-plan.js'
@@ -16,16 +17,17 @@ export function buildSouthBasin(scene,addCollider,maps){
  const stone=new T.MeshStandardMaterial({color:0xb8aa91,roughness:.86})
  const paint=new T.MeshStandardMaterial({color:0xd9d2b4,roughness:.86,polygonOffset:true,polygonOffsetFactor:-1})
  const iron=new T.MeshStandardMaterial({color:0x424b4b,metalness:.27,roughness:.77})
- const pavement=new T.MeshStandardMaterial({map:maps.street[2],normalMap:maps.street[3],normalScale:new T.Vector2(.46,.46),color:0xc4baa0,roughness:.85})
+ const pavement=maps.citySurfaces?.paving??pavingSurface(maps.street[2],maps.street[3])
  const lawn=new T.MeshStandardMaterial({color:0x879368,roughness:.94,map:maps.meadow?.map??null})
- const road=new T.MeshStandardMaterial({color:0x7c776b,map:maps.street[0],normalMap:maps.street[1],roughness:.84})
+ const road=maps.citySurfaces?.asphalt??roadSurface(maps.street[0],maps.street[1])
  const emissive=new T.MeshStandardMaterial({color:0xffe5b9,emissive:0xffba70,emissiveIntensity:.53})
  function batch(g,m){const parts=batches.get(m)??[];parts.push(g);batches.set(m,parts)}
  function cube(x,y,z,w,h,d,m){batch(box.clone().scale(w,h,d).translate(x,y,z),m)}
  function top([w,e,n,s],y,m){
   const g=new T.PlaneGeometry(e-w,s-n).rotateX(-Math.PI/2).translate((w+e)/2,y,(n+s)/2),uv=g.attributes.uv
   const p=g.attributes.position
-  for(let i=0;i<uv.count;i++)uv.setXY(i,p.getX(i)/4.5,-p.getZ(i)/4.5)
+  const scale=m===road?asphaltScale:m===pavement?pavingScale:4.5
+  for(let i=0;i<uv.count;i++)uv.setXY(i,p.getX(i)/scale,-p.getZ(i)/scale)
   batch(g,m)
  }
  for(const rect of basinLots){top(rect,.086,road)}
@@ -76,6 +78,11 @@ export function buildSouthBasin(scene,addCollider,maps){
   }
  }
  for(const [w,e,n,s] of basinLots)for(let x=w+.2;x<e;x+=2.36)cube(x,.093,(n+s)/2,.052,.008,s-n-.21,paint)
+ for(const [x,z,rotation] of [[5.84,113.4,0],[18.04,152.2,0],[-27.2,159,0],[-12.6,140.22,Math.PI/2],[10.5,191.8,Math.PI/2]]){
+  batch(new T.BoxGeometry(.34,.009,.66).rotateY(rotation).translate(x,.009,z),iron)
+  for(let slot=-2;slot<=2;slot++)batch(new T.BoxGeometry(.24,.005,.027)
+   .translate(0,.014,slot*.10).rotateY(rotation).translate(x,0,z),stone)
+ }
  // The customs signal tower marks the avenue. Its roof repeats the harbour's
  // stepped industrial profile, while the lower shell remains a regular parcel.
  cube(-14.2,16.64,133,4.32,1.90,5.4,stone)

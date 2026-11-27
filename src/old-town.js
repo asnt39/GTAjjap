@@ -1,3 +1,4 @@
+import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
 import {basinLand,distanceToBasin,insideBasin} from './south-basin-plan.js'
 import {streetDetails,reservedSurfaces} from './town-streets.js'
 import {within,crossings} from './street-plan.js'
@@ -12,15 +13,15 @@ import {clockCourt,townTiles,townPavement,townRoadSurface,townRoomBarriers} from
 import {rowRooms} from './market-row-plan.js'
 import {buildRowShell} from './market-row-shell.js'
 
-export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards,meadow}){
+export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeFloor,rowBoards,meadow,citySurfaces}){
  const town=new T.Group(),structures=new T.Group(),westStructures=new T.Group(),barriers=new T.Group()
  const basinGround=new T.Group(),basinStructures=new T.Group()
  town.name='Old Town';structures.name='Clock Court and terraces'
  basinGround.name='South Basin road and pavement';basinStructures.name='South Basin buildings'
  town.add(structures,westStructures,basinGround,basinStructures,barriers);scene.add(town)
  const standard=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.81,...extra})
- const surface=standard(0x716c62,{map:street[0],normalMap:street[1],normalScale:new T.Vector2(.56,.56)})
- const pavement=standard(0xa9a094,{map:street[2],normalMap:street[3],normalScale:new T.Vector2(.56,.56)})
+ const surface=citySurfaces?.asphalt??roadSurface(street[0],street[1])
+ const pavement=citySurfaces?.paving??pavingSurface(street[2],street[3])
  const stone=standard(0xb4aa91),iron=standard(0x343a35,{metalness:.38})
  const roof=standard(0x494c45),wood=standard(0x6b4e3c),fabric=standard(0x58655a)
  const trim=standard(0xa1937a),paint=standard(0xd9c392),lamp=standard(0xe5c49a,{emissive:0xdca060,emissiveIntensity:.48})
@@ -62,7 +63,8 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  function floor([x0,x1,z0,z1],height,material,group=town){
   const g=new T.PlaneGeometry(x1-x0,z1-z0).rotateX(-Math.PI/2)
   const uv=g.attributes.uv
-  for(let i=0;i<uv.count;i++)uv.setXY(i,(x0+(x1-x0)*uv.getX(i))/4.5,(-z1+(z1-z0)*uv.getY(i))/4.5)
+  const scale=material===surface?asphaltScale:material===pavement?pavingScale:4.5
+  for(let i=0;i<uv.count;i++)uv.setXY(i,(x0+(x1-x0)*uv.getX(i))/scale,(-z1+(z1-z0)*uv.getY(i))/scale)
   batch(g.translate((x0+x1)/2,height,(z0+z1)/2),material,group)
  }
  const basinNorth=basinLand[0][2]
