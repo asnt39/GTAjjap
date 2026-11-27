@@ -4,6 +4,8 @@ Player & Living City is a third-person exploration and driving game in a fiction
 
 The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, driving measurements, audio sources, and the new shop location. The [city life update](CITY-LIFE.md) documents pedestrian crossings, new destinations, and the score. The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
 
+The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls.
+
 ## Run
 
 Use Node.js 22 or newer. Run `npm ci` and `npm run dev`. Use `npm run build` to generate the static site in `dist/`. Assets ship with the game. The renderer requires WebGL 2.
@@ -32,8 +34,8 @@ Five residents share the Rocketbox geometry and source clips, each with an indep
 
 1. 기존 WSS 서버가 있는지 먼저 확인한다. 신규 서비스가 필요하면 Render에서 이 브랜치의 `render.yaml`을 사용한다. Blueprint에 정의된 리소스는 단일 Free Web Service다. 자동 배포는 끄고, 단일 인스턴스에서 메모리의 방을 유지한다.
 2. 결제수단이 없는 워크스페이스와 Free 인스턴스를 사용한다. Render는 월 750 무료 인스턴스 시간 및 대역폭·빌드 한도를 적용한다. 결제수단이 없으면 무료 한도를 넘었을 때 과금하는 대신 서비스를 정지하거나 빌드를 중단한다. 계정 연결, 신규 서비스 생성 또는 비용이 생길 수 있는 변경은 승인 후 진행한다.
-3. 호스트는 `0.0.0.0`의 Render `PORT`에 바인딩한다. `HARBORLINE_ORIGINS`는 운영 사이트의 정확한 오리진이다. 공개 인터페이스에 바인딩할 때 오리진 목록이 비어 있으면 서버가 실행을 중단한다.
-4. 외부 HTTPS `/healthz`가 `200 ok`를 돌려주는지 확인한다. 같은 호스트의 WSS `/harborline`에서 허용 오리진·정원·입장·재접속을 검증한 후, 해당 WSS 주소를 넣어 Sites 프런트엔드를 빌드한다. 독립 브라우저 두 개로 동기화를 확인한 뒤 기존 Sites 프로젝트에 게시한다.
+3. 호스트는 `0.0.0.0`의 Render `PORT`에 바인딩한다. 운영 프런트엔드 오리진은 `https://harborline-six.vercel.app`이야. 기존 Render의 `HARBORLINE_ORIGINS`를 확인해. 커밋된 Blueprint에는 이전 Sites 배포의 오리진 이력이 있어. 공개 인터페이스에 바인딩할 때 오리진 목록이 비어 있으면 서버가 실행을 중단한다.
+4. 기존 Render 서비스의 HTTPS `/healthz`와 Vercel 오리진을 사용한 WSS `/harborline` 연결을 확인해. Vercel은 `VITE_HARBORLINE_WS`를 읽어. 기능 브랜치의 Vercel 프리뷰를 확인한 뒤 GitHub의 `main`에 반영하면 기존 Vercel 프로젝트가 운영 빌드를 배포해.
 5. 무료 서비스는 15분간 인바운드 트래픽이 없으면 절전 상태에 들어가며 복구까지 약 1분이 걸린다. 운영에서 별도 상시 깨우기 작업은 사용하지 않는다.
 
 [Render 무료 플랜](https://render.com/docs/free) · [WebSockets](https://render.com/docs/websocket)
@@ -48,7 +50,7 @@ Open the pause menu's credits or inspect the notices under `public/assets/` for 
 
 ## 현재 진행 상황
 
-아래는 2026-11-19 Sites 버전 6의 기록이다. 소스 기준 커밋은 `5c2c9006e889d46b659610f9a378287a71a48ff1`이다. 이번 품질 개선의 검증 범위와 인수인계는 [QUALITY-HANDOFF.md](QUALITY-HANDOFF.md)에 있다. 운영 주소는 https://harborline-docklands.asnt1.chatgpt.site 이다.
+아래는 2026-11-19 Sites 버전 6의 배포 기록이야. 당시 소스는 `5c2c9006e889d46b659610f9a378287a71a48ff1`, 당시 주소는 `https://harborline-docklands.asnt1.chatgpt.site`였어. 검증 범위는 [QUALITY-HANDOFF.md](QUALITY-HANDOFF.md)에 남겨 뒀어.
 
 - 도로, 부두, 상점, 차량, 하늘과 수면을 포함하는 항구 구역과 충돌, 지도, 안내판, 설정을 구현했다.
 - 걷기, 달리기 전환, 점프, 카메라와 터치 조작을 지원한다.
@@ -69,4 +71,4 @@ PWA 배포 직후 일부 아이콘 요청이 간헐적으로 HTML을 반환했�
 3. 기존 그래픽과 저장 데이터를 보존하면서 NPC 행동, 교통 및 짧은 스토리 미션을 단계적으로 확장한다.
 4. 경찰 추격과 전투 확장을 검토한다. 비공개 멀티플레이의 인터넷 운영에는 별도 방 서버가 필요하다.
 
-`.openai/hosting.json`은 기존 Sites 프로젝트의 배포 설정이다. 다른 호스팅에 사용할 때는 대상 배포 설정을 별도로 검토해야 한다. 저장 데이터는 브라우저의 기존 localStorage 키를 사용한다.
+`.openai/hosting.json`은 과거 Sites 배포 이력이야. 현재 Vercel 프로젝트는 Vite의 `dist/`를 배포해. 저장 데이터는 브라우저의 기존 localStorage 키를 사용해. 브라우저는 도메인별로 저장을 관리해.

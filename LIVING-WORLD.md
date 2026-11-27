@@ -1,6 +1,6 @@
 # Harborline v36 · South Basin
 
-v35 `8abfee804ad06b1a4554b164f64d15400172c614`를 기준으로 작업했어. 복구 시 그 커밋의 Git 소스와 기존 Sites 프로젝트의 v35를 각각 사용하면 돼. 공개 주소는 [Harborline Docklands](https://harborline-docklands.asnt1.chatgpt.site/)와 [Harborline](https://harborline.asnt1.chatgpt.site/)이야.
+v35 `8abfee804ad06b1a4554b164f64d15400172c614`를 기준으로 작업했어. 당시 Sites 주소는 `https://harborline-docklands.asnt1.chatgpt.site/`와 `https://harborline.asnt1.chatgpt.site/`였어. 현재 운영 주소와 배포 대상은 [README](README.md)에 있어.
 
 ## 플레이할 수 있는 곳
 
