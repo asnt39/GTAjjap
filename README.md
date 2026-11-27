@@ -6,6 +6,8 @@ The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, drivi
 
 The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls. The [Wrong Deal preview notes](WRONG-DEAL.md) describe the prologue, the refitted port and production hall, and the tested changes.
 
+[New Blood](NEW-BLOOD.md) documents Mission 04, The Lantern Room, and the remaining Chapter 1 work.
+
 [Urban & Coastal Remaster](docs/urban-coastal-remaster.md) records the current artwork, traffic reproduction, verification and open items.
 
 ## Run
