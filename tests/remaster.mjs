@@ -252,3 +252,73 @@ test('the unmarked signal plate can be found and reached from the public garden 
  const visible=()=>cameraFraction({...pos,y:pos.y+1.36},{x:spot.x,y:spot.targetY,z:spot.z},boxes)>.84
  assert.equal(nearbyAction([spot],pos,Math.PI,visible),spot)
 })
+
+test('the extended civilian route graph connects the districts across clear pavement',async()=>{
+ const {cityTrafficCircuits}=await import('../src/city-traffic-plan.js')
+ const layouts=cityTrafficCircuits(),visited=new Set(),queue=[layouts[0].nodes[0]],blocked=[]
+ for(let i=0;i<queue.length;i++){
+  const node=queue[i]
+  if(visited.has(node))continue
+  visited.add(node);queue.push(...node.edges)
+  const pose={...vehicles.van,x:node.x,z:node.z,heading:Math.atan2(node.dx,-node.dz)}
+  const impact={}
+  if(!clearPose(pose,boxes,true,false,impact))blocked.push([node.x.toFixed(2),node.z.toFixed(2),impact.x,impact.z])
+ }
+ assert.equal(blocked.length,0,JSON.stringify(blocked))
+ for(const layout of layouts)assert(layout.nodes.every(node=>visited.has(node)))
+})
+
+test('moving exit poses stay on the requested side and finish at a safe doorstep',async()=>{
+ const {exitProfile,movingExitPose}=await import('../src/vehicle-entry.js')
+ const {safeExit}=await import('../src/driving.js')
+ assert.equal(exitProfile(.4),null)
+ assert(exitProfile(9).hop>exitProfile(2).hop)
+ for(const setup of [vehicles.van,motorcycleSetup]){
+  const car={...newDrive(setup,setup),x:0,z:156,speed:7,heading:0}
+  const exit=safeExit(car,boxes,-1)
+  assert(exit)
+  const profile=exitProfile(car.speed)
+  const mid=movingExitPose(car,exit.side,exit.door,profile.duration*.54,profile)
+  assert(mid.visible&&mid.y>.2)
+  assert(Math.sign(mid.opening)===exit.side&&Math.sign(mid.bank)===exit.side)
+  const last=movingExitPose(car,exit.side,exit.door,profile.duration,profile)
+  assert(Math.abs(last.x-exit.door.x)<.001&&Math.abs(last.z-exit.door.z)<.001)
+  assert(Math.abs(last.bank)<.001&&last.opening===0)
+ }
+})
+
+test('civilian cars follow the extended roads at three density levels',async()=>{
+ const {cityTrafficCircuits,trafficPreference}=await import('../src/city-traffic-plan.js')
+ const locations=[{x:-60,z:80},{x:-172,z:98},{x:6,z:159}]
+ const density=trafficPreference()
+ const times=[]
+ for(const label of ['보통','높음','낮음']){
+  const traffic=[],driven=new Map()
+  const controllers=cityTrafficCircuits().map((layout,index)=>{
+   const rigs=Array.from({length:4},(_,i)=>{
+    const setup=i%2===0?vehicles.sport:vehicles.van
+    return {...setup,setup,root:new Group(),driver:new Group(),updatePose(){}}
+   })
+   return civilianTraffic(new Scene(),boxes,traffic,rigs,{entries:layout.entries,nextNode:layout.next,
+    idPrefix:'measure-'+index,junction:null})
+  })
+  const limit=density.limit(4,false,16)
+  let peak=0
+  const start=performance.now()
+  for(let frame=0;frame<1500;frame++){
+   for(const [index,controller] of controllers.entries()){
+    controller.update(1/60,locations[index],{enabled:true,walkers:[],limit})
+   }
+   peak=Math.max(peak,traffic.length)
+   for(const [i,car] of traffic.entries()){
+    assert(!traffic.slice(i+1).some(other=>overlapsCar(car,other)))
+    driven.set(car.id,(driven.get(car.id)??0)+Math.max(0,car.travel??0))
+   }
+  }
+  for(let i=0;i<locations.length;i++)assert([...driven].some(([id,distance])=>id.startsWith('measure-'+i)&&distance>55),label+' region '+i)
+  times.push({label,peak,msPerFrame:Number(((performance.now()-start)/1500).toFixed(2))})
+  density.cycle()
+ }
+ assert(times[0].peak<times[1].peak&&times[2].peak<times[0].peak,JSON.stringify(times))
+ console.log('Traffic CPU incl. test collision checks, three regions and 1,500 fixed 60 Hz frames:',JSON.stringify(times))
+})

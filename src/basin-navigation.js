@@ -64,31 +64,35 @@ export function basinWalkLayout(){
 // The four legs describe a directed loop using the same lanes as the render and collision data.
 export function basinCarLayout(){
  const get=id=>basinRoads.find(r=>r.id===id).mid
- const nodes=[],lane=1.15
+ const lane=1.15
  const corners=[
   {x:get('bridge-approach')-lane,z:get('basin-crossing')+lane},
   {x:get('bridge-approach')-lane,z:get('south-turn')-lane},
   {x:get('switchyard-road')+lane,z:get('south-turn')-lane},
   {x:get('switchyard-road')+lane,z:get('basin-crossing')+lane}
  ]
+ return roadCircuit(corners,4.8)
+}
+
+export function roadCircuit(corners,bend=4.8){
+ const nodes=[]
  const directions=corners.map((p,i)=>{
   const q=corners[(i+1)%corners.length],d=gap(p,q)
   return {x:(q.x-p.x)/d,z:(q.z-p.z)/d}
  })
- const bend=4.8
  function add(x,z,dx,dz,curve=false){
   const length=Math.hypot(dx,dz)
   nodes.push({x,z,dx:dx/length,dz:dz/length,edges:[],curve})
  }
  for(const [i,p] of corners.entries()){
-  const prev=directions[(i+3)%4],next=directions[i],q=corners[(i+1)%4]
+  const prev=directions[(i+corners.length-1)%corners.length],next=directions[i],q=corners[(i+1)%corners.length]
   const a={x:p.x-bend*prev.x,z:p.z-bend*prev.z},b={x:p.x+bend*next.x,z:p.z+bend*next.z}
   for(let j=0;j<9;j++){
    const t=j/8,u=1-t
    add(u*u*a.x+2*u*t*p.x+t*t*b.x,u*u*a.z+2*u*t*p.z+t*t*b.z,
     u*prev.x+t*next.x,u*prev.z+t*next.z,true)
   }
-  const length=gap(p,q)-2*bend,parts=Math.ceil(length/2.8)
+  const length=gap(p,q)-2*bend,parts=Math.max(1,Math.ceil(length/2.8))
   for(let j=1;j<parts;j++){
    const d=bend+length*j/parts
    add(p.x+d*next.x,p.z+d*next.z,next.x,next.z)

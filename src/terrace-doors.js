@@ -58,11 +58,13 @@ export function createTerraceDoors(scene,boxes,sound=()=>{},extras=[]){
   if(!d.progress){const r=d.r;d.direction=(p.x-d.at.x)*r.sin+(p.z-d.at.z)*r.cos>=0?1:-1}
   d.target=1
  }
- function candidate(p){return doors.find(d=>near(d,p,2.15)&&d.r.door!=='auto')}
+ const available=(d,p)=>near(d,p,2.15)&&d.r.door!=='auto'
+ function candidate(p){return doors.find(d=>available(d,p))}
  return {
   doors,
+  candidates(p){return doors.filter(d=>available(d,p))},
   prompt(p){const d=candidate(p);return d?d.r.title+' · '+(d.target?'문 닫기':'문 열기'):''},
-  toggle(p){const d=candidate(p);if(!d)return false
+  toggle(p,d=candidate(p)){if(!d||!available(d,p))return false
    if(d.target)d.target=0;else open(d,p)
    d.npcOpened=false;return true
   },

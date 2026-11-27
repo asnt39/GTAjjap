@@ -1,7 +1,7 @@
 // Candidates expose an approach point. Nearby panels and actions share the same
 // reach checks, whether activated from the keyboard or HUD.
-export function nearbyAction(spots,pos,yaw,visible){
- let best=null,bestCost=Infinity
+export function nearbyActions(spots,pos,yaw,visible){
+ const nearby=[]
  const fx=Math.sin(yaw),fz=-Math.cos(yaw)
  for(const spot of spots){
   const dx=spot.x-pos.x,dz=spot.z-pos.z,dist=Math.hypot(dx,dz)
@@ -10,11 +10,12 @@ export function nearbyAction(spots,pos,yaw,visible){
   const alignment=(dx*fx+dz*fz)/Math.max(.01,dist)
   if(dist>.45&&alignment<-.28)continue
   const cost=dist+(1-alignment)*.35
-  if(cost>=bestCost||!visible(spot))continue
-  best=spot;bestCost=cost
+  if(visible(spot))nearby.push({spot,cost})
  }
- return best
+ return nearby.sort((a,b)=>a.cost-b.cost).map(({spot})=>spot)
 }
+
+export const nearbyAction=(...args)=>nearbyActions(...args)[0]??null
 
 export function cityAction(){
  let current=null

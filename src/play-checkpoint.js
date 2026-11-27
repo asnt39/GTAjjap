@@ -57,7 +57,7 @@ export function resolveCheckpoint(saved,fallbacks,floorAt,clear){
   }
  }
  for(const point of fallbacks){
-  const ground=candidate(point.x,point.z,0)
+  const ground=candidate(point.x,point.z,point.y??0)
   if(ground)return ground
  }
 }

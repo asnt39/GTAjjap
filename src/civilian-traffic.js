@@ -8,34 +8,65 @@ const heading=node=>Math.atan2(node.dx,-node.dz)
 const dockJunction={x:0,z:-37}
 const spawnNear=25,spawnFar=92,despawnAt=108
 
-export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntries,nextNode=civilianNext,junction=dockJunction}={}){
- const units=rigs.map((rig,index)=>{
-  const setup={...rig.setup,top:7.8+index*.25,power:3.25,steer:.86,steerRate:3}
-  const car=newDrive(rig,setup)
-  rig.root.visible=false
-  scene.add(rig.root)
-  return {rig,car,active:false,path:[],turn:index,index,stopped:0,waiting:0,blocked:0,dependency:null,recover:0,retry:0}
+export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntries,nextNode=civilianNext,junction=dockJunction,seeded=[],idPrefix='traffic',turnarounds=civilianTurnarounds,requireDriver=false,canEnter=()=>true}={}){
+ const units=[...rigs.map(rig=>({rig})),...seeded].map(({rig,car:externalCar},index)=>{
+  const setup={...rig.setup,top:8+(index%4)*.55,power:3.25,steer:.88,steerRate:3}
+  const car=externalCar??Object.assign(newDrive(rig,setup),{id:idPrefix+'-'+index,localOnly:true})
+  if(!externalCar){rig.root.visible=false;scene.add(rig.root)}
+  return {rig,car,setup,external:!!externalCar,driver:rig.driver,active:false,path:[],turn:index,index,
+   stopped:0,waiting:0,blocked:0,dependency:null,recover:0,retry:0,released:false}
  })
+ const byVehicle=new Map(units.map(unit=>[unit.car,unit]))
  const zones=junction?[{point:junction,entry:17,stop:13.2,inside:9.8,release:10.9},
-  ...civilianTurnarounds.map(point=>({point,entry:15,stop:10,inside:6.8,release:8}))]:[]
+  ...turnarounds.map(point=>({point,entry:15,stop:10,inside:6.8,release:8}))]:[]
  let spawnClock=0,recoveryOwner=null,spawnCursor=0
- function remove(unit){
+ function remove(unit,claimed=false){
   if(!unit.active)return
   const at=traffic.indexOf(unit.car)
-  if(at!==-1)traffic.splice(at,1)
-  unit.active=false;unit.rig.root.visible=false
+  if(at!==-1&&!claimed&&!unit.external)traffic.splice(at,1)
+  unit.active=false
+  if(!claimed&&!unit.external)unit.rig.root.visible=false
+  if(unit.driver)unit.driver.visible=false
+  if(unit.external)unit.car.speed=unit.car.throttle=unit.car.slip=unit.car.remainder=0
   for(const zone of zones)if(zone.owner===unit){zone.owner=null;zone.entered=false}
   if(recoveryOwner===unit)recoveryOwner=null
  }
+ function routeUnit(unit,node){
+  Object.assign(unit,{path:[node],stopped:0,waiting:0,blocked:0,dependency:null,recover:0,retry:0,plan:null,intentClock:0,active:true})
+  if(unit.driver)unit.driver.visible=true
+ }
+ function seed(unit){
+  if(requireDriver&&!unit.driver)return false
+  const {car}=unit
+  let best=null,bestCost=Infinity
+  let nodeSet=entries
+  // Include the next few lane nodes so parked vehicles can pull forward from
+  // blocks whose nearest spawn marker happens to be behind them.
+  nodeSet=nodeSet.flatMap(start=>{
+   const route=[start]
+   for(let i=0;i<4;i++)route.push(nextNode(route.at(-1),0))
+   return route
+  })
+  for(const node of nodeSet){
+   const p=localPoint(car,node.x,node.z),align=Math.cos(heading(node)-car.heading)
+   if(p.z>-.9||Math.abs(p.x)>5||align<.84||distance(node,car)>58)continue
+   const cost=-p.z+Math.abs(p.x)*2
+   if(cost<bestCost){bestCost=cost;best=node}
+  }
+  if(!best)return false
+  routeUnit(unit,best)
+  return true
+ }
  function spawn(unit,player,walkers,inView){
+  if(requireDriver&&!unit.driver)return false
   for(let i=0;i<entries.length;i++){
    const node=entries[(spawnCursor+i)%entries.length]
    const range=distance(node,player)
    if(range<spawnNear||range>spawnFar||inView(node)&&range<72)continue
-   const pose={...newDrive(unit.rig,unit.car.setup),x:node.x,z:node.z,heading:heading(node)}
+   const pose={...newDrive(unit.rig,unit.car.setup),travel:0,x:node.x,z:node.z,heading:heading(node)}
    if(!clearPose(pose,boxes)||traffic.some(other=>distance(other,pose)<9)||walkers.some(p=>nearBody(pose,p.x,p.z,.9)))continue
    Object.assign(unit.car,pose)
-   Object.assign(unit,{path:[node],stopped:0,waiting:0,blocked:0,dependency:null,recover:0,retry:0,active:true})
+   routeUnit(unit,node)
    unit.rig.updatePose(unit.car)
    unit.rig.root.visible=true;traffic.push(unit.car)
    spawnCursor=(spawnCursor+i+1)%entries.length
@@ -88,12 +119,13 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    const radius=distance(zone.owner.car,zone.point)
    zone.entered||=radius<zone.inside
    const turn=reserved(zone.owner,zone)
-   if(zone.entered?radius<zone.release+zone.owner.car.length*.5:turn&&!blockedExit(zone.owner,turn))return
+   const permitted=canEnter(zone.owner.car,zone.point)||radius<zone.stop+1
+   if(zone.entered?radius<zone.release+zone.owner.car.length*.5:turn&&permitted&&!blockedExit(zone.owner,turn))return
    zone.owner=null;zone.entered=false
   }
   const inside=units.find(u=>u.active&&distance(u.car,zone.point)<zone.inside)
   if(inside){zone.owner=inside;zone.entered=true;return}
-  const queue=units.filter(u=>u.active&&reserved(u,zone)&&!u.recover)
+  const queue=units.filter(u=>u.active&&reserved(u,zone)&&!u.recover&&canEnter(u.car,zone.point))
    .sort((a,b)=>b.waiting-a.waiting||distance(a.car,zone.point)-distance(b.car,zone.point)||a.index-b.index)
   zone.owner=queue.find(u=>!blockedExit(u,zoneCurve(u,zone))||
    !zone.point.curve&&u.waiting>2&&tryAlternateExit(u))??null
@@ -172,7 +204,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    const clearance=ahead(car,person,car.width*.5+.62)-car.length*.5-1.08
    if(clearance<gap){gap=clearance;leading=0;blocker=null}
   }
-  const limit=Math.min(turning?3.75:car.setup.top,Math.sqrt((Number.isFinite(leading)?leading**2:0)+6*Math.max(0,gap-car.speed*.63)))
+  const limit=Math.min(turning?3.75:unit.setup.top,Math.sqrt((Number.isFinite(leading)?leading**2:0)+6*Math.max(0,gap-car.speed*.63)))
   const brake=car.speed>limit+.24||limit<.24
   unit.retry=Math.max(0,unit.retry-dt)
   unit.dependency=!wait&&limit<.65?blocker:null
@@ -211,45 +243,76 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    unit.recover=Math.max(0,unit.recover-dt)
    const rearClear=canReverse(car,obstacles,nearby,unit.recoverySteer)
    if(!rearClear)unit.recover=0
-   stepDrive(car,{forward:0,back:rearClear&&unit.recover&&car.speed>-1.65?.72:0,steer:unit.recoverySteer,handbrake:!unit.recover},boxes,dt,obstacles,false,blocked)
+   stepDrive(car,{forward:0,back:rearClear&&unit.recover&&car.speed>-1.65?.72:0,steer:unit.recoverySteer,handbrake:!unit.recover},boxes,dt,traffic,false,blocked)
    if(!unit.recover){
     const resume=path.findIndex(node=>!node.curve&&ahead(car,node,3.9)<8)
     if(resume>0)path.splice(0,resume)
    }
   }else stepDrive(car,{forward:brake?0:clamp((limit-car.speed)*.64,0,1),back:0,steer:clamp(error*2.25,-1,1),handbrake:brake||car.speed<-.05},
-   boxes,dt,obstacles,false,blocked)
+   boxes,dt,traffic,false,blocked)
   unit.stopped=Math.abs(car.speed)<.18?unit.stopped+dt:0
   unit.blocked=!brake&&!unit.recover&&limit>1&&Math.abs(car.travel)<dt*.15?unit.blocked+dt:0
-  unit.rig.updatePose({...car,dt})
+  if(!unit.external)unit.rig.updatePose({...car,dt})
   return Math.abs(car.travel)>.002
  }
  return {
+  savedUnit(id){return units.find(unit=>!unit.external&&unit.car.id===id)},
+  reserve(unit){if(unit&&!unit.active&&!unit.external){unit.released=true;unit.rig.root.visible=true}},
+  driverFor(car){const unit=byVehicle.get(car);return unit&&(unit.active||unit.parkedDriver)?unit:null},
+  retire(car){const unit=byVehicle.get(car);if(unit){remove(unit);unit.released=true}},
+  claim(car){
+   const unit=byVehicle.get(car)
+   if(!unit||!unit.active&&!unit.parkedDriver)return null
+   remove(unit,true);unit.released=true;unit.parkedDriver=false
+   if(unit.driver)unit.driver.visible=false
+   return unit
+  },
   update(dt,player,{enabled,limit=units.length,walkers,inView=()=>false}){
-   if(!enabled){units.forEach(remove);spawnClock=0;return false}
+   if(!enabled){this.clear();return false}
    spawnClock-=dt
    let moving=false
    const active=[]
    for(const unit of units){
-    if(!unit.active)continue
     const range=distance(player,unit.car)
-    if(!inView(unit.car)&&(range>despawnAt||range>32&&active.length>=limit)){
+    if(!unit.active){
+     unit.parkedDriver=unit.external&&!unit.released&&(!requireDriver||!!unit.driver)
+     if(unit.parkedDriver&&unit.driver)unit.driver.visible=range<26
+     continue
+    }
+    if(!unit.external&&!inView(unit.car)&&(range>despawnAt||range>32&&active.length>=limit)){
      remove(unit);moving=true;continue
     }
-    if(unit.rig.driver)unit.rig.driver.visible=range<23
+    if(unit.driver)unit.driver.visible=range<26
     prepare(unit)
     active.push(unit)
    }
+   if(active.length<limit&&spawnClock<=0){
+    const unit=units.find(unit=>!unit.active&&!unit.released&&unit.external&&distance(unit.car,player)<75)
+    if(unit&&seed(unit)){spawnClock=1;active.push(unit)}
+   }
    zones.forEach(updateZone)
-   const intents=new Map(active.map(unit=>[unit,intent(unit,dt,walkers)]))
+   const intents=new Map(active.map(unit=>{
+    const interval=distance(unit.car,player)<38?0:.095
+    unit.intentClock=(unit.intentClock??0)-dt
+    if(!unit.plan||unit.intentClock<=0){unit.plan=intent(unit,Math.max(dt,interval),walkers);unit.intentClock=interval}
+    return [unit,unit.plan]
+   }))
    selectRecovery(active,intents)
    for(const unit of active)moving=drive(unit,dt,intents.get(unit))||moving
    if(active.length<limit&&spawnClock<=0){
     spawnClock=2.3
-    const unit=units.find(unit=>!unit.active)
+    const unit=units.find(unit=>!unit.active&&!unit.external&&!unit.released)
     if(unit)moving=spawn(unit,player,walkers,inView)||moving
    }
    return moving
   },
-  clear(){units.forEach(remove)}
+  clear(){
+   spawnClock=0
+   for(const unit of units){
+    remove(unit)
+    if(unit.parkedDriver&&unit.driver)unit.driver.visible=false
+    unit.parkedDriver=false
+   }
+  }
  }
 }

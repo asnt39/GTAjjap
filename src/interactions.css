@@ -1,0 +1,40 @@
+#game #interact {
+ background:transparent;
+ padding:0;
+ border:0;
+ width:min(320px,calc(100vw - 2rem));
+ pointer-events:none;
+}
+#interaction-options {
+ display:grid;
+ gap:4px;
+ max-height:min(34vh, 220px);
+ overflow:auto;
+ scrollbar-width:thin;
+ pointer-events:auto;
+}
+#interaction-options button {
+ display:flex;
+ align-items:center;
+ gap:.6rem;
+ text-align:left;
+ color:var(--cream);
+ background:#142026eb;
+ border:1px solid #d5e3d74d;
+ border-radius:3px;
+ padding:6px 9px;
+ min-height:33px;
+ animation:interaction-in .14s ease-out;
+}
+#interaction-options button.selected {border-color:var(--orange)}
+#interaction-options button:not(.selected) kbd {visibility:hidden}
+#interaction-options button.leaving {pointer-events:none;animation:interaction-out .14s ease-in forwards}
+@keyframes interaction-in {from {opacity:0;transform:translateY(4px)}}
+@keyframes interaction-out {to {opacity:0;transform:translateY(4px)}}
+@media (pointer:coarse) {
+ #game #interact {width:min(235px,calc(100vw - 9rem))}
+ #interaction-options button {min-height:40px}
+}
+@media (prefers-reduced-motion:reduce) {
+ #interaction-options button,#interaction-options button.leaving {animation-duration:.01s}
+}

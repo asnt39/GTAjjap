@@ -45,3 +45,11 @@ export function restoreParkedPoses(fleet,saved,boxes){
   Object.assign(car,{x,z,heading,lift:vehicleLift(pose)})
  }
 }
+
+export function restoreTrafficVehicle(car,pose,boxes,traffic){
+ if(!validPose(pose))return false
+ const candidate={...car,x:pose.x,z:pose.z,heading:pose.heading}
+ if(!clearPose(candidate,boxes,true,true)||traffic.some(other=>other!==car&&overlapsCar(candidate,other)))return false
+ Object.assign(car,{x:pose.x,z:pose.z,heading:pose.heading,lift:vehicleLift(candidate)})
+ return true
+}

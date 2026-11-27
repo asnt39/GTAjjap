@@ -98,15 +98,13 @@ export function driveBoat(boat,input,elapsed,others){
  }
  return boat.hit
 }
-export function nearestBoat(pos,boats,swimming){
- let best=null,range=swimming?2.45:3
- if(!swimming&&!inPier(pos.x,pos.z))return null
- for(const b of boats){
-  const gap=distance(pos,b)
-  if(gap<range&&Math.abs(b.speed)<1.3){best=b;range=gap}
- }
- return best
+export function boardableBoats(pos,boats,swimming){
+ if(!swimming&&!inPier(pos.x,pos.z))return []
+ const range=swimming?2.45:3
+ return boats.filter(b=>Math.abs(b.speed)<1.3&&distance(pos,b)<range)
+  .sort((a,b)=>distance(pos,a)-distance(pos,b))
 }
+export const nearestBoat=(...args)=>boardableBoats(...args)[0]??null
 export function boatExit(b,dry,others){
  const spots=[[-1.45,.15],[1.45,.15],[-2.55,.45],[2.55,.45],[0,b.length*.63]].map(([x,z])=>worldPoint(b,x,z))
  for(const spot of spots)if(dry(spot.x,spot.z)&&!rockSolid(spot.x,spot.z,.45))return {...spot,dry:true}

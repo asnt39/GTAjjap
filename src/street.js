@@ -189,6 +189,8 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
     const x=s*6.54
     rod(V(x,.084,z),V(x,2.7,z),.04,.035,pole,6);signFace(x,2.4,z+.036,.32,.48,s*.20,noPark);pillarCollider(x,z,.04,2.7)
   }
+  const trafficLights=Array.from({length:2},()=>[red.clone(),signalBlack.clone(),signalBlack.clone()])
+  const signalColors=[red,signalBlack,green]
   for(const s of [-1,1]){
     const x=s*6.59,z=-37+s*6.62
     round(x,.16,z,.21,.18,pole)
@@ -198,19 +200,19 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
     const zSign=z+.095
     signFace(x,3.91,zSign,1.46,.32,.18,breakwater)
     signFace(x,3.56,zSign,1.29,.32,PI/2-.15,pier)
-    const signal=(lx,lz,angle,active)=>{
+    const signal=(lx,lz,angle,axis)=>{
       const dx=Math.sin(angle),dz=Math.cos(angle)
       box(lx,4.72,lz,.35,1.06,.32,mustard,angle)
       box(lx+dx*.174,4.72,lz+dz*.174,.38,1.04,.04,signalBlack,angle)
       for(let k=0;k<3;k++){
         const yy=5.045-k*.32
         box(lx+dx*.238,yy+.117,lz+dz*.238,.275,.066,.21,iron,angle)
-        rod(V(lx+dx*.185,yy,lz+dz*.185),V(lx+dx*.21,yy,lz+dz*.21),.102,.10,k===active?(k===0?red:green):signalBlack,14)
+        rod(V(lx+dx*.185,yy,lz+dz*.185),V(lx+dx*.21,yy,lz+dz*.21),.102,.10,trafficLights[axis][k],14)
       }
     }
-    signal(s*1.42,z,s>0?PI:0,2)
+    signal(s*1.42,z,s>0?PI:0,0)
     rod(V(x,5.32,z),V(x,5.25,-37+s*3.90),.075,.055,pole)
-    signal(x,-37+s*4,s*PI/2,0)
+    signal(x,-37+s*4,s*PI/2,1)
     pillarCollider(x,z,.18,5.8)
   }
   // The foliage atlas contains four depth slices in each of two viewing directions.
@@ -257,6 +259,19 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
     for(const g of geometries)g.dispose()
   }
   scene.add(group)
-  Object.defineProperty(vehicles,'civilianRig',{value:()=>createVehicleRig('sport',models[5])})
+  Object.defineProperties(vehicles,{
+    civilianRig:{value:index=>{
+      const model=[['sport',5,'Sprint'],['van',4,'Dock Van'],['sport',2,'Riverside'],['sport',3,'Fairheaven']][index%4]
+      return model[1]===5||model[1]===4?createVehicleRig(model[0],models[model[1]]):
+        createVehicleRig(model[0],models[model[1]],{name:model[2],length:4.35,x:0,z:0,heading:0})
+    }},
+    trafficSignal:{value:phase=>{
+      const greenAxis=phase==='northSouth'?0:phase==='eastWest'?1:-1
+      for(let axis=0;axis<2;axis++)for(const lens of [0,2]){
+        const from=lens===(axis===greenAxis?2:0)?signalColors[lens]:signalBlack
+        trafficLights[axis][lens].color.copy(from.color);trafficLights[axis][lens].emissive.copy(from.emissive)
+      }
+    }}
+  })
   return vehicles
 }

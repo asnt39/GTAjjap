@@ -42,3 +42,25 @@ export function entryPose(car,transition,entering) {
   speed:entering&&time<.35?Math.min(2,Math.hypot(sill.x-from.x,sill.z-from.z)*2.9):0
  }
 }
+
+export function exitProfile(speed){
+ const pace=Math.abs(speed)
+ if(pace<=.45)return null
+ return pace<4.2?{duration:.63,hop:.16,roll:.10}:{duration:.88,hop:.49,roll:.70}
+}
+
+export function movingExitPose(car,side,door,time,profile){
+ const phase=Math.max(0,Math.min(1,time/profile.duration))
+ const open=ramp(phase,0,.31)
+ const step=ramp(phase,.23,.86)
+ const seat=worldPoint(car,side*car.width*.19,car.setup?.cabinZ??.05)
+ const arc=Math.sin(Math.PI*step)
+ return {
+  x:mix(seat.x,door.x,step),z:mix(seat.z,door.z,step),
+  y:(car.lift??0)*(1-step)+(car.setup?.seatLift??.29)*(1-step)+arc*profile.hop,
+  face:Math.PI-car.heading-side*1.13*step,
+  bank:side*arc*profile.roll,opening:side*open*(1-ramp(phase,.72,1)),
+  crouch:.86*(1-step),reach:.84*open*(1-step),visible:step>.22||!!car.setup?.bike,
+  speed:Math.min(3.5,Math.abs(car.speed))*(1-step),ride:0
+ }
+}

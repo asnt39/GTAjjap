@@ -143,10 +143,12 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   if(actual<step*.25){n.blocked+=dt;if(n.blocked>.55){if(n.state==='routine')n.avoidUntil=n.age+1.1;n.path=[];n.wait=.4+Math.random();n.replan=0;n.blocked=0}}
   else n.blocked=0
  }
+ function candidates(p){
+  return all.filter(n=>!(n.officer&&wanted.level)&&!n.policeOrder?.aboard&&n.alert<=0&&!n.f.action&&n.f.hp&&
+   distance(p,n.pos)<2.1&&Math.abs((p.y??0)-n.pos.y)<.9&&lineClear(p,n.pos))
+ }
  function candidate(p){
-  let best=null,range=2.1
-  for(const n of all){const d=distance(p,n.pos);if(!(n.officer&&wanted.level)&&n.alert<=0&&!n.f.action&&n.f.hp&&d<range&&lineClear(p,n.pos)){best=n;range=d}}
-  return best
+  return candidates(p).sort((a,b)=>distance(p,a.pos)-distance(p,b.pos))[0]??null
  }
  function endTalk(){if(talking){talking.talk=0;talking.state='idle';talking.wait=1;talking=null}lastTalk=''}
  function beginTalk(n){
@@ -370,6 +372,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(onPoliceShot&&n.officer)firearms.pose(n,player,tick,aiming,onPoliceShot)
   }
  }
- return {all,officers,wanted,takePursuit,candidate,beginTalk,endTalk,receive,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,takePursuit,candidate,candidates,beginTalk,endTalk,receive,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

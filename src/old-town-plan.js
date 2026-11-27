@@ -85,7 +85,7 @@ const pavedLand=[...oldTownLand.slice(0,2),[-76.5,-59.5,-27,21],oldTownLand[3],[
 export const townPavement=townTiles([...pavedLand,...oldTownRoads],(x,z)=>
  pavedLand.some(r=>contains(r,x,z))&&!oldTownRoads.some(r=>contains(r,x,z)))
 const roadBlend=[...oldTownRoads,[-6.05,6.05,-43,63],[-97,25.3,-43,-31]]
-export const townDriveBounds=[-97,29,-43,209]
+export const townDriveBounds=[-225,29,-43,209]
 export const townCurbBlocks=townTiles(roadBlend,(x,z)=>!roadBlend.some(r=>contains(r,x,z)))
 
 const dockPavement=[

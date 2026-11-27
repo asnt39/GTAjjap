@@ -1,3 +1,5 @@
+import {interactionSelection} from './interaction-list.js'
+import './interactions.css'
 import {insideBasin} from './south-basin-plan.js'
 import {inCoast,offBeach,inPier} from './coast-plan.js'
 import {cityAudio} from './city-audio.js'
@@ -14,10 +16,11 @@ import {defaultRoomEndpoint} from './room-client.js'
 import {ROOM_CODE} from './room-protocol.js'
 import {sights} from './navigation.js'
 const $=q=>document.querySelector(q)
-const nearbySight=p=>sights.find(s=>(s.tag!=='ARM'||insideWeaponShop(p.x,p.z))&&Math.hypot(p.x-s.x,p.z-s.z)<(s.range??3.6)&&(s.y===undefined||Math.abs(p.y-s.y)<.86))
+const nearbySight=p=>sights.filter(s=>(s.tag!=='ARM'||insideWeaponShop(p.x,p.z))&&Math.hypot(p.x-s.x,p.z-s.z)<(s.range??3.6)&&(s.y===undefined||Math.abs(p.y-s.y)<.86))
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
+ const selection=interactionSelection(),entries=new Map(),options=$('#interaction-options')
  const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
  let timer
  const toast=message=>{const el=$('#toast');el.textContent=message;el.style.display='block';clearTimeout(timer);timer=setTimeout(()=>el.style.display='none',3000)}
@@ -41,11 +44,12 @@ export function createUI(game){
   if(panel==='darts'&&name!=='darts')round=null
   objective.hidden=missionEvent.hidden=true
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);audio.pause(true);overlay.hidden=false;interact.hidden=true
+  entries.clear();options.replaceChildren()
   if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
   const menu={
    bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
+   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('traffic','교통량',game.trafficLabel())+button('recovery','복구 도구')+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
    audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
     button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
     [['music','배경음악'],['effects','효과음'],['ambient','환경음'],['voice','대사 음량']].map(([key,label])=>
@@ -55,7 +59,9 @@ export function createUI(game){
     '<p class="smallnote">힘이 61%에 가까울수록 점수가 높아. 한 라운드에 세 번 던져.</p>'+button('throw-dart','던지기')],
    equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'미보유')).join('')+'<p class="smallnote">장비와 예비탄은 차고지 남쪽의 Breakwater Arms에서 살 수 있어. 온라인 방에서도 장비와 전투는 각자 진행해.</p>'],
    rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('걷기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–6</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 상호작용 · 승하차','<kbd>E</kbd>')+row('경적 · 전조등 · 라디오','<kbd>H</kbd> · <kbd>L</kbd> · <kbd>B</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. 키보드에서는 기본으로 달려. Shift로 걷기와 달리기를 바꿀 수 있어.</p>'],
+   recovery:['HARBORLINE','복구 도구',button('recover-position','캐릭터 위치 재설정')+button('recover-input','조작 및 입력 상태 재설정')+
+    button('recover-camera','카메라 재설정')+button('recover-ui','UI 및 메뉴 재설정')+button('recover-all','종합 긴급 복구','Shift + R')],
+   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('걷기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–6</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 상호작용 · 승하차','<kbd>E</kbd>')+row('상호작용 선택','<kbd>Tab</kbd> · <kbd>Shift + Tab</kbd>')+row('긴급 복구','<kbd>Shift + R</kbd>')+row('경적 · 전조등 · 라디오','<kbd>H</kbd> · <kbd>L</kbd> · <kbd>B</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. 키보드에서는 기본으로 달려. Shift로 걷기와 달리기를 바꿀 수 있어.</p>'],
    map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
    credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
   }
@@ -169,6 +175,8 @@ export function createUI(game){
    if(game.selectEquipment(id)){close();toast(gear[id].name+' 장착')}else toast(game.loadout.items[id]?'동작을 마친 뒤 장비를 변경해.':'Breakwater Arms에서 구입할 수 있어.')
    return
   }
+  if(action?.startsWith('recover-')){recover(action.slice(8));return}
+  if(action==='traffic'){game.cycleTraffic();show('pause');return}
   if(action==='replay-intro'){window.dispatchEvent(new Event('harborline:replay-intro'));return}
   if(action==='master-sound'){audio.toggle().then(()=>{reflectSound();if(panel==='audio')show('audio')});return}
   if(action==='voice'){const message=voice.toggle();show('audio');toast(message);return}
@@ -196,15 +204,68 @@ export function createUI(game){
    e.preventDefault();if(action==='roomLeave')game.room.leave();else joinRoom(action==='roomCreate');return
   }
   if(action==='retry'||action==='abandon'||action.startsWith('use-')){const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4));toast(result.message);show('bag');return}if(action==='mission'){game.mission.start(game.driving()&&game.car.id==='touring');close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
- function activate(){
-  const sign=game.canAct()?nearbySight(game.pos):null
-  if(sign?.tag==='ARM'&&!game.crowd.talking&&game.player.f.hp>0){near=sign;show('sight');return}
-  if(game.interactCar())return
-  const site=game.cityCandidate();if(site){activateCity(site);return}
-  if(game.converse())return
-  if(sign){near=sign;show('sight')}
+ function currentInteractions(){
+  if(panel)return []
+  const items=game.interactions()
+  if(game.canAct()&&!game.crowd.talking&&!game.activity.current)for(const sign of nearbySight(game.pos)){
+   items.push({id:'sign-'+sign.tag,label:sign.name,sign,priority:sign.tag==='ARM'?3:1,
+    distance:Math.hypot(game.pos.x-sign.x,game.pos.z-sign.z)})
+  }
+  return selection.update(items)
  }
- interact.onclick=activate
+ function renderInteractions(items){
+  if(items.length)interact.hidden=false
+  else if(!entries.size)interact.hidden=true
+  interact.classList.toggle('multiple',items.length>1)
+  const activeIds=new Set(items.map(item=>item.id))
+  for(const [id,node] of entries)if(!activeIds.has(id)&&!node.classList.contains('leaving')){
+   node.disabled=true;node.classList.add('leaving')
+  }
+  let index=0
+  for(const item of items){
+   let button=entries.get(item.id)
+   if(!button){
+    button=document.createElement('button');button.type='button';button.dataset.interaction=item.id
+    button.innerHTML='<kbd>E</kbd><span></span>'
+    button.addEventListener('animationend',()=>{
+     if(button.classList.contains('leaving')){
+      entries.delete(item.id);button.remove()
+      if(!entries.size)interact.hidden=true
+     }
+    })
+    entries.set(item.id,button)
+   }
+   if(options.children[index]!==button)options.insertBefore(button,options.children[index]??null)
+   index++
+   button.disabled=false;button.classList.remove('leaving')
+   const selected=selection.id===item.id
+   button.classList.toggle('selected',selected)
+   button.setAttribute('aria-pressed',String(selected))
+   setText(button.querySelector('span'),item.label)
+  }
+ }
+ function activate(id){
+  const items=currentInteractions()
+  const item=items.find(entry=>entry.id===(id??selection.id))
+  if(!item)return
+  if(item.sign){near=item.sign;show('sight')}
+  else if(item.site)activateCity(item.site)
+  else item.action()
+ }
+ function recover(kind){
+  game.recover(kind)
+  if(kind==='all'||kind==='ui'){
+   selection.reset();entries.clear();options.replaceChildren();interact.hidden=true
+   near=place=null;game.crowd.endTalk();voice.stop?.();close()
+  }
+  if(kind!=='all'&&kind!=='ui'&&kind!=='position')toast('재설정 완료')
+ }
+ interact.onclick=e=>{const button=e.target.closest('[data-interaction]');if(button)activate(button.dataset.interaction)}
+ window.addEventListener('keydown',e=>{
+  if(!e.repeat&&e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.code==='KeyR'&&!$('#game').inert){
+   e.preventDefault();e.stopImmediatePropagation();recover('all')
+  }
+ },true)
  window.addEventListener('keydown',e=>{
   if(e.repeat)return
   if(e.target instanceof HTMLInputElement&&!['Escape','Tab'].includes(e.code))return
@@ -215,6 +276,10 @@ export function createUI(game){
   if(e.code==='KeyM'){e.preventDefault();panel==='map'?close():show('map')}
   if(e.code==='Slash'&&e.shiftKey){panel==='controls'?close():show('controls')}
   if(e.code==='KeyE'&&!panel){e.preventDefault();activate()}
+  if(e.code==='Tab'&&!panel&&!game.crowd.talking){
+   const items=currentInteractions()
+   if(items.length>1){e.preventDefault();selection.cycle(items,e.shiftKey?-1:1);renderInteractions(items)}
+  }
   if(e.code==='Enter'&&panel==='pause'&&document.activeElement===$('#close')){e.preventDefault();close()}
   if(e.code==='Tab'&&panel){const f=[...$('#panel').querySelectorAll('button,a,input')];if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f.at(-1).focus()}else if(!e.shiftKey&&document.activeElement===f.at(-1)){e.preventDefault();f[0].focus()}}
  })
@@ -331,11 +396,7 @@ export function createUI(game){
    const opponent=health.querySelector('span')
    opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
   }
-  if(!panel){
-   near=game.canAct()?nearbySight(p):null
-   const label=near?.tag==='ARM'?near.name:game.prompt()||near?.name;interact.hidden=!label
-   if(label)interact.querySelector('span').textContent=label
-  }
+  if(!panel)renderInteractions(currentInteractions())
   $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
    (inPier(p.x,p.z)?'Meridian Pier':offBeach(p.x,p.z)?'Meridian Bay':'Meridian Beach'):
    inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
