@@ -54,7 +54,26 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  }
  const staticFree=p=>canWalk(p.x,p.z,boxes,.35)
  const life=residentLife(all,(a,b)=>staticFree(a)&&staticFree(b)&&lineClear(a,b,staticFree),lineClear)
- const blockedBy=(n,x,z)=>all.some(other=>other!==n&&other.f.hp>0&&other.f.action!=='knockdown'&&!other.policeOrder?.aboard&&(other.pos.x-x)**2+(other.pos.z-z)**2<.59**2)
+ const pedestrianBins=new Map(),tile=value=>Math.floor(value/3.5),binKey=(x,z)=>x*65536+z
+ function indexPedestrians(){
+  pedestrianBins.clear()
+  for(const n of all){
+   const key=binKey(tile(n.pos.x),tile(n.pos.z))
+   const bin=pedestrianBins.get(key)
+   if(bin)bin.push(n)
+   else pedestrianBins.set(key,[n])
+  }
+ }
+ indexPedestrians()
+ function blockedBy(n,x,z){
+  const tx=tile(x),tz=tile(z)
+  for(let i=tx-1;i<=tx+1;i++)for(let j=tz-1;j<=tz+1;j++){
+   const bin=pedestrianBins.get(binKey(i,j))
+   if(bin?.some(other=>other!==n&&other.f.hp>0&&other.f.action!=='knockdown'&&!other.policeOrder?.aboard&&
+      (other.pos.x-x)**2+(other.pos.z-z)**2<.59**2))return true
+  }
+  return false
+ }
  // Small, local eight-neighbour flood search. Choose the reachable cell closest to the goal.
  function plan(n,goal,lane,avoidPeople=false){
   const pass=avoidPeople?p=>free(p)&&!blockedBy(n,p.x,p.z):free
@@ -187,6 +206,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  }
  function update(dt,camera,player,hitPlayer,onOutcome,onPoliceShot){
   if(dt<=0)return
+  indexPedestrians()
   firearms.update(dt,wanted.level)
   if(wanted.level){
    dispatch(wanted.lastKnown)
@@ -219,7 +239,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(n===player.custodyOfficer||n.policeOrder?.aboard)continue
    const p=n.pos,d=distance(p,player.pos),priorFace=n.face
    visibleSphere.center.set(p.x,p.y+1,p.z)
-   const visible=frustum.intersectsSphere(visibleSphere)
+   const visible=d<95&&frustum.intersectsSphere(visibleSphere)
    n.rig.root.visible=visible
    // Remote patrols stay posted, and never add distant dynamic shadow passes.
    const castsShadow=visible&&d<22
@@ -308,7 +328,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    }else if(civilianRound){
     const greeting=life.greeting(n)
     if(greeting){
-     n.state='greet';n.activity='greet';n.path=[]
+     n.state='greet';n.activity=greeting.kind;n.path=[]
      turn(n,Math.atan2(greeting.partner.pos.x-p.x,greeting.partner.pos.z-p.z),tick)
      nod=greeting.nod
     }else{

@@ -1,3 +1,4 @@
+import {residentLife} from '../src/resident-life.js'
 import {buildSouthBasin} from '../src/south-basin.js'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
@@ -58,6 +59,7 @@ const civilians=crowd.all.filter(n=>!n.officer)
 const areas=new Map(),activities=new Map()
 const obstruction={x:0,z:30.5,width:2.4,length:4.5,speed:0,heading:0}
 let greeting=false
+const coastTraversed=new Set()
 for(let i=0;i<60*142;i++){
  if(i===60*13)fleet.push(obstruction)
  if(i===60*29)fleet.pop()
@@ -69,6 +71,7 @@ for(let i=0;i<60*142;i++){
   if(!areas.has(n.id)){areas.set(n.id,new Set());activities.set(n.id,new Set())}
   areas.get(n.id).add(zone);activities.get(n.id).add(n.activity)
   if(i>=60*13&&i<60*29)assert(!nearBody(obstruction,n.pos.x,n.pos.z,.29))
+  if(n.id.startsWith('coast-')&&n.activity==='check')coastTraversed.add(n.id)
   if(n.state==='greet')paired++
   for(const other of civilians.slice(j+1))assert(n.pos.distanceTo(other.pos)>.585)
  }
@@ -85,6 +88,7 @@ for(const [id,activity] of [['clock-keeper','check'],['west-courier','deliver'],
  assert(canWalk(citizen(id).pos.x,citizen(id).pos.z,boxes),id+' remains on accessible ground')
 }
 assert(greeting)
+assert(coastTraversed.size>=3,JSON.stringify([...coastTraversed]))
 const jack=citizen('courier'),episode=createEpisode({storage:null})
 assert(episode.choices(jack).some(option=>option.id==='accept'))
 crowd.beginTalk(jack)
@@ -92,4 +96,15 @@ assert.equal(crowd.dialogue.name,'Jack Bennett')
 assert(episode.interact({resident:jack,choice:'accept'}).ok)
 crowd.endTalk()
 assert.equal(crowd.officers.length,9)
+const guests=['coast-friend','coast-guard'].map((id,i)=>({
+ id,pos:{x:54.3+i*1.15,z:157.8},state:'dwell',f:{hp:100}
+}))
+const social=residentLife(guests,()=>true,()=>true)
+social.social(.3,{x:51,z:157},()=>false)
+assert.equal(social.greeting(guests[0]).kind,'chat')
+assert.equal(social.greeting(guests[1]).partner,guests[0])
+social.social(.3,{x:51,z:157},resident=>resident===guests[0])
+assert(guests.every(resident=>social.greeting(resident)===null))
+social.social(30,{x:51,z:157},()=>false)
+assert(guests.every(resident=>social.greeting(resident)===null))
 console.log('Cross-district trips, interiors, role stops, greetings, spacing and quest dialogue passed.')

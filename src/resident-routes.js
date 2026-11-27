@@ -1,3 +1,4 @@
+import {districtPoints,districtLinks,districtRounds} from './district-citizens.js'
 import {basinWalkLayout} from './basin-navigation.js'
 import {archive} from './chart-room.js'
 import {front,premises} from './market-plan.js'
@@ -48,11 +49,13 @@ links.push(['clockBench','clockSouth','clockFront'],['lanternCounter','lanternDo
 
 const basin=basinWalkLayout()
 Object.assign(points,basin.points)
-links.push(...basin.links)
+links.push(...basin.links,...districtLinks)
+Object.assign(points,districtPoints)
 
 // A stop includes a reason to pause and a dwell time. The four quest givers
 // have local rounds so they stay easy to locate and remain with the same quests.
 export const residentRounds={
+ ...districtRounds,
  'basin-host':[['basin.cafe',8,'serve'],['basin.terrace',4,'watch'],['basin.registry-square',5,'walk']],
  'basin-clerk':[['basin.registry',12,'work'],['basin.registry-square',6,'break'],['basin.cafe',5,'visit']],
  'basin-resident':[['basin.cooper',7,'rest'],['basin.coastal-rest',7,'look'],['basin.garden',9,'break']],
@@ -78,8 +81,11 @@ export function walkingGraph(canLink){
   if(!canLink(points[a],points[b]))continue
   edges.get(a).push(b);edges.get(b).push(a)
  }
+ const cache=new Map()
  function path(from,to){
-  if(!from||!to)return []
+  if(!edges.has(from)||!edges.has(to))return []
+  const key=from+'|'+to
+  if(cache.has(key))return cache.get(key).slice()
   const ordered=[from], previous=new Map(), costs=new Map([[from,0]])
   while(ordered.length){
    ordered.sort((a,b)=>costs.get(b)-costs.get(a))
@@ -87,7 +93,10 @@ export function walkingGraph(canLink){
    if(at===to){
     const route=[to]
     while(previous.has(route.at(-1)))route.push(previous.get(route.at(-1)))
-    return route.reverse().map(id=>({...points[id],id}))
+    const result=route.reverse().map(id=>({...points[id],id}))
+    if(cache.size>=180)cache.delete(cache.keys().next().value)
+    cache.set(key,result)
+    return result.slice()
    }
    for(const next of edges.get(at)){
     const cost=costs.get(at)+gap(points[at],points[next])

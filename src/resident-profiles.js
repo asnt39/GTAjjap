@@ -1,3 +1,4 @@
+import {districtCitizens} from './district-citizens.js'
 import {weaponVendor} from './weapon-shop-plan.js'
 
 export const people=[
@@ -55,5 +56,7 @@ people.push(
  {id:'basin-resident',name:'June Adler',role:'Cooper House 주민',model:'crew',variant:3,x:-21.2,z:157,pace:.93,temper:'flee',
   lines:['새 아파트 들어오기 전에는 이 길이 온통 철도 창고였어요.','비가 오기 전까지 안벽을 한 바퀴 돌아요. 저 끝 정원에선 바람이 좋아요.']}
 )
+
+people.push(...districtCitizens)
 
 export const residentHealth = { civilian:108, officer:132, guard:144 }
