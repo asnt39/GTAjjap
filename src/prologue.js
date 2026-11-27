@@ -16,11 +16,11 @@ export const wrongDeal=[
  {id:'payback',title:'반격',reward:5100,brief:'Jack · Theo가 놈들한테 잡혔어. West Bank Works 생산동에 있어.',stages:[
   {kind:'walk',goal:worksBay,objective:'West Bank Works 정문 진입'},
   {kind:'fight',set:'hall',goal:worksClear,checkpoint:zone(-129,30.75,0,'생산동 입구'),objective:'생산동의 경비 제압',line:'Theo · 안쪽에 있어. 기계 뒤로 움직여, 여긴 통로가 좁아.'},
-  {kind:'free',set:'prisoner',goal:detention,checkpoint:zone(-126.75,46.2,0,'생산동'),objective:'Theo Mercer 구출'},
+  {kind:'free',set:'prisoner',goal:detention,checkpoint:zone(-126.75,46.2,0,'생산동'),objective:'Theo 구출'},
   {kind:'escort',set:'extraction',goal:extraction,checkpoint:zone(-126.75,46.2,0,'생산동'),objective:'Theo와 함께 집결지까지 탈출',line:'Theo · 바깥에서 발소리 들려. 작업문으로 가자.'}
  ]}
 ]
-const jack={residentId:'courier',resident:'Jack Bennett',label:'Jack Bennett',x:7.6,z:16.2,radius:2}
+const jack={residentId:'courier',resident:'Jack Bennett',label:'Jack',x:7.6,z:16.2,radius:2}
 const firstBrief='오늘 우리 몫의 화물이 Quay Transfer에 들어와. 야드에서 인수할 사람이 기다리는 중인데, 아직 무전이 없어. 같이 확인해 줄래?'
 const firstLine='Quay Transfer 4번 하역장이야. 차를 가까이 대고, 인수인이 없으면 화물 명세서를 확인해. 일이 끝나면 네 몫을 줄게.'
 const stateOf=(mission=0,step=0,status='available',reason='')=>({mission,step,status,reason})
@@ -53,6 +53,7 @@ export function createPrologue({saved,commit,available}){
  }
  return {
   get active(){return active()},
+  get complete(){return state.status==='complete'},
   get stage(){return active()?stage():null},
   get checkpoint(){return active()?stage().checkpoint:null},
   choices(resident){
@@ -70,7 +71,7 @@ export function createPrologue({saved,commit,available}){
    const mission=current(),completed=wrongDeal.slice(0,state.status==='complete'?wrongDeal.length:state.mission).map(m=>m.id)
    return {title:mission.title,missionId:mission.id,stage:state.mission+1,status:state.status,reason:state.reason,storyCompleted:completed,
     remaining:null,goal:active()?stage().goal:null,
-    objective:state.status==='complete'?'프롤로그 완료 · 자유 탐험':state.status==='failed'?state.reason:state.status==='available'?'Jack Bennett와 만나십시오.':stage().objective}
+    objective:state.status==='complete'?'프롤로그 완료 · 자유 탐험':state.status==='failed'?state.reason:state.status==='available'?'Jack과 만나십시오.':stage().objective}
   },
   fail(reason='임무 실패'){
    return active()?write(stateOf(state.mission,state.step,'failed',reason),reason):null

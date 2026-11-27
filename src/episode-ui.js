@@ -29,10 +29,11 @@ export function episodeUI(game,voice,sound=()=>{}) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
   if(!npc){voice.stop();return}
-  const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact()
+  const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact(),comment=episode.storyComment(npc)
   let text=defaultLine
   if(reply)text=reply
   else if(offer?.residentId===npc.id&&offer.brief)text=offer.brief
+  else if(comment)text=comment
   else if(npc.opening&&state.missionId==='delivery'&&state.stage===1&&state.status==='available')text=npc.opening
   else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
@@ -74,7 +75,7 @@ export function episodeUI(game,voice,sound=()=>{}) {
   const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
-  const label=offer?offer.resident+'에게 가기':reboard?'Touring에 다시 탑승해':state.objective
+  const label=offer?(offer.label??offer.resident)+'에게 가기':reboard?'Touring에 다시 탑승해':state.objective
   return {...goal,title:offer?.jobTitle??state?.title,step:state?.step,missionId:state?.missionId,
    remaining:state?.remaining,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
    y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}

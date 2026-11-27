@@ -12,6 +12,8 @@ import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
 import {dialogueVoice} from './dialogue-voice.js'
 import {drawMap} from './cartography.js'
+import {residentDisplayName} from './resident-profiles.js'
+import {insideClub,clubPlan} from './new-blood-club-plan.js'
 import {defaultRoomEndpoint} from './room-client.js'
 import {ROOM_CODE} from './room-protocol.js'
 import {sights} from './navigation.js'
@@ -53,10 +55,10 @@ export function createUI(game){
   if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
   const menu={
-   bag:[game.episode.showingLegacy?'PORTSIDE':'WRONG DEAL','교대 수첩',
+   bag:[game.episode.showingLegacy?'PORTSIDE':journal.chapter?.toUpperCase()??'WRONG DEAL','교대 수첩',
     row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+
-    ((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+
-    (game.episode.prologue?.active?'':button('story-archive',game.episode.showingLegacy?'잘못된 거래로 돌아가기':'이전 항만 의뢰 보기'))+
+    ((journal.status==='failed'||(journal.status==='available'&&journal.stage>1&&!journal.chapter))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+
+    (game.episode.openingActive?'':button('story-archive',game.episode.showingLegacy?'메인 스토리로 돌아가기':'이전 항만 의뢰 보기'))+
     journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
    pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('traffic','교통량',game.trafficLabel())+button('recovery','복구 도구')+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
    audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
@@ -398,8 +400,9 @@ export function createUI(game){
    box.inert=true;box.classList.add('leaving')
    setTimeout(()=>{if(box.inert)box.hidden=true},140)
   }
-  if(dialogue&&box.querySelector('strong').textContent!==dialogue.name){
-   box.querySelector('strong').textContent=dialogue.name;box.querySelector('small').textContent=dialogue.role
+  if(dialogue){
+   setText(box.querySelector('strong'),dialogue.displayName??dialogue.name)
+   setText(box.querySelector('small'),dialogue.role)
   }
   document.body.classList.toggle('speaking',!!dialogue&&!panel)
   story.dialogue(dialogue?.text)
@@ -410,10 +413,10 @@ export function createUI(game){
   if(!health.hidden){
    health.querySelector('b').textContent=game.player.f.hp===0?'다운':'체력 '+game.player.f.hp+(armor?' · 보호 '+armor:'')
    const opponent=health.querySelector('span')
-   opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
+   opponent.textContent=target?residentDisplayName(target)+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
   }
   if(!panel)renderInteractions(currentInteractions())
-  $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
+  $('#loc-name').textContent=insideClub(p.x,p.z)?clubPlan.title:insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
    (inPier(p.x,p.z)?'Meridian Pier':offBeach(p.x,p.z)?'Meridian Bay':'Meridian Beach'):
    inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal,game.storyMarkers())

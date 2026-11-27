@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises'
 import {PerspectiveCamera,Scene,Texture,TextureLoader,Vector3} from 'three'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {createResidents} from '../src/residents.js'
+import {residentDisplayName} from '../src/resident-profiles.js'
 import {buildStreet} from '../src/street.js'
 import {buildOldTown} from '../src/old-town.js'
 import {buildWestBank} from '../src/west-bank.js'
@@ -93,6 +94,11 @@ const jack=citizen('courier'),episode=createEpisode({storage:null})
 assert(episode.choices(jack).some(option=>option.id==='accept'))
 crowd.beginTalk(jack)
 assert.equal(crowd.dialogue.name,'Jack Bennett')
+assert.equal(crowd.dialogue.displayName,'Jack')
+assert.equal(residentDisplayName(citizen('market-buyer')),'Hana')
+assert.equal(residentDisplayName(citizen('arms-clerk')),'Mara')
+assert.equal(residentDisplayName({id:'wrong-deal-theo',name:'Theo Mercer'}),'Theo')
+assert.equal(residentDisplayName({id:'quay-1',name:'항만 경비'}),'항만 경비')
 assert(episode.interact({resident:jack,choice:'accept'}).ok)
 crowd.endTalk()
 assert.equal(crowd.officers.length,9)

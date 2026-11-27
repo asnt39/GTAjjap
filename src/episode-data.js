@@ -1,10 +1,11 @@
 import {sights} from './navigation.js'
 
-import {people} from './resident-profiles.js'
+import {people,residentDisplayName} from './resident-profiles.js'
 
 const person = id => {
-  const {name, legacyName, x, z} = people.find(n => n.id === id)
-  return {residentId:id, resident:name, legacyName, label:name, x, z, radius:2}
+  const profile = people.find(n => n.id === id)
+  const {name, legacyName, x, z} = profile
+  return {residentId:id, resident:name, legacyName, label:residentDisplayName(profile), x, z, radius:2}
 }
 const sign = tag => {
   const {x,z,name} = sights.find(sight => sight.tag === tag)
@@ -36,7 +37,7 @@ export const storyContracts = [
     brief:'Morgan · 지워진 번호를 항로등 정비소의 야간 기록과 대조해 보시겠어요?',
     steps:[
       {goal:sign('06'), objective:'항로등 정비소에서 야간 점검표를 확인해.', reply:'같은 봉인 번호가 서로 다른 화물 두 건에 찍혀 있다.'},
-      {goal:engineer, objective:'서부 부두의 Ellis Torres에게 점검표 내용을 알려 줘.', choices:[
+      {goal:engineer, objective:`서부 부두의 ${engineer.label}에게 점검표 내용을 알려 줘.`, choices:[
         {id:'compare-seals',label:'같은 봉인 번호가 두 건에 찍혔어요.',reply:'둘 중 하나는 위조예요. 구시가지 시계탑 쪽에 원본 사본이 남아 있을 겁니다.',advance:true}
       ]}
     ]
@@ -47,7 +48,7 @@ export const storyContracts = [
     steps:[
       {goal:{x:-35,z:56,radius:5}, mode:'vehicle',stop:true,objective:'아무 차량으로 시계탑 동쪽 거리에 가서 정차해.',reply:'여기서 내려. 사본은 시계탑 남쪽 모퉁이에 있어.'},
       {goal:{x:-50,z:55,radius:2.1}, mode:'walk',objective:'내려서 시계탑 남쪽의 출항표 사본을 찾아.',reply:'사본을 찾았다. 새 화물의 인수란에 내 이름이 먼저 적혀 있다.'},
-      {goal:dock, objective:'Jack Bennett에게 출항표 사본을 보여 줘.', choices:[
+      {goal:dock, objective:`${dock.label}에게 출항표 사본을 보여 줘.`, choices:[
         {id:'deliver-copy',label:'누가 내 이름을 적어 놨어.',reply:'Jack · 네가 항구에 오기 전에 작성된 건데? 이건 미리 준비한 거야.',advance:true}
       ]}
     ]
@@ -59,7 +60,7 @@ export const storyContracts = [
       {goal:{x:-216,z:33,radius:4},mode:'vehicle',stop:true,objective:'차량으로 서편 북쪽 정비장에 도착해 정차해.',reply:'반출 안내가 남아 있다. 서류가 어디로 옮겨졌는지 확인해.'},
       {goal:sign('YARD'),objective:'정비장 반출 안내를 읽어.',reply:'출고일에 이 서류가 West Bank Works로 옮겨졌다.'},
       {goal:sign('WORK'),objective:'West Bank Works 안에서 야간 작업 기록을 열어.',reply:'야간 기록에 적힌 인수인은 비어 있고, 승인 도장만 찍혀 있다. 선착장 시설팀에 보여 주자.'},
-      {goal:ferryKeeper,objective:'선착장 시설 담당 Caleb Frost에게 승인 도장을 보여 줘.',choices:[
+      {goal:ferryKeeper,objective:`선착장 시설 담당 ${ferryKeeper.label}에게 승인 도장을 보여 줘.`,choices:[
         {id:'show-stamp',label:'이 도장, 선착장에서 찍은 겁니까?',reply:'Caleb · 이건 폐기된 도장입니다. 그런데 종이가 아직 젖어 있군요. 누가 오늘 밤에도 여기 들어왔어요.',advance:true}
       ]}
     ]
@@ -70,21 +71,21 @@ export const missions = [
   {
     id:'delivery', title:'물때표 배달', reward:3500,
     steps:[
-      {goal:dock, objective:`배송 기사 ${dock.resident}에게 봉인된 물때표를 받아.`, choices:[
-        {id:'collect', label:'물때표 받기', reply:`시장 도장 찍힌 거 보이지? ${shop.resident}한테 그대로 줘.`, advance:true}
+      {goal:dock, objective:`배송 기사 ${dock.label}에게 봉인된 물때표를 받아.`, choices:[
+        {id:'collect', label:'물때표 받기', reply:`시장 도장 찍힌 거 보이지? ${shop.label}한테 그대로 줘.`, advance:true}
       ]},
-      {goal:shop, objective:`시장 점원 ${shop.resident}에게 물때표를 전해.`, choices:[
-        {id:'deliver', label:'물때표 건네기', reply:`시간 맞춰 오셨네요. 다음 교대 연락은 ${supervisor.resident} 반장님께 부탁드려요.`, advance:true}
+      {goal:shop, objective:`시장 점원 ${shop.label}에게 물때표를 전해.`, choices:[
+        {id:'deliver', label:'물때표 건네기', reply:`시간 맞춰 오셨네요. 다음 교대 연락은 ${supervisor.label} 반장님께 부탁드려요.`, advance:true}
       ]}
     ]
   },
   {
     id:'radio', title:'교대 무전', reward:4500,
     steps:[
-      {goal:supervisor, objective:`${supervisor.resident} 반장에게 교대 무전 채널을 물어봐.`, choices:[
-        {id:'ask-channel', label:'오늘 교대 무전은 몇 번이에요?', reply:`오늘 교대는 7번 채널입니다. 서부 부두 ${engineer.resident} 씨에게도 전달해 주시죠.`, advance:true}
+      {goal:supervisor, objective:`${supervisor.label} 반장에게 교대 무전 채널을 물어봐.`, choices:[
+        {id:'ask-channel', label:'오늘 교대 무전은 몇 번이에요?', reply:`오늘 교대는 7번 채널입니다. 서부 부두 ${engineer.label} 씨에게도 전달해 주시죠.`, advance:true}
       ]},
-      {goal:engineer, objective:`${engineer.resident}에게 오늘 교대 무전 채널을 알려 줘.`, choices:[
+      {goal:engineer, objective:`${engineer.label}에게 오늘 교대 무전 채널을 알려 줘.`, choices:[
         {id:'channel-3', label:'3번 채널이라고 들었어요.', reply:'3번은 어시장 주파수인데요. 반장님이 7번이라고 하지 않으셨어요?'},
         {id:'channel-7', label:'7번 채널로 맞춰 주세요.', reply:'신호 잡혔어요. 서부 부두랑 시장 출구, 두 곳 안내판에서 진입로를 확인해 주세요.', advance:true}
       ]}

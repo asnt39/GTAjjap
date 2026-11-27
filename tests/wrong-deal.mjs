@@ -20,6 +20,8 @@ test('the three missions advance through driving, gunfights, pursuit and escort 
  let offline=true
  const episode=createEpisode({storage:record,mainStory:true,canStartOpening:()=>offline})
  assert.equal(episode.openingContact().resident,'Jack Bennett')
+ assert.equal(episode.openingContact().label,'Jack')
+ assert.match(episode.snapshot().objective,/^Jack과 /)
  assert.deepEqual(episode.choices(jack).map(x=>x.id),['wrong-deal-start'])
  assert(episode.interact({resident:jack,choice:'wrong-deal-start'}).ok)
  const story=episode.prologue
@@ -44,6 +46,8 @@ test('the three missions advance through driving, gunfights, pursuit and escort 
  assert(episode.retry().ok)
  assert(story.checkpoint)
  assert(story.update({cleared:true}).ok)
+ assert.equal(episode.tracking().goal.label,'Theo')
+ assert.equal(episode.tracking().objective,'Theo 구출')
  assert.equal(story.rescue({...detention,y:2}),null)
  assert(story.rescue({...detention,y:.083}).ok)
  assert(!story.update({...extraction,onFoot:true,rescued:false}))

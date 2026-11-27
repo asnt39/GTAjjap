@@ -9,7 +9,7 @@ import {nearBody,localPoint,worldPoint} from './driving.js'
 import {fighter,swing,injure,revive,advance,combatPose,contact} from './melee.js'
 
 import {residentLife} from './resident-life.js'
-import {people,residentHealth} from './resident-profiles.js'
+import {people,residentDisplayName,residentHealth} from './resident-profiles.js'
 const cell=.92,clamp=MathUtils.clamp
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]
@@ -377,5 +377,5 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   }
  }
  return {all,officers,wanted,takePursuit,candidate,candidates,beginTalk,endTalk,receive,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
-  get dialogue(){return talking?{name:talking.name,role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
+  get dialogue(){return talking?{name:talking.name,displayName:residentDisplayName(talking),role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

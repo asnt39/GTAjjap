@@ -1,6 +1,7 @@
 import {firstWork,goods,missions,storyContracts} from './episode-data.js'
 import {basinPlate} from './south-basin-plan.js'
 import {createPrologue,readPrologue} from './prologue.js'
+import {createNewBlood,readNewBlood} from './new-blood.js'
 
 const saveKey = 'harborline.episode.v1'
 const driveSeconds = 65
@@ -35,6 +36,7 @@ function read(raw) {
     if (natural(saved.money)) state.money=saved.money
     if (natural(saved.bank)) state.bank=saved.bank
     if (saved.wrongDeal) state.wrongDeal=readPrologue(saved.wrongDeal)
+    if (saved.newBlood) state.newBlood=readNewBlood(saved.newBlood)
     if (Array.isArray(saved.discoveries)&&saved.discoveries.includes(basinPlate.id)) state.discoveries.push(basinPlate.id)
     for (const item of goods) {
       if (natural(saved.inventory?.[item.id])) state.inventory[item.id]=saved.inventory[item.id]
@@ -97,6 +99,16 @@ export function createEpisode(options={}) {
     }
   }):null
   const usePrologue=()=>prologue&&!legacy
+  const chapter=prologue&&options.chapterOne?createNewBlood({saved:state.newBlood,available:canStartOpening,club:options.chapterOne,
+    commit(newBlood,reward){
+      const money=state.money+reward
+      if(!natural(money))return wrong('보상을 저장할 수 없습니다.')
+      const saved=write({newBlood,money})
+      if(saved.ok)Object.assign(state,{newBlood,money})
+      return saved
+    }
+  }):null
+  const activeCampaign=()=>usePrologue()?(chapter&&prologue.complete?chapter:prologue):null
   function save() {
     write()
     savedSecond=Math.ceil(state.remaining ?? 0)
@@ -156,7 +168,7 @@ export function createEpisode(options={}) {
     return result(true,step().objective)
   }
   function fail(reason='의뢰를 마치지 못했어.') {
-    if(usePrologue())return prologue.fail(reason)
+    if(usePrologue())return activeCampaign().fail(reason)
     const run=record()
     if (run.status!=='active') return null
     run.status='failed'; run.reason=String(reason); run.step=0
@@ -165,7 +177,7 @@ export function createEpisode(options={}) {
     return result(false,run.reason)
   }
   function retry() {
-    if(usePrologue())return prologue.retry()
+    if(usePrologue())return activeCampaign().retry()
     const run=record()
     if (run.status!=='failed' && !(!selectedStory()&&run.status==='available'&&state.index>0)) return wrong('다시 시도할 의뢰가 없어.')
     if (selectedStory()&&!canStartOpening()) return wrong('싱글플레이에서 이 스토리 의뢰를 다시 시작할 수 있어.')
@@ -173,7 +185,7 @@ export function createEpisode(options={}) {
     return start()
   }
   function abandon() {
-    if(usePrologue())return prologue.abandon()
+    if(usePrologue())return activeCampaign().abandon()
     const run=record()
     if (run.status!=='active' && run.status!=='failed') return wrong('중단할 의뢰가 없어.')
     run.status='available'; run.step=0; run.reason=''
@@ -183,7 +195,7 @@ export function createEpisode(options={}) {
     return result(true,'의뢰를 중단했어. 지금까지 받은 보상은 보관돼.')
   }
   function choices(resident) {
-    if(usePrologue())return prologue.choices(resident)
+    if(usePrologue())return activeCampaign().choices(resident)
     const matches=goal=>matchesResident(goal,resident)
     if (record().status!=='active') {
       const offers=[],next=nextStory()
@@ -195,7 +207,7 @@ export function createEpisode(options={}) {
     return (step().choices ?? []).map(({id,label})=>({id,label}))
   }
   function interact({resident, name, choice, sight}={}) {
-    if(usePrologue())return prologue.interact({resident,choice})
+    if(usePrologue())return activeCampaign().interact({resident,choice})
     const who=resident??name
     const next=nextStory()
     if (next&&choice===next.id&&choices(who).some(option=>option.id===next.id)) {
@@ -207,7 +219,7 @@ export function createEpisode(options={}) {
     if (choice==='accept' && choices(who).some(option=>option.id==='accept')) {
       delete state.selected
       start()
-      return advance(`${mission().steps[0].goal.resident} · 오늘 물때표야. 시장에 있는 ${mission().steps[1].goal.resident}에게 봉투를 전해 줘.`)
+      return advance(`${mission().steps[0].goal.label} · 오늘 물때표야. 시장에 있는 ${mission().steps[1].goal.label}에게 봉투를 전해 줘.`)
     }
     if (record().status!=='active') return null
     const current=step()
@@ -319,31 +331,35 @@ export function createEpisode(options={}) {
     }
     if(!prologue)return old
     const story=prologue.snapshot()
-    return {...old,...(legacy?{}:story),storyCompleted:[...old.storyCompleted,...story.storyCompleted]}
+    const currentChapter=chapter&&prologue.complete?chapter.snapshot():null
+    return {...old,...(legacy?{}:currentChapter??story),
+      storyCompleted:[...old.storyCompleted,...story.storyCompleted,...(currentChapter?.storyCompleted??[])]}
   }
   function tracking(){
-    if(usePrologue())return prologue.tracking()
+    if(usePrologue())return activeCampaign().tracking()
     if(record().status!=='active')return null
     const {goal,objective}=step()
     const contract=selectedStory()
     return {goal,objective,stage:state.index+1,step:record().step,title:mission().title,missionId:mission().id,remaining:state.remaining,firstWork:contract===firstWork,storyTitle:contract?.title}
   }
   function openingContact(){
-    if(usePrologue())return prologue.offer()
+    if(usePrologue())return activeCampaign().offer()
     if(state.status==='active'||record().status==='active'||selectedStory()||!canStartOpening())return null
     const next=nextStory()
     if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
     return {...next.contact,jobTitle:next.title}
   }
   return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,discovered,discover,
+    storyComment(resident){return this.chapter?.comment(resident)??null},
     get prologue(){return usePrologue()?prologue:null},
+    get chapter(){return chapter&&activeCampaign()===chapter?chapter:null},
     get showingLegacy(){return legacy},
     switchJournal(){
-      if(prologue?.active)return wrong('진행 중인 임무를 중단한 뒤 이전 의뢰를 확인하십시오.')
+      if(activeCampaign()?.active)return wrong('진행 중인 임무를 중단한 뒤 이전 의뢰를 확인하십시오.')
       legacy=!legacy
-      return result(true,legacy?'이전 항만 의뢰':'잘못된 거래')
+      return result(true,legacy?'이전 항만 의뢰':activeCampaign()===chapter?'새로운 일원':'잘못된 거래')
     },
     get savedEquipment(){return state.equipment},
-    get openingActive(){return usePrologue()?prologue.active:!!selectedStory()&&record().status==='active'},
+    get openingActive(){return usePrologue()?activeCampaign().active:!!selectedStory()&&record().status==='active'},
     get roadClosed(){return !usePrologue()&&selectedStory()===firstWork&&this.openingActive&&!!step().roadClosed}}
 }
