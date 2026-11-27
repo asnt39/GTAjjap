@@ -7,6 +7,10 @@
  transition-duration:1200ms;
 }
 
+#game.player-death:has(#death-screen[data-phase='title']) #world {
+ transition:none;
+}
+
 #game.player-death > :not(#world,#shade,#death-screen) {
  visibility:hidden;
 }
@@ -44,14 +48,11 @@
  font:900 clamp(4.4rem,min(15vw,29dvh),12rem)/.84 'Barlow Condensed',Impact,sans-serif;
  letter-spacing:.045em;
  text-shadow:0 2px 18px #0009;
- opacity:0;
- translate:0 8px;
- transition:opacity 320ms ease-out,translate 320ms ease-out;
+ visibility:hidden;
 }
 
 #death-screen[data-phase='title'] #death-title {
- opacity:1;
- translate:0;
+ visibility:visible;
 }
 
 #death-continue {
@@ -83,5 +84,4 @@
 
 @media (prefers-reduced-motion:reduce) {
  #game.player-death #world,#death-screen::backdrop {transition-duration:400ms;animation-duration:400ms}
- #death-title {translate:none;transition:none}
 }
