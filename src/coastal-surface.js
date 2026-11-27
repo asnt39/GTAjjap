@@ -55,11 +55,13 @@ export function coastalSurface(){
   vertexShader:`
    uniform float time;
    varying vec3 world;
+   varying vec3 waveField;
    ${waveSource}
    #include <fog_pars_vertex>
    void main(){
     world=(modelMatrix*vec4(position,1.)).xyz;
-    world.y+=swell(world.xz,time);
+    waveField=vec3(swellSlope(world.xz,time),swell(world.xz,time));
+    world.y+=waveField.z;
     vec4 mvPosition=viewMatrix*vec4(world,1.);
     gl_Position=projectionMatrix*mvPosition;
     #include <fog_vertex>
@@ -69,11 +71,12 @@ export function coastalSurface(){
    uniform sampler2D waves,breakers,skyMap;
    uniform vec3 sunDirection,sunTint;
    varying vec3 world;
-   ${waveSource}
+   varying vec3 waveField;
    #include <fog_pars_fragment>
    void main(){
     vec2 p=world.xz;
-    float distanceToEye=length(cameraPosition-world);
+    vec3 offset=cameraPosition-world;
+    float distanceToEye=length(offset);
     float detail=1.-smoothstep(25.,105.,distanceToEye);
     float u=clamp((p.y-${shoreNorth}.)/${shoreSouth-shoreNorth}.,0.,1.);
     float shore=26.+sin(u*3.141593)*(53.+9.*sin(u*10.)+3.25*sin(u*23.));
@@ -81,8 +84,8 @@ export function coastalSurface(){
     float beach=min(p.x-shore,island);
     float depth=max(0.,beach*.145);
     float coast=smoothstep(100.,121.,p.y)*(1.-smoothstep(237.,255.,p.y));
-    float wave=swell(p,time);
-    vec2 slope=swellSlope(p,time);
+    float wave=waveField.z;
+    vec2 slope=waveField.xy;
     vec2 warp=vec2(sin(p.x*.12+p.y*.085-time*.38),sin(p.y*.13-p.x*.093+time*.47));
     vec2 normalA=(texture2D(waves,p*.22+warp*.28+vec2(.008,-.026)*time).rg*2.-1.);
     vec2 normalB=vec2(0.);
@@ -92,7 +95,7 @@ export function coastalSurface(){
     }
     vec2 choppy=-slope*(.52+.42*sin(p.y*.17+p.x*.11+warp.x))+normalA*(.10+.32*detail)+normalB*.17*detail;
     vec3 n=normalize(vec3(choppy.x,1.,choppy.y));
-    vec3 ray=normalize(cameraPosition-world);
+    vec3 ray=offset/max(distanceToEye,.01);
     float above=gl_FrontFacing?1.:0.;
     n*=above*2.-1.;
     float ndv=max(dot(n,ray),0.);

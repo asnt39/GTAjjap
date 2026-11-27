@@ -25,6 +25,17 @@ export async function createCharacter({variant,model='resident'}={}){
  root.add(posture);posture.add(scene)
  if(model==='resident'&&variant!=null)applyWardrobe(scene,variant)
  scene.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false}})
+ // The source GLBs split hair, body and clothes into separate draws. Reuse
+ // one bone texture per equivalent bind pose within a resident, never across residents.
+ const skeletons=[]
+ scene.traverse(mesh=>{
+  if(!mesh.isSkinnedMesh)return
+  const skin=mesh.skeleton
+  const shared=skeletons.find(active=>active.bones.length===skin.bones.length&&
+   active.bones.every((bone,i)=>bone===skin.bones[i]&&active.boneInverses[i].equals(skin.boneInverses[i])))
+  if(shared){mesh.skeleton=shared;skin.dispose()}
+  else skeletons.push(skin)
+ })
  const mixer=new AnimationMixer(scene)
  const actions=Object.fromEntries(animations.map(clip=>[clip.name,mixer.clipAction(clip)]))
  for(const [name,action] of Object.entries(actions)){action.play();action.setEffectiveWeight(name==='Idle'?1:0)}
@@ -34,7 +45,7 @@ export async function createCharacter({variant,model='resident'}={}){
  actions.Walk.paused=actions.Run.paused=true
  let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0
  const layer=characterPose(scene)
- return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);scene.traverse(m=>m.isSkinnedMesh&&m.skeleton.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
+ return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);skeletons.forEach(skin=>skin.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
   const phase=pose.jump==null?null:MathUtils.clamp(pose.jump,0,1)
   const landing=MathUtils.clamp(pose.land||0,0,1)
