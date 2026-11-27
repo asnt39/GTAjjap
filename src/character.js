@@ -54,11 +54,17 @@ export async function createCharacter({variant,model='resident'}={}){
   actions.Run.setEffectiveWeight(move*run)
   mixer.update(dt)
   const progress=MathUtils.clamp(pose.phase||0,0,1),side=pose.side<0?-1:1
+  const reaction=pose.reaction
   const fall=pose.action==='down'?MathUtils.smootherstep(progress,0,.93):0
   const movingShape=pose.vehicle||pose.motorcycle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
   lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
-  posture.rotation.set(-1.49*fall,0,side*.085*fall)
+  posture.rotation.set(-1.49*fall*(reaction?.front>.38?-1:1),0,(reaction?.lateral??side)*.27*fall)
+  if(reaction&&pose.action==='hit'){
+   const swing=Math.sin(Math.PI*Math.min(1,progress))
+   layer.offset('Spine1','x',reaction.front*reaction.pitch*swing)
+   layer.offset('Spine1','z',-reaction.lateral*reaction.pitch*swing)
+  }
   // Apply travelling lean to the spine, keeping feet at their planted height.
   if(movingShape){
    layer.offset('Spine1','x',lean)

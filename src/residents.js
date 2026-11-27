@@ -1,3 +1,4 @@
+import {impulse,moveImpact} from './impact-motion.js'
 import {Vector3,Frustum,Matrix4,Sphere,MathUtils} from 'three'
 import {createWanted} from './wanted.js'
 import {ARREST_REACH} from './custody.js'
@@ -26,7 +27,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   const shadowMeshes=[]
   rig.root.traverse(mesh=>{if(mesh.isMesh&&mesh.castShadow)shadowMeshes.push(mesh)})
   const n={...profile,rig,pos,shadowMeshes,castsShadow:true,patrolStop:1,height:profile.height??1.8,state:'idle',face:profile.face??i*.97,path:[],speed:0,wait:profile.spawnWait??3+i*1.7,age:0,
-   f:fighter(health),alert:0,talk:0,line:0,accum:0,stagger:(i%7)/7,look:0,blocked:0,stepping:0,stunX:0,stunZ:0,replan:0}
+   f:fighter(health),alert:0,talk:0,line:0,accum:0,stagger:(i%7)/7,look:0,blocked:0,stepping:0,replan:0}
   rig.root.position.copy(pos);rig.root.rotation.y=n.face;scene.add(rig.root)
   return n
  }))
@@ -142,7 +143,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    wanted.report(source,1);dispatch(source);sensing=0
   }
  }
- function receive(n,source,zone,point,damage){
+ function receive(n,source,zone,point,damage,kind=damage==null?'melee':'shot'){
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
   if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
@@ -152,26 +153,25 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    wanted.report(source,n.officer||!n.f.hp?2:1)
    dispatch(source);sensing=0
   }
-  n.state='react';n.stunX=-Math.sin(angle);n.stunZ=-Math.cos(angle);n.alert=n.temper==='defend'?7:5;n.path=[];n.replan=0
+  impulse(n.f,kind,-Math.sin(angle),-Math.cos(angle),damage??24,{vx:Math.sin(n.face)*n.speed,vz:Math.cos(n.face)*n.speed,face:n.face})
+  n.state='react';n.alert=n.temper==='defend'?7:5;n.path=[];n.replan=0
   for(const other of all)if(other!==n&&distance(other.pos,n.pos)<5&&!other.f.action){other.alert=Math.max(other.alert,2);other.state='watch'}
   return true
  }
  function vehicleHit(n,source,damage,impact){
-  if(!receive(n,source,'body',n.pos,damage))return false
+  if(!receive(n,source,'body',n.pos,damage,'vehicle'))return false
   if(impact.speed>=5.4){
-   const force=Math.min(8,impact.speed*.50)
-   n.slide={x:impact.x*force,z:impact.z*force,lift:impact.knockout?.72:.19}
+   impulse(n.f,'vehicle',impact.x,impact.z,impact.speed*5,{face:n.face,lift:impact.knockout?.62:.17})
    n.f.side=impact.x*Math.cos(n.face)-impact.z*Math.sin(n.face)<0?1:-1
    Object.assign(n.f,{action:'knockdown',elapsed:0,duration:impact.knockout?5.5:1.9})
   }
   return true
  }
  function blastHit(n,source,strength){
-  if(!receive(n,source,'body',n.pos,Math.round(22+strength*90)))return false
+  if(!receive(n,source,'body',n.pos,Math.round(22+strength*90),'blast'))return false
   if(n.f.hp>0){
    const dx=n.pos.x-source.x,dz=n.pos.z-source.z,d=Math.hypot(dx,dz)||1
-   const force=2+strength*6
-   n.slide={x:dx/d*force,z:dz/d*force,lift:.22+strength*.35}
+   impulse(n.f,'blast',dx/d,dz/d,strength*65,{face:n.face,lift:.20+strength*.36})
    Object.assign(n.f,{action:'knockdown',elapsed:0,duration:1.8+strength*2})
   }
   return true
@@ -256,19 +256,13 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    const toward=Math.atan2(player.pos.x-p.x,player.pos.z-p.z)
    let nod=0
    const aiming=!!onPoliceShot&&firearms.aim(n,player,d)
-   let lift=0
+   const lift=moveImpact(n.f,p,tick,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z))
    if(n.f.action==='knockdown'){
     n.state='react';n.path=[];n.speed=0
-    if(n.slide&&n.f.elapsed<.55){
-     const slide=n.slide,multiplier=Math.exp(-5*tick)
-     movePlayer(p,slide.x*tick,slide.z*tick,boxes,(x,z)=>blockedBy(n,x,z))
-     slide.x*=multiplier;slide.z*=multiplier
-     lift=slide.lift*Math.sin(Math.PI*n.f.elapsed/.55)
-    }
    }else if(n.f.action==='down'){
     if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
-    movePlayer(p,n.stunX*tick*.55,n.stunZ*tick*.55,boxes,(x,z)=>carAt(x,z)||blockedBy(n,x,z));turn(n,toward,tick)
+    n.speed=0
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
    else if(aiming){
     if(talking===n)endTalk()

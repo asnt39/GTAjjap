@@ -73,6 +73,7 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
  const command=input.forward-input.back
  car.remainder+=clamp(elapsed,0,.25)
  car.travel=0
+ car.hardContact=null
  let impact=0
  while(car.remainder+1e-10>=step){
   car.remainder-=step
@@ -129,6 +130,16 @@ export function stepDrive(car,input,boxes,elapsed,others=[],allowSidewalk=false,
      }
      car.x=x+dx*safe;car.z=z+dz*safe;car.heading=h+turn*safe
      car.travel+=travel*safe
+     if(mag>=(car.hardContact?.speed??.35)){
+      const towardX=(contact.x??x+dx)-x,towardZ=(contact.z??z+dz)-z
+      const toward=Math.hypot(towardX,towardZ)||1
+      let closing=mag
+      if(contact.other){
+       const moving=contact.other
+       closing=Math.max(0,mag-(Math.sin(moving.heading)*towardX-Math.cos(moving.heading)*towardZ)/toward*moving.speed)
+      }
+      car.hardContact={speed:Math.min(mag*1.8,closing),x:-towardX/toward,z:-towardZ/toward,vehicle:contact.other??null}
+     }
      if(mag>=3.8){
       const hit=localPoint(car,contact.x??x+dx*100,contact.z??z+dz*100)
       const dent=dentVehicle(car,hit.x,hit.z,mag)

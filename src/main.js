@@ -1,3 +1,4 @@
+import {crashEvents,impulse,moveImpact} from './impact-motion.js'
 import {onQuay} from './quay-plan.js'
 import {citySpots} from './city-life-plan.js'
 import {cityFixtures} from './city-fixtures.js'
@@ -137,7 +138,7 @@ export async function start(onContextLost){
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z))
  const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point)),updateFittings=streamTerraceRooms(scene)
- const pedestrianImpacts=createPedestrianImpacts(),previousCar={}
+ const pedestrianImpacts=createPedestrianImpacts(),previousCar={},crashes=crashEvents()
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const trafficRigs=Array.from({length:coarse?2:4},()=>rigs.civilianRig())
  await Promise.all(trafficRigs.map(async(rig,index)=>{
@@ -206,7 +207,7 @@ export async function start(onContextLost){
   }
   return result
  }
- let focus=null,feedbackTime=0,knockX=0,knockZ=0
+ let focus=null,feedbackTime=0
  let storage
  try{storage=window.localStorage}catch{}
  const loadout=createLoadout(storage,episode)
@@ -282,7 +283,7 @@ export async function start(onContextLost){
   }
   return nearest
  }
- const canAttack=()=>!custody.locked&&mode==='walk'&&!isPaused&&!crowd.talking&&!foot.air&&foot.land<=.25&&!activity.current&&player.f.hp>0
+ const canAttack=()=>!custody.locked&&mode==='walk'&&!isPaused&&!crowd.talking&&!foot.air&&foot.land<=.25&&!activity.current&&player.f.action!=='knockdown'&&player.f.hp>0
  function attack(){
   if(!canAttack())return
   if(custody.canPunch){swing(player.f);return}
@@ -294,11 +295,12 @@ export async function start(onContextLost){
   }
   if(swing(player.f,undefined,{bufferHit:true})){focus=closestTarget()}
  }
- function hitPlayer(n,zone,point,amount=16){
+ function hitPlayer(n,zone,point,amount=16,kind='melee'){
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
   if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65}))return false
-  activity.stop();equipment.interrupt();cancelAim();crowd.endTalk();knockX=dx/d;knockZ=dz/d;focus=n;feedbackTime=4;ui.impact(true);return true
+  impulse(player.f,kind,dx/d,dz/d,amount,{vx:velocity.x,vz:velocity.y,face})
+  activity.stop();equipment.interrupt();cancelAim();crowd.endTalk();focus=n;feedbackTime=4;ui.impact(true);return true
  }
  function returnToHome(){
   activity.stop()
@@ -495,6 +497,26 @@ export async function start(onContextLost){
    if(!offline&&car===cars.touring&&mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')
   }
   transition=vehiclePose=null;clearControls()
+ }
+ function handleCrash(struck,collision){
+  if(!collision)return
+  const {speed,x,z,damage,eject,vehicle}=collision
+  if(speed>3.5){
+   ui.sound(vehicle?'crash':'wallHit',struck,Math.min(1.6,.45+speed*.065))
+   shake=Math.max(shake,Math.min(1,speed*.061))
+  }
+  if(!damage||!injure(player.f,damage,x*Math.cos(face)-z*Math.sin(face)>0?1:-1,'body',{weaponHit:true}))return
+  ui.impact(true);activity.stop()
+  const exit=(eject||!player.f.hp)&&safeExit(struck,boxes,lastSide,(px,pz)=>blockedAtDoor(struck,px,pz))
+  if(exit){
+   mode='walk';transition=vehiclePose=null
+   face=Math.atan2(x,z);plantFeet(exit.door.x,exit.door.z);actor.visible=true
+   releaseSeat();clearControls()
+   if(player.f.hp)Object.assign(player.f,{action:'knockdown',elapsed:0,duration:1.65+Math.min(2,speed*.062)})
+   impulse(player.f,'vehicle',x,z,speed*4,{face,lift:.25})
+   if(struck.setup.bike)struck.speed=-Math.sign(previousCar.speed)*Math.min(2.4,speed*.13)
+   ui.toast(player.f.hp?'충돌 · 오토바이에서 떨어졌어':'강한 충돌로 쓰러졌어')
+  }else if(player.f.hp)ui.toast('충돌 · 체력 '+player.f.hp+'/'+player.f.maxHealth)
  }
  function playerPacket(){
   return packPlayer({x:pos.x,z:pos.z,y:actor.position.y+char.root.position.y,face:wrapAngle(face),
@@ -820,7 +842,7 @@ export async function start(onContextLost){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     stepDrive(car,input,boxes,dt,traffic,room.phase==='offline')
-    if(car.impact>2)ui.sound('crash',car)
+    handleCrash(car,crashes(car,elapsed))
     const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
      if(!crowd.vehicleHit(resident,car,damage,impact))return false
      effects.emit('dust',resident.pos.x,resident.pos.y+.1,resident.pos.z,impact.knockout?7:4,impact.x,impact.z)
@@ -829,7 +851,7 @@ export async function start(onContextLost){
     })
     if(strikes)car.speed*=Math.pow(.85,strikes)
     speed=Math.abs(car.speed)
-    pos.x=car.x;pos.z=car.z;actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)
+    if(driving()){pos.x=car.x;pos.z=car.z;actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)}
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
    }else{
@@ -837,7 +859,7 @@ export async function start(onContextLost){
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)*(player.f.action==='punch'?.36:player.f.action?0:1)
    if(activity.current&&(Math.abs(joystick.x)>.5||Math.abs(joystick.y)>.5))activity.leave()
-   const rate=sniperAiming()||activity.current?0:
+   const rate=sniperAiming()||activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
     (custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    const accelerate=!foot.air&&!player.f.action
@@ -848,8 +870,8 @@ export async function start(onContextLost){
     velocity.y=damp(velocity.y,targetZ,response,dt)
    }
    const ox=pos.x,oz=pos.z
-   const stagger=player.f.action==='hit'?.55:0
-   movePlayer(pos,(velocity.x+stagger*knockX)*dt,(velocity.y+stagger*knockZ)*dt,boxes,occupied,foot.height)
+   const liftImpact=moveImpact(player.f,pos,dt,boxes,occupied)
+   if(!player.f.motion)movePlayer(pos,velocity.x*dt,velocity.y*dt,boxes,occupied,foot.height)
    const floor=floorAt(pos.x,pos.z,foot.height,foot.air)
    const landing=foot.advance(dt,floor,ceilingHeight(pos.x,pos.z,foot.height)-player.height)
    if(landing){effects.land(pos.x,floor,pos.z,landing);ui.sound(footSurface(),pos,.7)}
@@ -863,7 +885,7 @@ export async function start(onContextLost){
    const previousFace=face
    const facing=player.f.action==='punch'?focus:crowd.talking
    if((armed()&&(aiming||loadout.recoil>.1||equipment.throwing))||facing||speed>.07){const desired=armed()&&(aiming||loadout.recoil>.1||equipment.throwing)?Math.PI-yaw:facing?Math.atan2(facing.pos.x-pos.x,facing.pos.z-pos.z):Math.atan2(dx,dz);face+=clamp(Math.atan2(Math.sin(desired-face),Math.cos(desired-face))*(1-Math.exp(-14*dt)),-9*dt,9*dt)}
-   actor.rotation.set(0,face,0);actor.position.copy(pos)
+   actor.rotation.set(0,face,0);actor.position.copy(pos);actor.position.y+=liftImpact
    const action=activity.current
    if(action?.spot.pose==='sit'){
     actor.position.z+=(action.spot.seatZ-pos.z)*action.weight
@@ -929,7 +951,7 @@ export async function start(onContextLost){
    },(officer,from,to,vehicle)=>{
     effects.muzzle(from,2);effects.trace(from,to);ui.shot('pistol',from)
     if(vehicle)effects.emit('sparks',to.x,to.y,to.z,4)
-    else if(player.exposed)hitPlayer(officer,'body',to,18)
+    else if(player.exposed)hitPlayer(officer,'body',to,18,'shot')
    })
    if(typeof portUpdate==='function')portUpdate(dt,elapsed)
    if(Math.abs(pos.x-trackedX)>10||Math.abs(pos.z-trackedZ)>10){trackedX=pos.x;trackedZ=pos.z;sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX;renderer.shadowMap.needsUpdate=true;sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9}

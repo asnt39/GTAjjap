@@ -2,7 +2,7 @@ import {Vector3} from 'three'
 
 export function fighter(maxHealth){
  return {maxHealth,hp:maxHealth,armor:0,action:'',elapsed:0,duration:0,recovery:0,immune:0,responseWindow:0,side:1,zone:'body',
-  previousHand:new Vector3(),handReady:false,connected:false,queued:false,downTime:0}
+  previousHand:new Vector3(),handReady:false,connected:false,queued:false,downTime:0,motion:null}
 }
 export function swing(f,side=-f.side,{bufferHit=false}={}){
  if(bufferHit&&f.action==='hit'&&f.duration-f.elapsed<=.18){f.queued=true;return false}
@@ -17,7 +17,7 @@ export function injure(f,amount,side,zone,{responseWindow=0,weaponHit=false}={})
  if(absorbed)f.armor-=absorbed
  f.hp=Math.max(0,f.hp-amount+absorbed)
  Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,responseWindow,recovery:0,
-  queued:false,handReady:false,connected:false,downTime:0})
+  queued:false,handReady:false,connected:false,downTime:0,motion:null})
  return true
 }
 export function advance(f,dt){
@@ -36,8 +36,8 @@ export function revive(f){
  Object.assign(f,fighter(health));f.immune=2
 }
 export function combatPose(f,guard=false){
- if(f.action==='knockdown')return {action:'down',side:f.side,zone:f.zone,phase:Math.min(1,f.elapsed/.56,(f.duration-f.elapsed)/.62)}
- return {action:f.action||(guard?'guard':''),phase:guard&&!f.action?1:f.duration?Math.min(1,f.elapsed/f.duration):0,side:f.side,zone:f.zone}
+ if(f.action==='knockdown')return {reaction:f.motion,action:'down',side:f.side,zone:f.zone,phase:Math.min(1,f.elapsed/.56,(f.duration-f.elapsed)/.62)}
+ return {reaction:f.motion,action:f.action||(guard?'guard':''),phase:guard&&!f.action?1:f.duration?Math.min(1,f.elapsed/f.duration):0,side:f.side,zone:f.zone}
 }
 const hand=new Vector3(),point=new Vector3()
 // Sweep the rendered hand across the victim's vertical capsule during the contact window.
