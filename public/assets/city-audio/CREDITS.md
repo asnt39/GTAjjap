@@ -1,6 +1,6 @@
 # Harborline City Score
 
-Six original instrumental synth cues created for Harborline. The cue sources, MIDI pitches, rhythms, instrument synthesis and stereo mix are in `scripts/compose-city-score.py`. The game ships MP3 encodes at 24 kHz, 64 kbps stereo. Score and original synthesized effects are available under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). They contain no third-party recordings.
+Six original instrumental cues created for Harborline, arranged around slow pads, sparse keys, low bass, and brushed percussion. The cue sources, MIDI pitches, rhythms, instrument synthesis and stereo mix are in `scripts/compose-city-score.py`. The game ships MP3 encodes at 24 kHz, 64 kbps stereo. The score and synthesized game effects are available under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 | Track | Used for |
 | --- | --- |
@@ -11,4 +11,8 @@ Six original instrumental synth cues created for Harborline. The cue sources, MI
 | Blue Beacons | Police pursuit and combat |
 | Crosswind | Story and pursuit |
 
-Game effects use Web Audio synthesis. The sound palette includes asphalt, paving, turf, plank, steel and stair footsteps, jump and landing, door latches, equipment switch and reload, three firearm reports, hit and blast responses, engine and motorcycle starts, gear and tire noise, horn, crash, purchases, food and drink, switch, mission and UI sounds. Ambient synthesis covers wind, water, nearby traffic, birds, harbor bell and a police siren. Spoken dialogue uses the locally installed Korean speech voice if enabled.
+## Firearm sound effects
+
+`pistol.wav`, `shotgun.wav`, and `sniper.wav` use single reports trimmed from `X_39P.wav`, `O_21P.wav`, and `W_29P.wav` in the Prepared SFX Library. Each edit mixes to mono, applies a high-pass filter and edge fades, and converts to 24 kHz PCM for spatial playback. [The Free Firearm Sound Library by Ben Jaszczak, Brian Nelson, Kevin Heras, and Matthew Nanney](https://opengameart.org/content/the-free-firearm-sound-library) · [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
+
+Other game sounds synthesized in Web Audio include footsteps, jumps, door latches, equipment actions, hit and blast responses, vehicle details, ambient sounds, a siren, and interface feedback. Spoken dialogue uses the locally installed Korean speech voice if enabled. [Engine and tire recording credits](../driving-audio/CREDITS.md)

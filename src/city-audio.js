@@ -1,9 +1,13 @@
 const settingsKey='harborline.audio.v1'
 const defaults={music:.45,effects:.65,ambient:.65,voice:.9,enabled:false}
 const scores={
- explore:['market-lights','last-ferry'],night:['after-hours','last-ferry'],drive:['causeway','market-lights'],
- harbor:['last-ferry','after-hours'],danger:['blue-beacons','crosswind'],story:['crosswind','market-lights'],radio:['causeway','after-hours']
+ explore:['market-lights','after-hours','last-ferry'],night:['after-hours','last-ferry'],drive:['causeway','after-hours'],
+ harbor:['last-ferry','after-hours'],danger:['blue-beacons','crosswind'],story:['crosswind','after-hours'],radio:['causeway','after-hours','market-lights']
 }
+const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.45,radio:.68}
+const firearmReports={pistol:{level:.74,interval:.043},shotgun:{level:.95,interval:.07},sniper:{level:.87,interval:.07}}
+const shiftSpeeds={bike:[4.5,9.5,15.5,23,31],sport:[6.5,13,20,27,34],car:[5,10.5,16.5,22,27]}
+const unit=value=>Math.min(1,Math.max(0,value))
 const sounds={
  asphalt:[100,950,.075,.11],concrete:[149,1500,.07,.10],grass:[74,480,.10,.10],
  metal:[268,2600,.11,.095],wood:[177,710,.115,.11],stairs:[125,720,.09,.11],
@@ -35,9 +39,9 @@ export function cityAudio(browser=globalThis){
  const settings=readMixer(storage)
  let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
  let active=false,paused=false,hidden=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
- let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,nextAmbience=0
- const shots=new Map(),roadClips=new Map()
- let roadMedia=null,loadingRoad=false
+ let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0
+ const shots=new Map(),roadClips=new Map(),firearmClips=new Map()
+ let roadMedia=null,loadingRoad=false,firearmsRequested=false
  function store(){try{storage?.setItem(settingsKey,JSON.stringify(settings))}catch{}}
  function fade(param,value,seconds=.10){param.setTargetAtTime(value,ctx.currentTime,seconds)}
  function filtered(source,type,freq,target){
@@ -103,12 +107,13 @@ export function cityAudio(browser=globalThis){
    if(!ctx)return false
    await ctx.resume()
    if(ctx.state!=='running')return false
-   active=true;settings.enabled=true;store();volumes();return true
+   active=true;settings.enabled=true;store();volumes();prepareFirearms();return true
   }catch{return false}
  }
  function startTrack(next){
-  const choices=scores[next],song=choices.find(id=>id!==previousTrack)??choices[0]
-  const audio=new browser.Audio('/assets/city-audio/'+song+'.mp3')
+  const choices=scores[next],song=choices[(choices.indexOf(previousTrack)+1)%choices.length]
+  const path='/assets/city-audio/'+song+'.mp3'
+  const audio=new browser.Audio(browser.harborPreviewAssets?.[path]??path)
   const source=ctx.createMediaElementSource(audio),level=gain(0)
   source.connect(level).connect(buses.music)
   const track={audio,source,gain:level,stopAt:Infinity}
@@ -118,7 +123,7 @@ export function cityAudio(browser=globalThis){
   if(tracks.length>1){tracks[0].stopAt=ctx.currentTime;cleanup()}
   tracks.push(track);targetTrack=track;cue=next
   audio.play().then(()=>{
-   if(track===targetTrack){fade(level.gain,.73,.88);previousTrack=song}
+   if(track===targetTrack){fade(level.gain,scoreLevel[next],.88);previousTrack=song}
   }).catch(()=>{track.stopAt=ctx.currentTime+.2;if(track===targetTrack)targetTrack=null})
  }
  function cleanup(){
@@ -128,14 +133,26 @@ export function cityAudio(browser=globalThis){
    track.audio.removeAttribute('src');track.audio.load();return false
   })
  }
+ async function loadClip(path){
+  const response=await browser.fetch(browser.harborPreviewAssets?.[path]??path)
+  return response.ok?ctx.decodeAudioData(await response.arrayBuffer()):null
+ }
+ function prepareFirearms(){
+  if(firearmsRequested||!browser.fetch)return
+  firearmsRequested=true
+  for(const name of Object.keys(firearmReports)){
+   loadClip('/assets/city-audio/'+name+'.wav').then(clip=>{
+    if(clip)firearmClips.set(name,clip)
+   }).catch(()=>{})
+  }
+ }
  function prepareRoad(){
   if(roadMedia||loadingRoad||!browser.fetch)return
   loadingRoad=true
   const library=['rpm-low','rpm-high','skid','ignition']
   Promise.allSettled(library.map(async id=>{
-   const res=await browser.fetch('/assets/driving-audio/'+id+'.wav')
-   if(!res.ok)return
-   roadClips.set(id,await ctx.decodeAudioData(await res.arrayBuffer()))
+   const clip=await loadClip('/assets/driving-audio/'+id+'.wav')
+   if(clip)roadClips.set(id,clip)
   })).then(()=>{
    function loop(id,target,positioned=false){
     const buffer=roadClips.get(id)
@@ -152,23 +169,42 @@ export function cityAudio(browser=globalThis){
     skid:loop('skid',buses.effects),passing:loop('rpm-low',buses.ambient,true)}
   })
  }
- function sampleIgnition(level){
-  const clip=roadClips.get('ignition')
-  if(!clip)return false
-  const source=ctx.createBufferSource(),volume=gain(level*.36)
-  source.buffer=clip;source.connect(volume).connect(buses.effects);source.start()
-  source.onended=()=>{source.disconnect();volume.disconnect()}
-  return true
+ function position(dx,dz,distance){
+  const pan=ctx.createStereoPanner?.()
+  if(pan)pan.pan.value=Math.max(-.78,Math.min(.78,(dx*Math.cos(listener.yaw)+dz*Math.sin(listener.yaw))/Math.max(2.2,distance)))
+  return pan
+ }
+ function playClip(clip,volume,pan,target,rate,cut,reflect){
+  const source=ctx.createBufferSource(),level=gain(volume)
+  source.buffer=clip;source.playbackRate.value=rate
+  const filter=cut?filtered(source,'lowpass',cut,level):null
+  if(!filter)source.connect(level)
+  if(pan)level.connect(pan)
+  const output=pan??level
+  output.connect(target)
+  if(reflect)output.connect(echo)
+  source.onended=()=>{for(const node of [source,filter,level,pan])node?.disconnect()}
+  source.start()
  }
  function sound(name,p,amount=1,menu=false,ambient=false){
   if(!active||(paused&&!menu)||hidden||!(ambient?settings.ambient:settings.effects)||!sounds[name]||ctx.state!=='running')return
   const [freq,cut,length,level]=sounds[name],now=ctx.currentTime
   if((shots.get(name)??0)>now||shots.size>28)return
   const dx=p?p.x-listener.x:0,dz=p?p.z-listener.z:0,d=Math.hypot(dx,dz)
-  const radius=name==='blast'?86:name==='pistol'||name==='shotgun'||name==='sniper'?56:29
+  const report=firearmReports[name]
+  const radius=name==='blast'?86:report?72:29
   if(d>=radius)return
-  shots.set(name,now+Math.min(.22,length*.65))
-  if(name==='engineStart'&&sampleIgnition(amount))return
+  shots.set(name,now+(report?.interval??Math.min(.22,length*.65)))
+  const target=menu?master:ambient?buses.ambient:buses.effects
+  const near=1-d/radius
+  const attenuation=Math.max(report?0:.05,near*near)*(menu?settings.effects:1)*amount
+  const pan=position(dx,dz,d)
+  const clip=report?firearmClips.get(name):name==='engineStart'?roadClips.get('ignition'):null
+  if(clip){
+   playClip(clip,attenuation*(report?.level??.82),pan,target,.97+Math.random()*.06,
+    report?650+near*near*14000:null,!!report&&!menu&&!ambient)
+   return
+  }
   const tone=ctx.createOscillator(),dust=ctx.createBufferSource(),hit=gain(0),sum=gain(1)
   const spread=.91+Math.random()*.18
   dust.buffer=noise;dust.playbackRate.value=spread
@@ -179,12 +215,11 @@ export function cityAudio(browser=globalThis){
   tone.frequency.exponentialRampToValueAtTime(freq*(name==='horn'?spread:name==='mission'?1.55:.61),now+length)
   tone.connect(partial).connect(hit)
   hit.gain.setValueAtTime(.001,now)
-  hit.gain.exponentialRampToValueAtTime(level*amount*(menu?settings.effects:1)*Math.max(.05,(1-d/radius)**2),now+.014)
+  hit.gain.exponentialRampToValueAtTime(Math.max(.001,level*attenuation),now+(report ? .004 : .014))
   hit.gain.exponentialRampToValueAtTime(.001,now+length)
-  const pan=ctx.createStereoPanner?.()
-  if(pan){pan.pan.value=Math.max(-.78,Math.min(.78,(dx*Math.cos(listener.yaw)+dz*Math.sin(listener.yaw))/Math.max(2.2,d)));hit.connect(pan).connect(sum)}
+  if(pan)hit.connect(pan).connect(sum)
   else hit.connect(sum)
-  sum.connect(menu?master:ambient?buses.ambient:buses.effects);if(!menu&&!ambient)sum.connect(echo)
+  sum.connect(target);if(!menu&&!ambient)sum.connect(echo)
   tone.start();tone.stop(now+length+.02)
   dust.start(now,Math.random()*.05);dust.stop(now+length+.014)
   tone.onended=()=>{for(const n of [tone,dust,partial,pan,hit,sum])n?.disconnect()}
@@ -213,7 +248,7 @@ export function cityAudio(browser=globalThis){
    for(const [name,until] of shots)if(until<ctx.currentTime)shots.delete(name)
    cleanup()
    const zone=musicCue(frame)
-   fade(buses.music.gain,settings.music*(paused?.35:frame.dialogue?.28:1),.23)
+   fade(buses.music.gain,settings.music*(paused?.35:frame.dialogue?.24:1),.23)
    if((!targetTrack||cue!==zone||targetTrack.audio.ended||targetTrack.audio.duration-targetTrack.audio.currentTime<3.4)&&
     ctx.currentTime-lastPlayback>1.4&&settings.music>0){
     lastPlayback=ctx.currentTime;startTrack(zone)
@@ -233,32 +268,47 @@ export function cityAudio(browser=globalThis){
    fade(siren.frequency,710+230*Math.sin(t*4.4),.13)
    fade(sirenGain.gain,wanted&&frame.policeDistance<72?.05*(1-frame.policeDistance/72):0,.28)
    const speed=Math.abs(car.speed),bike=car.setup.bike,sport=car.setup.top>=20
-   const ratios=bike?[4,9,15]:sport?[6,12,20]:[4.6,9.5,15]
-   const band=ratios.reduce((n,v)=>n+(speed>v?1:0),0)
-   const rpm=Math.min(1,Math.max(0,(speed-(ratios[band-1]??0)*.78)/(ratios[band]??29)))
-   const throttle=Math.max(0,Math.min(1,(car.throttle??0)+Math.max(0,car.accel)*.075))
+   const driveLevel=driving&&!paused?1:0
+   const throttle=unit(Math.abs(car.throttle??0))
+   const gears=shiftSpeeds[bike?'bike':sport?'sport':'car']
+   const engaged=driving&&car.speed>=0
+   if(!driving||drivenCar!==car){
+    velocityBand=engaged?gears.slice(0,-1).filter(limit=>speed>limit).length:0
+    shiftUntil=0;drivenCar=driving?car:null
+   }else if(engaged&&velocityBand<gears.length-1&&speed>gears[velocityBand]+.35){
+    velocityBand++;shiftUntil=ctx.currentTime+.17
+    if(throttle>.24&&driveLevel)sound('gear',null,.38)
+   }else if(velocityBand&&(!engaged||speed<gears[velocityBand-1]-.95)){
+    velocityBand--;shiftUntil=ctx.currentTime+.10
+   }
+   const shifting=ctx.currentTime<shiftUntil
+   const lower=gears[velocityBand-1]??0,upper=engaged?gears[velocityBand]:car.setup.reverse??5
+   const gearProgress=unit((speed-lower)/Math.max(1,upper-lower))
+   const rpm=unit((velocityBand?.37:0)+gearProgress*(velocityBand?.48:.86)+throttle*.14-(shifting?.12:0))
    const marineSpeed=Math.abs(boat?.speed??0),marineRPM=boat?Math.min(1,marineSpeed/boat.top+.21*Math.abs(boat.throttle??0)):0
    const sportBoat=boat?.id==='launch'
    const pitch=boat?(sportBoat?57:45)+marineRPM*(sportBoat?118:85):
-    (bike?68:sport?49:37)+(bike?183:sport?152:114)*rpm+throttle*22
+    (bike?58:sport?40:34)+(bike?158:sport?108:87)*rpm+throttle*9
    fade(motor.frequency,pitch,.11);fade(motorHarmonic.frequency,pitch*(boat?2.14:bike?2.03:sport?2.50:1.51),.105)
    fade(harmonicGain.gain,boat?.33:bike?.50:sport?.34:.18,.12)
    fade(motorFilter.frequency,boat?340+marineRPM*480:(bike?970:sport?740:420)+throttle*690,.18)
-   const driveLevel=driving&&!paused?1:0
-   const synthetic=roadMedia?.low&&!bike ? .57 : 1
-   fade(motorGain.gain,boat&&!paused?.037+marineRPM*.086:driveLevel*(.049+rpm*.053+throttle*.095)*synthetic,.13)
-   fade(roadGain.gain,boat&&!paused?Math.min(.15,marineSpeed*.018):driving&&!paused?Math.min(.19,speed*.012):0,.18)
+   const synthetic=roadMedia?.low&&roadMedia.high&&!bike ? .19 : 1
+   fade(motorGain.gain,boat&&!paused?.037+marineRPM*.086:driveLevel*(.037+rpm*.039+throttle*.075)*synthetic,.13)
+   fade(roadGain.gain,boat&&!paused?Math.min(.15,marineSpeed*.018):driveLevel*Math.min(.19,speed*.012),.18)
    const slip=Math.abs(car.slip??0)
-   const skid=Math.min(.26,slip*.74+(car.braking?Math.max(0,speed-5)*.007:0))
-   fade(traction.gain,driveLevel*skid*(roadMedia?.skid ? .38 : 1),.17)
-   function mix(loop,level,rate){
-    if(loop){fade(loop.level.gain,level,.15);fade(loop.source.playbackRate,rate,.14)}
+   const brakeSlip=car.braking?unit((-(car.accel??0)-4)/5)*unit((speed-7)/14)*.34:0
+   const scrub=unit((speed-2.8)/8)*unit(slip*3.8+brakeSlip)
+   const skid=scrub**1.5
+   fade(traction.gain,driveLevel*scrub*(roadMedia?.skid ? .16 : .30),scrub>.2?.07:.15)
+   function mix(loop,level,rate,seconds=.13){
+    if(loop){fade(loop.level.gain,level,seconds);fade(loop.source.playbackRate,rate,.17)}
    }
-   const loaded=driveLevel*(bike?.09:.31)*(sport?1.13:1)
-   const blend=Math.max(0,Math.min(1,(rpm-.18)/.58))
-   mix(roadMedia?.low,loaded*(1-blend)*(throttle*.42+.58),.69+rpm*.86+(bike?.22:0))
-   mix(roadMedia?.high,loaded*blend*(throttle*.55+.48),.76+rpm*.63+(bike?.26:0))
-   mix(roadMedia?.skid,driveLevel*skid*.83,.91+Math.min(.30,speed*.013))
+   const loaded=driveLevel*(bike?.07:.34)*(sport?1.12:1)*(.43+throttle*.57)*(shifting?.59:1)
+   const crossfade=unit((pitch-53)/40)
+   const blend=crossfade*crossfade*(3-2*crossfade)
+   mix(roadMedia?.low,loaded*(1-blend),pitch/42.8)
+   mix(roadMedia?.high,loaded*blend,pitch/76.2)
+   mix(roadMedia?.skid,driveLevel*skid*.67,.82+Math.min(.36,speed*.015),skid>.08?.07:.11)
    const passing=roadMedia?.passing
    if(passing){
     mix(passing,nearby*(indoor?.21:.79),.75+Math.abs(frame.passing?.speed??0)*.032)
@@ -267,8 +317,6 @@ export function cityAudio(browser=globalThis){
      fade(passing.pan.pan,Math.max(-.8,Math.min(.8,lateral/Math.max(2,frame.passingDistance))),.13)
     }
    }
-   if(driving&&band!==velocityBand&&speed>2)sound('gear',null,.68)
-   velocityBand=band
   }
  }
 }
