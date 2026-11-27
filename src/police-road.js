@@ -84,6 +84,10 @@ function route(start,goal){
 }
 
 // The civilian routes use the same lane geometry and junction turns.
+export const civilianTurnarounds=roads.slice(0,3).map(road=>({
+ x:junction.x+road.x*road.end,z:junction.z+road.z*road.end,
+ curve:road.out.at(-1).edges[0]
+}))
 export const civilianEntries=roads.slice(0,3).flatMap(road=>road.in.filter((node,index)=>index>=3&&index%3===0))
 export function civilianNext(node,turn){
  if(node.edges.length===1)return node.edges[0]

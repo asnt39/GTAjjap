@@ -86,3 +86,34 @@ test('four active cars clear an obstructed junction after its exit opens without
  assert.equal(traffic.length,4)
  assert([...traveled.values()].every(metres=>metres>23),JSON.stringify([...traveled.values()]))
 })
+
+test('mixed civilian traffic clears dock turns without a stuck queue or visible replacement',()=>{
+ for(const [count,parked] of [[4,true],[8,false],[8,true]]){
+  const traffic=[],rigs=Array.from({length:count},(_,i)=>{
+   const setup=[vehicles.sport,vehicles.van,vehicles.touring][i%3]
+   return {...setup,setup,root:new Group(),updatePose(){}}
+  })
+  const obstruction={...vehicles.van,x:-12,z:-39.74,heading:-Math.PI/2,speed:0}
+  if(parked)traffic.push(obstruction)
+  const ai=civilianTraffic(new Scene(),[],traffic,rigs)
+  const player={x:9,z:-35},lastMovement=new Map(),seen=new Set()
+  for(let n=0;n<8100;n++){
+   if(parked&&n===28*60)traffic.splice(traffic.indexOf(obstruction),1)
+   ai.update(1/60,player,{enabled:true,walkers:[],inView:()=>n>=24*60})
+   const live=traffic.filter(car=>car!==obstruction)
+   assert(live.filter(car=>car.speed<-.16).length<=1)
+   if(n>=33*60){
+    for(const [i,car] of live.entries()){
+     assert(clearPose(car,[]))
+     assert(!live.slice(i+1).some(other=>overlapsCar(car,other)))
+     assert(!parked||n>28*60)
+     if(!lastMovement.has(car)||Math.abs(car.travel)>.0033)lastMovement.set(car,n)
+     assert(n-lastMovement.get(car)<20*60,`stuck at ${car.x},${car.z}, count=${count}`)
+     seen.add(car)
+    }
+    assert.equal(live.length,count)
+    assert.equal(seen.size,count)
+   }
+  }
+ }
+})
