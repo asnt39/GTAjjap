@@ -224,6 +224,28 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
   if(point&&distance(n.pos,point)<.84)evacLeg++
   return rearRoute[evacLeg]??null
  }
+ function makeRoom(n,player,onFoot,dt){
+  if(n.missionRole!=='ally'||!onFoot||n.f.action||!n.f.hp){n.sideStep=null;return false}
+  if(!n.sideStep){
+   const intent=player.walkIntent,pace=intent?Math.hypot(intent.x,intent.z):0
+   if(pace<.4||distance(n.pos,player.pos)>1.55)return false
+   const dx=intent.x/pace,dz=intent.z/pace
+   const x=n.pos.x-player.pos.x,z=n.pos.z-player.pos.z
+   const offset=x*dz-z*dx
+   if(dx*x+dz*z<.12||Math.abs(offset)>.77)return false
+   const side=Math.sign(offset)||1
+   const options=[side,-side].map(sign=>({x:n.pos.x+dz*sign*1.12,z:n.pos.z-dx*sign*1.12}))
+   options.push({x:n.pos.x+dx*1.16,z:n.pos.z+dz*1.16})
+   n.sideStep=options.find(p=>!blocked(n,p.x,p.z)&&traverse(n.pos,p))??null
+  }
+  if(!n.sideStep)return false
+  const x=n.pos.x,z=n.pos.z,gap=distance(n.pos,n.sideStep)
+  if(gap<.08){n.sideStep=null;return false}
+  const ratio=Math.min(1,dt*2.35/gap)
+  movePlayer(n.pos,(n.sideStep.x-x)*ratio,(n.sideStep.z-z)*ratio,boxes,(a,b)=>blocked(n,a,b),n.pos.y)
+  if(distance(n.pos,{x,z})<.003)n.sideStep=null
+  return true
+ }
  function shot(shooter,target,start,end,hit,weapon,damage){
   const playerHit=target.missionRole!==undefined?false:hit
   combat?.(shooter,start,end,playerHit,weapon,damage)
@@ -263,8 +285,8 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
     n.rethink=.26+n.stagger*.02
    }
    const x=n.pos.x,z=n.pos.z
-   const move=n.route.update(dt,{target:n.spot,enabled:!n.f.action&&n.f.hp>0})
-   n.speed=n.stepping=move.speed
+   if(!makeRoom(n,player,onFoot,dt))n.route.update(dt,{target:n.spot,enabled:!n.f.action&&n.f.hp>0})
+   n.speed=n.stepping=dt>0?Math.hypot(n.pos.x-x,n.pos.z-z)/dt:0
    const face=n.speed>.2?Math.atan2(n.pos.x-x,n.pos.z-z):n.focus?.f.hp?Math.atan2(n.focus.pos.x-x,n.focus.pos.z-z):Math.atan2(player.pos.x-x,player.pos.z-z)
    n.face+=angular(n.face,face)*(1-Math.exp(-9*dt))
    n.pos.y=height(n.pos.x,n.pos.z)

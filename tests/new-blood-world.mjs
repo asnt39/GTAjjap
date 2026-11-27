@@ -94,6 +94,17 @@ test('Jack waits for a join command and has to reach the reception with the play
  assert.equal(crowd.all.length,0)
 })
 
+test('a waiting ally steps aside when the player walks towards his position',async()=>{
+ const start=clubPlan.actors.jack,stage={set:'entry',goal:clubPlan.entry}
+ const {player,crowd,step,wait}=fixture({x:start.x-1,z:start.z})
+ await wait(stage,()=>crowd.all.some(n=>n.localId==='jack'))
+ const jack=crowd.all.find(n=>n.localId==='jack')
+ player.walkIntent={x:3,z:0}
+ step(stage,1)
+ assert(Math.abs(jack.pos.z-start.z)>.72,'Jack clears the movement line using the collision sweep')
+ assert.equal(jack.route.mode,'hold','making room preserves the explicit wait order')
+})
+
 test('Victor can be met, and Jack returns real fire against the ambush attackers',async()=>{
  const meet={set:'meeting',goal:clubPlan.vip},attack={set:'ambush',goal:clubPlan.vip}
  const {world,player,crowd,shots,step,wait}=fixture(clubPlan.vip)

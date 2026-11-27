@@ -227,7 +227,7 @@ export async function start(onContextLost){
  const trafficInView=point=>trafficView.containsPoint(trafficPoint.set(point.x,1,point.z))
  const walkers=[]
  const presence=roomPresence(scene)
- const player={pos,f:fighter(100),height:1.8,available:true}
+ const player={pos,f:fighter(100),height:1.8,available:true,walkIntent:{x:0,z:0}}
  const deathScreen=createDeathScreen(canvas,document.querySelector('#death-screen'))
  const episode=createEpisode({mainStory:true,chapterOne:clubPlan,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
  let storyStatus=''
@@ -1191,6 +1191,7 @@ export async function start(onContextLost){
    activity.update(dt);fixtures.update(pos)
    advance(player.f,dt);feedbackTime=Math.max(0,feedbackTime-dt)
    let speed=0
+   player.walkIntent.x=player.walkIntent.z=0
    custody.update(dt);custodyView.update(custody)
    mealProp.visible=false
    if(custody.officer){
@@ -1262,6 +1263,7 @@ export async function start(onContextLost){
    const rate=sniperAiming()||activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
     (custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
+   player.walkIntent.x=targetX;player.walkIntent.z=targetZ
    const accelerate=!foot.air&&!player.f.action
    if(accelerate)accelerateOnFoot(velocity,targetX,targetZ,dt)
    else{
