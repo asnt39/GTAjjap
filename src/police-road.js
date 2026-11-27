@@ -124,6 +124,31 @@ export function pursuitRoadNetwork(){
  return [...main,...circuits]
 }
 
+export function pursuitEntry(network,target,offset,clear){
+ const goal=nearest(target,2.6,false,network)
+ const dx=Math.sin(target.heading),dz=-Math.cos(target.heading)
+ const candidates=[]
+ for(const node of network){
+  const d=range(node,target)
+  if(node.curve||d<27||d>62)continue
+  const behind=(node.x-target.x)*dx+(node.z-target.z)*dz
+  const facing=node.dx*dx+node.dz*dz
+  const score=Math.abs(d-offset)+Math.max(0,behind+9)*1.5+(1-facing)*4
+  candidates.push({node,d,score})
+ }
+ candidates.sort((a,b)=>a.score-b.score)
+ for(const {node,d} of candidates.slice(0,40)){
+  const pose={x:node.x,z:node.z,heading:Math.atan2(node.dx,-node.dz)}
+  if(!clear(pose))continue
+  const path=route(node,goal)
+  if(path.length<2)continue
+  const length=path.slice(1).reduce((total,next,i)=>total+range(next,path[i]),0)
+  // A nearby opposite lane can be separated by several city blocks.
+  if(length<d*1.5+20)return pose
+ }
+ return null
+}
+
 export function roadDriver(car,{network=nodes,top=11.5}={}){
  let wait=0,path=[],cursor=0,goal=null,stalled=0,recover=0,pass=null
  return {

@@ -29,9 +29,10 @@ export function episodeUI(game,voice,sound=()=>{}) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
   if(!npc){voice.stop();return}
-  const state=episode.snapshot(), options=episode.choices(npc)
+  const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact()
   let text=defaultLine
   if(reply)text=reply
+  else if(offer?.residentId===npc.id&&offer.brief)text=offer.brief
   else if(npc.opening&&state.missionId==='delivery'&&state.stage===1&&state.status==='available')text=npc.opening
   else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')

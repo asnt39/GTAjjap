@@ -1,16 +1,16 @@
-import {detention,extraction,safeHouse,transferFoot,transferYard,worksBay,worksClear} from './prologue-plan.js'
+import {cargoManifest,detention,extraction,safeHouse,transferFoot,transferYard,worksBay,worksClear} from './prologue-plan.js'
 
 const zone=(x,z,radius,label)=>({x,z,radius,label})
 const northExit=zone(0,-14,7,'Breakwater Avenue')
 export const wrongDeal=[
  {id:'first-deal',title:'첫 거래',reward:2600,stages:[
   {kind:'drive',goal:transferYard,objective:'Quay Transfer 도착 및 정차'},
-  {kind:'walk',goal:transferFoot,objective:'하차 후 화물 인수 지점 확인',line:'Jack · 네 몫은 화물을 건네고 나서야. 차는 가까운 데 세워 둬.'},
-  {kind:'fight',set:'quay',goal:transferFoot,checkpoint:zone(14.45,-36.65,0,'Quay Transfer'),objective:'컨테이너 야드의 기습 저지',line:'Jack · 거래가 틀어졌어. 엄폐하고, 일단 살아서 나와.'},
-  {kind:'drive',goal:northExit,objective:'차량으로 야드 이탈',line:'Jack · 여기서 멈추지 마. 대로 쪽으로 빠져.'}
+  {kind:'walk',goal:transferFoot,objective:'하차 후 4번 하역장 인수 지점 확인',line:'Jack · 4번 하역장이야. 차는 돌려 세워 두고, 약속한 인수 지점으로 가 봐.'},
+  {kind:'fight',set:'quay',goal:cargoManifest,checkpoint:zone(14.45,-36.65,0,'Quay Transfer'),objective:'상자 위 화물 명세서 확보',line:'Jack · 인수인이 없어. 상자 위 명세서부터 확인해. 누가 화물을 돌렸는지 거기 나올 거야.'},
+  {kind:'drive',carry:'quay',goal:northExit,objective:'명세서를 들고 차량으로 야드 이탈',line:'Jack · 명세서는 챙겼어. 더 올 거야. 차로 돌아가서 대로 쪽으로 빠져.'}
  ]},
- {id:'on-our-tail',title:'추격자',reward:3400,brief:'Jack · 뒤에 차가 붙었어. 저 차들을 떼어내고 Clock Street로 와.',stages:[
-  {kind:'evade',set:'pursuit',goal:safeHouse,objective:'뒤따라오는 차량 따돌리기'},
+ {id:'on-our-tail',title:'추격자',reward:3400,brief:'Jack · 야드 밖에도 놈들 차가 있어. 코너를 돌며 시야를 끊고 Clock Street로 와.',stages:[
+  {kind:'evade',set:'pursuit',goal:safeHouse,objective:'차량을 몰아 추격자의 시야 끊기'},
   {kind:'drive',goal:safeHouse,objective:'Clock Street 집결지 도착 및 정차',line:'Jack · 무전 잠잠해졌어. Clock Street에서 정차해.'}
  ]},
  {id:'payback',title:'반격',reward:5100,brief:'Jack · Theo가 놈들한테 잡혔어. West Bank Works 생산동에 있어.',stages:[
@@ -21,7 +21,8 @@ export const wrongDeal=[
  ]}
 ]
 const jack={residentId:'courier',resident:'Jack Bennett',label:'Jack Bennett',x:7.6,z:16.2,radius:2}
-const firstLine='Jack · 오늘 화물 거래 한 번만 같이 가자. 잘 끝나면 네 몫은 확실해.'
+const firstBrief='오늘 우리 몫의 화물이 Quay Transfer에 들어와. 야드에서 인수할 사람이 기다리는 중인데, 아직 무전이 없어. 같이 확인해 줄래?'
+const firstLine='Quay Transfer 4번 하역장이야. 차를 가까이 대고, 인수인이 없으면 화물 명세서를 확인해. 일이 끝나면 네 몫을 줄게.'
 const stateOf=(mission=0,step=0,status='available',reason='')=>({mission,step,status,reason})
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
 export function readPrologue(value){
@@ -61,7 +62,7 @@ export function createPrologue({saved,commit,available}){
    if(choice==='wrong-deal-start'&&this.choices(resident).length)return write(stateOf(0,0,'active'),firstLine)
    return null
   },
-  offer(){return available()&&state.status==='available'?{...jack,jobTitle:current().title}:null},
+  offer(){return available()&&state.status==='available'?{...jack,jobTitle:current().title,brief:firstBrief}:null},
   tracking(){
    return active()?{goal:stage().goal,title:current().title,missionId:current().id,step:state.step,objective:stage().objective}:null
   },

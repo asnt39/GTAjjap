@@ -5,6 +5,7 @@ export const yardCover=[
  {x:12.05,z:-46.1,w:.63,d:1.11,h:.86}
 ]
 export const transferFoot={x:14.4,z:-31.6,radius:2.05,label:'화물 인수 지점'}
+export const cargoManifest={x:yardCover[0].x,y:yardCover[0].h+.10,z:yardCover[0].z,radius:1.72,label:'화물 명세서'}
 export const worksBay={x:-129.05,z:28.1,radius:3.2,label:'West Bank Works'}
 export const worksClear={x:-129,z:37.9,radius:5.5,label:'생산동'}
 export const worksRear={x:-119.1,z:41.5}

@@ -114,6 +114,9 @@ body.speaking #guide-marker { visibility:hidden }
 #objective strong{color:#f0c694;font-size:12px;font-weight:800}
 #objective span{color:#fff3de;font-size:14px;line-height:1.45;word-break:keep-all}
 #objective small{color:#d3dfd7;font-size:11px;font-variant-numeric:tabular-nums}
+@media(pointer:coarse) and (orientation:landscape) and (max-height:430px){
+ #objective{left:auto;right:max(16px,env(safe-area-inset-right));top:63px;max-width:min(38vw,235px)}
+}
 #mission-event{position:absolute;z-index:3;top:max(120px,23vh);left:50%;width:min(460px,92vw);transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 2px 8px #10191b,0 0 22px #10191b;animation:mission-arrive .30s ease-out}
 #mission-event small,#mission-event strong,#mission-event span{display:block}
 #mission-event small{color:#f2bf86;font:700 13px var(--game-font);letter-spacing:.16em}

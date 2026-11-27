@@ -7,7 +7,7 @@ import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
 import {premises} from './market-plan.js'
 import {sights} from './navigation.js'
 import {beachGate,coastalBoats,coastalRocks,dock,shoreNorth,shoreSouth,shoreX,shoal} from './coast-plan.js'
-export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
+export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hostiles=[]){
  const d=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth,h=canvas.clientHeight
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
@@ -68,6 +68,10 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null){
   const gz=Math.max(cz-h/(2*scale)+8/scale,Math.min(cz+h/(2*scale)-8/scale,goal.z))
   c.save();c.translate(gx,gz);c.scale(1/scale,1/scale);c.rotate(Math.PI/4)
   c.fillStyle='#ffcf8d';c.strokeStyle='#2b2520';c.lineWidth=1.4;c.fillRect(-4.5,-4.5,9,9);c.strokeRect(-4.5,-4.5,9,9);c.restore()
+ }
+ for(const {x,z} of hostiles){
+  c.beginPath();c.arc(x,z,3.8/scale,0,Math.PI*2);c.fillStyle='#ff4a51';c.fill()
+  c.strokeStyle='#351013';c.lineWidth=1.3/scale;c.stroke()
  }
  c.translate(player.x,player.z);c.rotate(yaw);c.scale(1/scale,1/scale)
  c.fillStyle='#ecaf7730';c.beginPath();c.moveTo(0,0);c.arc(0,0,27,-Math.PI*.66,-Math.PI*.34);c.fill()
