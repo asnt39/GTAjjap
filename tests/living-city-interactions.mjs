@@ -5,7 +5,7 @@ import {interactionSelection} from '../src/interaction-list.js'
 import {civilianTraffic} from '../src/civilian-traffic.js'
 import {marketSignal,trafficPreference} from '../src/city-traffic-plan.js'
 import {vehicles} from '../src/vehicles.js'
-import {newDrive} from '../src/driving.js'
+import {newDrive,overlapsCar} from '../src/driving.js'
 
 test('all nearby interactions remain available and their selection follows the identity',()=>{
  const picker=interactionSelection()
@@ -116,4 +116,28 @@ test('a closed junction signal queues civilian traffic until the phase opens',()
   crossed ||=traffic.some(car=>Math.hypot(car.x,car.z+37)<7)
  }
  assert(crossed)
+})
+
+test('cars from separate districts resolve a mutual block without backing into a pedestrian',()=>{
+ const scene=new Scene(),front=rig(),opposed=rig(),cars=[]
+ for(const [i,model] of [front,opposed].entries()){
+  const dir=i?-1:1,start=i?-16:-22
+  const car=Object.assign(newDrive(model,model.setup),{id:'conflict-'+i,x:0,z:start,heading:i?0:Math.PI})
+  const nodes=Array.from({length:32},(_,j)=>({x:0,z:start+(3+j*2)*dir,dx:0,dz:dir,edges:[]}))
+  for(let j=0;j<nodes.length;j++)nodes[j].edges.push(nodes[(j+1)%nodes.length])
+  cars.push(car)
+  model.ai=civilianTraffic(scene,[],cars,[],{entries:[nodes[0]],nextNode:n=>n.edges[0],junction:null,seeded:[{car,rig:model}]})
+ }
+ const pedestrian={x:0,z:-25.5},player={x:3.8,z:-19}
+ let reverseFront=false,reverseOpposed=false,passed=false
+ for(let i=0;i<60*12;i++){
+  for(const model of [front,opposed])model.ai.update(1/60,player,{enabled:true,walkers:[pedestrian]})
+  reverseFront ||= cars[0].speed<-.25
+  reverseOpposed ||= cars[1].speed<-.25
+  passed ||= cars[0].z>cars[1].z+3
+  assert(!overlapsCar(cars[0],cars[1]))
+ }
+ assert.equal(reverseFront,false,'the first car must protect the pedestrian behind it')
+ assert.equal(reverseOpposed,true,'the other district car must yield with a real reverse maneuver')
+ assert.equal(passed,true,'the other car must make it past before both return to their routes')
 })
