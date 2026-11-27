@@ -31,7 +31,10 @@ export function createLoadout(storage,episode){
   if(episode?.savedEquipment)episode.saveEquipment(next)
   else try{storage?.setItem(saveKey,JSON.stringify(next))}catch{}
  }
- function reserveSpace(id){return Object.hasOwn(items,id)?Math.max(0,(gear[id].stock??0)-items[id].reserve):0}
+ function reserveSpace(id){
+  if(id==='pistol'&&loan)return 0
+  return Object.hasOwn(items,id)?Math.max(0,(gear[id].stock??0)-items[id].reserve):0
+ }
  return {
   items,get selected(){return selected},get def(){return gear[selected]},get item(){return items[selected]},
   get swing(){return swingLeft?1-swingLeft/gear.bat.delay:0},

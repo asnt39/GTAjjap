@@ -4,7 +4,7 @@ Player & Living City is a third-person exploration and driving game in a fiction
 
 The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, driving measurements, audio sources, and the new shop location. The [city life update](CITY-LIFE.md) documents pedestrian crossings, new destinations, and the score. The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
 
-The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls.
+The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls. The [Wrong Deal preview notes](WRONG-DEAL.md) describe the prologue, the refitted port and production hall, and the tested changes.
 
 [Urban & Coastal Remaster](docs/urban-coastal-remaster.md) records the current artwork, traffic reproduction, verification and open items.
 

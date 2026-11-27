@@ -77,6 +77,7 @@ test('a mission can use a temporary pistol without changing personal equipment o
  assert(loadout.missionLoan(true))
  assert(loadout.use());assert.equal(loadout.item.mag,7)
  assert(loadout.reload());loadout.tick(2)
+ assert.equal(loadout.reserveSpace('pistol'),0)
  assert.equal(JSON.parse(record.getItem(key)).equipment.items.pistol.mag,3)
  assert(loadout.missionLoan(false));assert.equal(loadout.selected,'fists')
  assert.deepEqual(loadout.items.pistol,source.equipment.items.pistol)
