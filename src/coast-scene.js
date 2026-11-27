@@ -11,12 +11,18 @@ function textures(color,normal){
  return {map,normalMap}
 }
 function sandGeometry(){
- const g=new T.PlaneGeometry(156,175,106,112).rotateX(-Math.PI/2).translate(104.1,0,179)
+ const g=new T.PlaneGeometry(156,175,84,88).rotateX(-Math.PI/2).translate(104.1,0,179)
  const p=g.attributes.position,u=g.attributes.uv,col=[]
  const dry=new T.Color(0xe9c89c),wet=new T.Color(0xb3a18a),lo=new T.Color(0x677d71),mix=new T.Color()
  for(let i=0;i<p.count;i++){
-  const x=p.getX(i),z=p.getZ(i),y=seabed(x,z)
-  p.setY(i,y);u.setXY(i,x/3.72,-z/3.72)
+  const z=p.getZ(i),edge=shoreX(z),uAlong=u.getX(i)
+  // Spend most of the visible beach's vertices on the shared shoreline.
+  const left=Math.max(29,edge-10),right=edge+11
+  const x=uAlong<.31?T.MathUtils.lerp(26.1,left,uAlong/.31):
+   uAlong<.72?T.MathUtils.lerp(left,right,(uAlong-.31)/.41):
+   T.MathUtils.lerp(right,182.1,(uAlong-.72)/.28)
+  const y=seabed(x,z)
+  p.setX(i,x);p.setY(i,y);u.setXY(i,x/3.72,-z/3.72)
   mix.copy(lo).lerp(wet,T.MathUtils.smoothstep(y,seaLevel-3,seaLevel+.10))
    .lerp(dry,T.MathUtils.smoothstep(y,seaLevel+.21,seaLevel+.85))
   mix.multiplyScalar(.95+.05*Math.sin(.14*x+.02*z)*Math.cos(.18*z))

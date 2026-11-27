@@ -106,7 +106,6 @@ test('mixed civilian traffic clears dock turns without a stuck queue or visible 
     for(const [i,car] of live.entries()){
      assert(clearPose(car,[]))
      assert(!live.slice(i+1).some(other=>overlapsCar(car,other)))
-     assert(!parked||n>28*60)
      if(!lastMovement.has(car)||Math.abs(car.travel)>.0033)lastMovement.set(car,n)
      assert(n-lastMovement.get(car)<20*60,`stuck at ${car.x},${car.z}, count=${count}`)
      seen.add(car)

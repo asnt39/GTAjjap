@@ -39,9 +39,10 @@ export function roadSurface(diffuse, normal) {
       float lane=abs(p.x);
       float quay=(1.-step(.04,streetPoint.y))*step(-107.,p.y)*(1.-step(63.,p.y));
       float dockJunction=quay*step(-40.,p.x)*step(p.x,26.);
-      float basin=roadNoise(p*vec2(.48,.20))*.54+roadNoise(p*vec2(1.28,.48)+3.)*.32+roadNoise(p*3.2)*.14;
+      float basin=.23+roadNoise(p*vec2(.48,.20))*.55;
+      if(dockJunction>0.) basin=basin*.81+roadNoise(p*vec2(1.28,.48)+3.)*.19;
       float water=smoothstep(.38,.64,basin);
-      float grain=texture2D(map,vec2(streetPoint.x,-streetPoint.z)/${asphaltScale.toFixed(2)}).r;
+      float grain=clamp(diffuseColor.r*3.6,0.,1.);
       float wear=clamp(.57+2.*grain+.20*roadNoise(p*19.),.30,1.);
       float onAvenue=(1.-smoothstep(5.99,6.,lane))*quay;
       float crossingArea=abs(p.y+37.);
