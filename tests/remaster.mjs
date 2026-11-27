@@ -32,6 +32,10 @@ import {beachGate} from '../src/coast-plan.js'
 import {motorcycleSetup} from '../src/motorcycle.js'
 import {vehicles} from '../src/vehicles.js'
 import {clearPose,newDrive,overlapsCar,stepDrive} from '../src/driving.js'
+import {buildTransferYard} from '../src/transfer-yard.js'
+import {detention,extraction,transferFoot,transferYard,worksDoor,worksLoft,worksRear,worksStair,worksUpper} from '../src/prologue-plan.js'
+import {escortLeg} from '../src/prologue-world.js'
+import {pursuitRoadNetwork,roadDriver} from '../src/police-road.js'
 
 globalThis.self=globalThis
 const paint=new Proxy({},{get:()=>()=>paint})
@@ -45,10 +49,62 @@ const scene=new Scene(),boxes=worldColliders(),maps={},add=(...b)=>boxes.push(b)
 await Promise.all([buildStreet(scene,add,maps),buildArchitecture(scene,add,maps),buildPort(scene,add)])
 const updateBasin=buildSouthBasin(scene,add,maps)
 buildOldTown(scene,add,boxes,maps);buildWestBank(scene,add,maps,boxes)
+buildTransferYard(scene,add,maps)
 beacons(scene,add);districtGates(scene,add);stationColliders(add);marketCollision(add);buildWeaponShop(scene,add)
 const system=createTerraceDoors(scene,boxes)
 function stand(r,x,z){return {...terracePoint(r,x,z),y:.083}}
 function advance(p,npcs=[]){for(let i=0;i<60;i++)system.update(1/60,p,npcs)}
+
+test('Quay Transfer leaves a clear vehicle lane and a separate walkable handoff point',()=>{
+ const car={...newDrive(vehicles.touring,vehicles.touring),...transferYard,heading:0}
+ assert(clearPose(car,boxes,true,true))
+ const standing={x:transferYard.x,z:transferYard.z}
+ movePlayer(standing,transferFoot.x-standing.x,transferFoot.z-standing.z,boxes,undefined,.083)
+ assert(Math.hypot(standing.x-transferFoot.x,standing.z-transferFoot.z)<.03)
+})
+
+test('West Bank Works has a genuine upper floor and a second usable exit for the escort',()=>{
+ const doorSystem=createTerraceDoors(scene,boxes,()=>{},[worksDoor])
+ const door=doorSystem.doors.at(-1)
+ const walker={x:(worksStair.west+worksStair.east)*.5,z:worksStair.south+.12,y:.083}
+ for(let i=0;i<80;i++){
+  movePlayer(walker,0,-.09,boxes,undefined,walker.y)
+  walker.y=worksUpper(walker.x,walker.z,walker.y)
+ }
+ assert(walker.z<worksLoft.south&&walker.y===worksLoft.height,JSON.stringify(walker))
+ assert(!canWalk(worksLoft.east,walker.z,boxes,.32,walker.y))
+ for(let i=0;i<82;i++){
+  movePlayer(walker,0,.09,boxes,undefined,walker.y)
+  walker.y=worksUpper(walker.x,walker.z,walker.y)
+ }
+ assert(walker.z>worksStair.south&&walker.y===.083)
+ const start={...detention,y:.083},exit={x:-118.7,z:worksRear.z,y:.083}
+ assert(!canWalk(door.at.x,door.at.z,boxes,.32,.083))
+ const clear=(a,b)=>{
+  const p={...a};movePlayer(p,b.x-a.x,b.z-a.z,boxes,undefined,.083)
+  return Math.hypot(p.x-b.x,p.z-b.z)<.04
+ }
+ const p={...start}
+ for(let i=0;i<1500&&Math.hypot(p.x-extraction.x,p.z-extraction.z)>1;i++){
+  doorSystem.update(1/60,exit,[{pos:p,f:{hp:100}}])
+  const leg=escortLeg(p,extraction,clear)
+  if(!leg)continue
+  const dist=Math.hypot(p.x-leg.x,p.z-leg.z)
+  if(dist>.1)movePlayer(p,(leg.x-p.x)*.045/dist,(leg.z-p.z)*.045/dist,boxes,undefined,.083)
+ }
+ assert(canWalk(door.at.x,door.at.z,boxes,.32,.083))
+ assert(Math.hypot(p.x-extraction.x,p.z-extraction.z)<=1,JSON.stringify(p))
+ for(const d of doorSystem.doors)for(const b of d.bounds){const i=boxes.indexOf(b);if(i>=0)boxes.splice(i,1)}
+})
+
+test('a scripted pursuer drives the actual road from the north dock through Market Crossing',()=>{
+ const car={...newDrive(vehicles.touring,vehicles.touring),x:-1.47,z:-63,heading:Math.PI}
+ const ai=roadDriver(car,{network:pursuitRoadNetwork(),top:15.2})
+ const target={x:-68.8,z:52,heading:Math.PI}
+ for(let i=0;i<60*42;i++)ai.step(1/60,boxes,[car],target,{follow:true})
+ assert(car.x<-59&&car.z>14,JSON.stringify({x:car.x,z:car.z}))
+ assert(clearPose(car,boxes))
+})
 
 test('all terrace doors block when closed, open onto a walkable room, and allow exit',()=>{
  for(const {r} of system.doors){

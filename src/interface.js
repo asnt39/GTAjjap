@@ -48,7 +48,11 @@ export function createUI(game){
   if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
   const menu={
-   bag:['PORTSIDE','교대 수첩',row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
+   bag:[game.episode.showingLegacy?'PORTSIDE':'WRONG DEAL','교대 수첩',
+    row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+
+    ((journal.status==='failed'||(journal.status==='available'&&journal.stage>1))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+
+    (game.episode.prologue?.active?'':button('story-archive',game.episode.showingLegacy?'잘못된 거래로 돌아가기':'이전 항만 의뢰 보기'))+
+    journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
    pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('traffic','교통량',game.trafficLabel())+button('recovery','복구 도구')+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
    audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
     button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
@@ -203,7 +207,13 @@ export function createUI(game){
   if(action==='roomCreate'||action==='roomJoin'||action==='roomLeave'){
    e.preventDefault();if(action==='roomLeave')game.room.leave();else joinRoom(action==='roomCreate');return
   }
-  if(action==='retry'||action==='abandon'||action.startsWith('use-')){const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4));toast(result.message);show('bag');return}if(action==='mission'){game.mission.start(game.driving()&&game.car.id==='touring');close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
+  if(action==='story-archive'){const result=game.episode.switchJournal();toast(result.message);show('bag');return}
+  if(action==='retry'||action==='abandon'||action.startsWith('use-')){
+   const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4))
+   if(action==='retry'&&result.ok)game.restartPrologue()
+   toast(result.message);show('bag');return
+  }
+  if(action==='mission'){game.mission.start(game.driving()&&game.car.id==='touring');close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
  function currentInteractions(){
   if(panel)return []
   const items=game.interactions()
@@ -293,7 +303,7 @@ export function createUI(game){
    const distance=Math.max(0,Math.round(Math.hypot(game.pos.x-goal.x,game.pos.z-goal.z)))
    setText(objective.querySelector('strong'),goal.title||'현재 의뢰')
    setText(objective.querySelector('span'),goal.label)
-   setText(objective.querySelector('small'),distance+' m'+(Number.isFinite(goal.remaining)?' · '+Math.ceil(goal.remaining)+'초':''))
+   setText(objective.querySelector('small'),distance+' m'+(Number.isFinite(goal.remaining)?' · '+Math.ceil(goal.remaining)+'초':'')+(game.storyStatus()?' · '+game.storyStatus():''))
   }
   if(t>=nextMissionRead){
    nextMissionRead=t+.18

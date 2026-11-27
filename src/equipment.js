@@ -19,8 +19,13 @@ export function createLoadout(storage,episode){
   if(id!=='fists'&&saved?.items?.[id])items[id]={mag:count(saved.items[id].mag,def.capacity??0),reserve:count(saved.items[id].reserve,def.stock??0)}
  }
  let selected=Object.hasOwn(items,saved?.selected)?saved.selected:'fists'
- let cooldown=0,reloading=0,swingLeft=0,kick=0,boltLeft=0
- function state(){return {items:Object.fromEntries(Object.entries(items).map(([id,item])=>[id,{...item}])),selected}}
+ let cooldown=0,reloading=0,swingLeft=0,kick=0,boltLeft=0,loan=null
+ function state(){
+  const personal={...items}
+  if(loan){if(loan.pistol)personal.pistol=loan.pistol;else delete personal.pistol}
+  return {items:Object.fromEntries(Object.entries(personal).map(([id,item])=>[id,{...item}])),
+   selected:loan&&selected==='pistol'?loan.selected:selected}
+ }
  function save(){
   const next=state()
   if(episode?.savedEquipment)episode.saveEquipment(next)
@@ -33,6 +38,17 @@ export function createLoadout(storage,episode){
   get recoil(){return kick},get reloadProgress(){return reloading?1-reloading/gear[selected].reload:0},
   get boltProgress(){return boltLeft?1-boltLeft/sniperCycle:0},
   get reloading(){return reloading>0},get coolingDown(){return cooldown>0},
+  missionLoan(enabled){
+   if(enabled&&!loan){
+    loan={pistol:items.pistol,selected};items.pistol={mag:8,reserve:32};selected='pistol'
+   }else if(!enabled&&loan){
+    if(loan.pistol)items.pistol=loan.pistol;else delete items.pistol
+    if(selected==='pistol')selected=loan.selected
+    loan=null
+   }else return false
+   cooldown=reloading=swingLeft=kick=boltLeft=0
+   return true
+  },
   select(id){
    if(!Object.hasOwn(items,id)||swingLeft>0)return false
    if(selected===id)return true
@@ -46,6 +62,7 @@ export function createLoadout(storage,episode){
   },
   buy(id,kind){
    const fail=message=>({ok:false,message})
+   if(loan&&id==='pistol')return fail('임무 장비 반납 후 구매하십시오.')
    if(!Object.hasOwn(gear,id)||!gear[id].price||!episode)return fail('판매하지 않는 장비야.')
    const def=gear[id],owned=Object.hasOwn(items,id)
    if(kind==='weapon'&&owned)return fail('이미 보유한 장비야.')

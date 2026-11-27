@@ -3,7 +3,7 @@ import {createEquipmentArt} from './equipment-art.js'
 import {equipmentTrace} from './equipment-contact.js'
 import {gear} from './equipment.js'
 
-export function policeFire(boxes,traffic,residents){
+export function policeFire(boxes,traffic,residents,eligible=resident=>resident.officer){
  const trace=equipmentTrace(boxes,traffic,residents)
  const start=new Vector3(),target=new Vector3(),ray=new Vector3(),end=new Vector3()
  const states=new WeakMap()
@@ -28,7 +28,7 @@ export function policeFire(boxes,traffic,residents){
   escalate(){armed=true},
   update(dt,wanted){if(!wanted)armed=false;spacing=Math.max(0,spacing-dt)},
   aim(officer,player,distance){
-   if(!armed||!player.exposed||!officer.officer||officer.f.action||officer.policeOrder?.aboard||distance>23)return false
+   if(!armed||!player.exposed||!eligible(officer)||officer.f.action||officer.policeOrder?.aboard||distance>23)return false
    start.copy(officer.pos);start.y+=officer.height*.77
    return clear(officer,player,start)
   },

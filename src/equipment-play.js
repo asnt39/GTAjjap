@@ -18,13 +18,16 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const impact=new Mesh(meshGeometry,new MeshBasicMaterial({color:0xffbf83,toneMapped:false}))
  impact.scale.setScalar(.055);scene.add(impact)
  impact.visible=false
- let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure='',throwTime=null
+ let impactTime=0,batConnected=false,hasPrevious=false,queued=false,lastFailure='',throwTime=null,scriptedHit=false
  const throwRelease=.28,throwLength=.53
  const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
  function hit(n,point,amount,kind='shot'){
   const zone=point.y>n.pos.y+n.height*.77?'upper':'body'
-  if(crowd.receive(n,player.pos,zone,point,amount,kind))onHit(n)
+  if(crowd.receive(n,player.pos,zone,point,amount,kind)){
+   scriptedHit||=n.missionRole==='hostile'
+   onHit(n)
+  }
  }
  function segment(from,to){
   direction.subVectors(to,from);const length=direction.length()
@@ -33,6 +36,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  }
  function fire(){
   const priorLevel=crowd.wanted.level
+  scriptedHit=false
   const shotgun=loadout.selected==='shotgun', sniper=loadout.def.lethal===true
   const range=loadout.def.range, visualRange=Number.isFinite(range)?range:camera.far
   camera.getWorldDirection(direction)
@@ -75,7 +79,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   }
   effects?.muzzle(muzzle,sniper?8:shotgun?5:2)
   art.flash()
-  onShot(loadout.selected);crowd.hearShot(player.pos,crowd.wanted.level>priorLevel)
+  onShot(loadout.selected);crowd.hearShot(player.pos,scriptedHit||crowd.wanted.level>priorLevel)
  }
  function sweep(from,to){
   const result=segment(from,to)

@@ -2,6 +2,7 @@ import {foundryGarden} from './foundry-garden.js'
 import * as T from 'three'
 import {streamDistrict} from './district-stream.js'
 import {loadWorksDetail} from './works-detail.js'
+import {worksLoft,worksRear,worksRoof,worksStair} from './prologue-plan.js'
 
 export function buildWestBank(scene,addCollider,maps,colliders) {
  const district=new T.Group()
@@ -14,10 +15,11 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  const paint=new T.MeshStandardMaterial({color:0xc6bb9c,roughness:.8})
  const plants=new T.MeshStandardMaterial({color:0x566340,roughness:.95})
  const warm=new T.MeshStandardMaterial({color:0xffdf9e,emissive:0xc88641,emissiveIntensity:.65})
+ const glass=new T.MeshStandardMaterial({color:0x8eaaa3,metalness:.32,roughness:.22,transparent:true,opacity:.55})
  const pieces=new Map()
- function box(mat,x,y,z,width,height,depth,rotation=0){
+ function box(mat,x,y,z,width,height,depth,rotation=0,pitch=0){
   const batch=pieces.get(mat)??[]
-  batch.push([x,y,z,width,height,depth,rotation]);pieces.set(mat,batch)
+  batch.push([x,y,z,width,height,depth,rotation,pitch]);pieces.set(mat,batch)
  }
  function column(mat,x,z,r,height,y=height/2){
   const mesh=new T.Mesh(new T.CylinderGeometry(r*.82,r,height,10),mat)
@@ -32,17 +34,97 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   const mesh=new T.Mesh(new T.PlaneGeometry(width,width*.21),new T.MeshStandardMaterial({map,side:T.DoubleSide}))
   mesh.position.set(x,y,z);mesh.rotation.y=angle;district.add(mesh)
  }
+ function clerestory(a,b,n,s,east){
+  const x=(a+b)*.5,z=(n+s)*.5
+  const lower=4.36,upper=5.47,h=upper-lower
+  const along=east?s-n:b-a,start=east?n:a,nBays=Math.max(1,Math.floor(along/2.48))
+  const run=(along-.44)/nBays
+  for(const [bottom,top] of [[0,lower],[upper,worksRoof]])
+   box(brick,x,(bottom+top)/2,z,b-a,top-bottom,s-n)
+  for(let i=0;i<=nBays;i++){
+   const at=start+.22+i*run
+   box(brick,east?x:at,(lower+upper)/2,east?at:z,east?b-a:.37,h,east?.37:s-n)
+  }
+  for(let i=0;i<nBays;i++){
+   const at=start+.22+(i+.5)*run
+   box(glass,east?b-.13:at,(lower+upper)/2,east?at:s-.13,east?.11:run-.36,h-.12,east?run-.36:.11)
+   for(const y of [lower+.04,upper-.04])
+    box(steel,east?b+.006:at,y,east?at:s+.006,east?.087:run-.32,.084,east?run-.32:.087)
+   for(const shift of [-run*.22,run*.22])
+    box(steel,east?b+.012:at+shift,(lower+upper)/2,east?at+shift:s+.012,east?.078:.058,h,east?.058:.078)
+  }
+  box(stone,east?b+.028:x,lower-.08,east?z:s+.028,east?.44:along,.15,east?along:.44)
+ }
  for(const [a,b,n,s,h] of [
-  [-139,-138.7,29,49,3.8],[-119.3,-119,29,49,3.8],[-139,-119,48.7,49,3.8],
-  [-139,-132.2,29,29.32,3.8],[-125.8,-119,29,29.32,3.8],
+  [-139,-138.7,29,49,worksRoof],[-119.3,-119,29,worksRear.z-.91,worksRoof],
+  [-119.3,-119,worksRear.z+.91,49,worksRoof],[-139,-119,48.7,49,worksRoof],
+  [-139,-132.2,29,29.32,worksRoof],[-125.8,-119,29,29.32,worksRoof],
   [-137.5,-133.7,47.6,48.65,1.12],[-121.4,-119.32,45.4,48.65,1.8]
  ]){
   addCollider(a,b,n,s,h)
   const mat=h>3?brick:h<.8?wood:steel
-  box(mat,(a+b)/2,h*.5,(n+s)/2,b-a,h,s-n)
+  if(a===-119.3||n===48.7&&h===worksRoof)clerestory(a,b,n,s,a===-119.3)
+  else box(mat,(a+b)/2,h*.5,(n+s)/2,b-a,h,s-n)
  }
  box(stone,-129,.043,39,19.4,.086,19.2)
- box(steel,-129,3.86,39,20.6,.19,20.6)
+ box(steel,-129,worksRoof+.085,39,20.6,.19,20.6)
+ box(brick,-129,(3.67+worksRoof)*.5,29.16,6.4,worksRoof-3.67,.32)
+ box(brick,-119.16,(2.68+worksRoof)*.5,worksRear.z,.32,worksRoof-2.68,1.82)
+ addCollider(-119.32,-119,worksRear.z-.91,worksRear.z+.91,worksRoof,false,2.68)
+ for(const x of [-119.38,-118.94])for(const z of [worksRear.z-.94,worksRear.z+.94])box(steel,x,1.40,z,.15,2.70,.13)
+ for(const x of [-130.8,-127.2])box(steel,x,1.39,49.25,.18,2.78,.76)
+ for(const x of [-137.75,-133.5,-129,-124.5,-120.25])box(stone,x,1.99,49.065,.34,3.98,.27)
+ for(const z of [29.85,34.2,38.4,44.45,48.24])box(stone,-118.95,1.99,z,.21,3.98,.34)
+ box(stone,-129,.26,49.11,20,.52,.25)
+ for(const [n,s] of [[29,worksRear.z-.91],[worksRear.z+.91,49]])box(stone,-118.98,.26,(n+s)/2,.26,.52,s-n)
+ box(steel,-118.37,3.05,worksRear.z,1.62,.17,3.1,0,.043)
+ box(warm,-118.67,2.95,worksRear.z,.33,.059,1.82)
+ for(const z of [worksRear.z-1.27,worksRear.z+1.27])box(steel,-118.58,2.72,z,.86,.078,.058,0,0)
+ for(const z of [30.4,36.7,44.7,48.1]){
+  box(steel,-129,5.6,z,19.24,.27,.24)
+  box(steel,-129,6.03,z,19.24,.14,.14)
+  for(const x of [-135.9,-131.4,-126.6,-122.1])box(steel,x,5.82,z,.11,.64,.12,.24)
+  for(const x of [-135.7,-122.2])box(warm,x,5.44,z,1.94,.075,.17)
+ }
+ for(const x of [-134.7,-123.3]){
+  box(steel,x,6.72,37.9,5.3,1.00,1.8)
+  box(warm,x,6.81,36.984,4.68,.49,.041)
+  box(steel,x,7.26,37.8,5.51,.18,2.26,.04)
+  for(let i=-2;i<3;i++)box(steel,x+i*.92,6.79,36.953,.071,.63,.06)
+ }
+ const catwalk=worksLoft,stair=worksStair,platformHeight=catwalk.height
+ const platformX=(catwalk.west+catwalk.east)*.5,platformZ=(catwalk.north+catwalk.south)*.5
+ box(steel,platformX,platformHeight-.10,platformZ,catwalk.east-catwalk.west,.20,catwalk.south-catwalk.north)
+ addCollider(catwalk.west,catwalk.east,catwalk.north,catwalk.south,platformHeight,true,platformHeight-.20)
+ const run=(stair.south-stair.north)/stair.steps,stepWidth=stair.east-stair.west
+ for(let i=0;i<stair.steps;i++){
+  const z=stair.south-(i+.5)*run,y=(i+1)*platformHeight/stair.steps
+  box(steel,(stair.west+stair.east)*.5,y-.055,z,stepWidth,.11,run+.015)
+  box(paint,(stair.west+stair.east)*.5,y,z+.242,stepWidth-.18,.02,.05)
+ }
+ for(const side of [stair.west,stair.east]){
+  for(let i=0;i<=6;i+=1)box(steel,side,.52+platformHeight*i/6,stair.south-(stair.south-stair.north)*i/6,.061,1.10,.065)
+  box(steel,side,1.04+platformHeight*.5,(stair.north+stair.south)*.5,.074,.069,Math.hypot(stair.south-stair.north,platformHeight),0,Math.atan2(platformHeight,stair.south-stair.north))
+ }
+ box(steel,catwalk.east,platformHeight+1.04,platformZ,.075,.085,catwalk.south-catwalk.north)
+ for(let z=catwalk.north+.20;z<catwalk.south;z+=1.7)box(steel,catwalk.east,platformHeight+.52,z,.075,1.10,.075)
+ addCollider(catwalk.east-.039,catwalk.east+.039,catwalk.north,catwalk.south,platformHeight+1.1,false,platformHeight)
+ for(const [a,b] of [[catwalk.west,stair.west],[stair.east,catwalk.east]]){
+  box(steel,(a+b)*.5,platformHeight+1,catwalk.south,b-a,.085,.075)
+  addCollider(a,b,catwalk.south-.04,catwalk.south+.04,platformHeight+1.1,false,platformHeight)
+ }
+ // Retired machinery remains as cover in the production aisle.
+ for(const [x,z,w,d,h] of [[-132.94,35.0,1.74,2.6,1.38],[-124.25,35.75,2.56,1.63,1.24],[-132,42.45,1.75,1.25,1.2],[-125.4,44.1,1.25,.8,1.31]]){
+  box(steel,x,.19,z,w+.14,.37,d+.14)
+  box(steel,x,h*.54,z,w,h*.84,d)
+  box(wood,x,h,z,w+.06,.15,d+.06)
+  box(warm,x+w*.31,.86,z-d*.51,.15,.11,.04)
+  addCollider(x-w/2,x+w/2,z-d/2,z+d/2,h+.09)
+ }
+ for(let x=-118.7;x<-116.15;x+=.43)box(paint,x,.095,worksRear.z-1.12,.17,.013,.05)
+ for(let x=-118.7;x<-116.15;x+=.43)box(paint,x,.095,worksRear.z+1.12,.17,.013,.05)
+ sign('FABRICATION HALL',-129,4.77,28.93,5.4)
+ sign('SERVICE EXIT',-118.92,2.96,worksRear.z,1.68,Math.PI/2)
  box(stone,-129,3.51,29.15,6.4,.39,.35)
  for(const x of [-132.32,-125.68])box(steel,x,1.67,29.08,.18,3.34,.22)
  for(let i=0;i<5;i++)box(steel,-129,3.15+i*.081,29.18,6.3,.059,.20)
@@ -150,8 +232,8 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  for(const [mat,parts] of pieces){
   const mesh=new T.InstancedMesh(solid,mat,parts.length)
   mesh.receiveShadow=true;mesh.castShadow=false
-  parts.forEach(([x,y,z,w,h,d,ry],i)=>{
-   stamp.position.set(x,y,z);stamp.rotation.y=ry;stamp.scale.set(w,h,d);stamp.updateMatrix();mesh.setMatrixAt(i,stamp.matrix)
+  parts.forEach(([x,y,z,w,h,d,ry,rx],i)=>{
+   stamp.position.set(x,y,z);stamp.rotation.set(rx,ry,0);stamp.scale.set(w,h,d);stamp.updateMatrix();mesh.setMatrixAt(i,stamp.matrix)
   })
   district.add(mesh);batches.push(mesh)
  }

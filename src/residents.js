@@ -144,7 +144,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   else n.blocked=0
  }
  function candidates(p){
-  return all.filter(n=>!(n.officer&&wanted.level)&&!n.policeOrder?.aboard&&n.alert<=0&&!n.f.action&&n.f.hp&&
+  return all.filter(n=>!n.missionRole&&!(n.officer&&wanted.level)&&!n.policeOrder?.aboard&&n.alert<=0&&!n.f.action&&n.f.hp&&
    distance(p,n.pos)<2.1&&Math.abs((p.y??0)-n.pos.y)<.9&&lineClear(p,n.pos))
  }
  function candidate(p){
@@ -157,7 +157,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  function hearShot(source,reported=false){
   // React once per game sound. Reuse the normal flee and patrol states.
   for(const n of all){
-   if(!n.f.hp||distance(n.pos,source)>16)continue
+   if(n.missionRole||!n.f.hp||distance(n.pos,source)>16)continue
    if(!n.officer){n.state='flee';n.alert=Math.max(n.alert,4);n.replan=0}
   }
   if(!reported&&officers.some(n=>n.f.hp>0&&distance(n.pos,source)<22)){
@@ -168,6 +168,10 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
   if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
+  if(n.missionRole){
+   impulse(n.f,kind,-Math.sin(angle),-Math.cos(angle),damage??24,{face:n.face})
+   return true
+  }
   life.cancelGreeting(n);endTalk()
   if(n.officer&&!n.f.hp){firearms.escalate();wanted.report(source,3)}
   if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
@@ -238,7 +242,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   shadowDirty=false
   life.social(dt,player.pos,n=>fleet.some(vehicle=>Math.abs(vehicle.speed)>1&&distance(n.pos,vehicle)<5))
   for(const n of all){
-   if(n===player.custodyOfficer||n.policeOrder?.aboard)continue
+   if(n.missionRole||n===player.custodyOfficer||n.policeOrder?.aboard)continue
    const p=n.pos,d=distance(p,player.pos),priorFace=n.face
    visibleSphere.center.set(p.x,p.y+1,p.z)
    const visible=d<95&&frustum.intersectsSphere(visibleSphere)

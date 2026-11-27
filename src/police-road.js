@@ -1,4 +1,5 @@
 import {clearPose,overlapsCar,stepDrive} from './driving.js'
+import {cityTrafficCircuits} from './city-traffic-plan.js'
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const angleError=(target,current)=>Math.atan2(Math.sin(target-current),Math.cos(target-current))
@@ -49,10 +50,10 @@ for(const road of roads){
  for(const exit of roads)if(exit!==road)arc(road.in[0],exit.out[0],6)
 }
 
-function nearest(position,headingWeight,preferAhead=false){
+function nearest(position,headingWeight,preferAhead=false,network=nodes){
  const dx=Math.sin(position.heading??0),dz=-Math.cos(position.heading??0)
  let winner,score=Infinity
- for(const node of nodes){
+ for(const node of network){
   const angle=1-node.dx*dx-node.dz*dz
   const behind=preferAhead&&((node.x-position.x)*dx+(node.z-position.z)*dz<-.25)
   const cost=range(position,node)+headingWeight*angle+(behind?1.8:0)
@@ -100,21 +101,40 @@ export function civilianNext(node,turn){
  return allowed[turn%allowed.length]
 }
 
-export function policeRoute(start,target){
- return route(nearest(start,5,true),nearest(target,2.6))
+export function policeRoute(start,target,network=nodes){
+ return route(nearest(start,5,true,network),nearest(target,2.6,false,network))
 }
 
-export function roadDriver(car){
+export function pursuitRoadNetwork(){
+ const main=nodes.map(node=>({...node,edges:[]}))
+ for(const node of nodes)main[node.id].edges=node.edges.map(edge=>main[edge.id])
+ const circuits=cityTrafficCircuits().flatMap(layout=>layout.nodes)
+ // The municipal graph and the district loops share the westbound Market lane.
+ // Connect at several matching positions so retargeting never requires a jump.
+ for(const a of main){
+  if(a.curve||a.x>-22||a.x<-60||Math.abs(a.z+39.74)>.2||a.dx>-.96)continue
+  const b=circuits.find(n=>!n.curve&&n.dx<-.96&&Math.abs(n.z-a.z)<.35&&n.x<a.x-.36&&a.x-n.x<3.1)
+  if(b)a.edges.push(b)
+ }
+ for(const a of circuits){
+  if(a.curve||Math.abs(a.x-1.67)>.15||a.z<19||a.z>38||a.dz>-.96)continue
+  const b=main.find(n=>!n.curve&&n.dz<-.96&&Math.abs(n.x-a.x)<.36&&n.z<a.z-.4&&a.z-n.z<4.5)
+  if(b)a.edges.push(b)
+ }
+ return [...main,...circuits]
+}
+
+export function roadDriver(car,{network=nodes,top=11.5}={}){
  let wait=0,path=[],cursor=0,goal=null,stalled=0,recover=0,pass=null
  return {
   reset(){wait=0;path=[];cursor=0;goal=null;pass=null;stalled=recover=0},
   step(dt,boxes,traffic,target,{follow=false,park=false}={}){
    wait-=dt
-   const next=wait<=0?nearest(target,2.6):goal
+   const next=wait<=0?nearest(target,2.6,false,network):goal
    if(wait<=0){
     wait=.35
     if(next!==goal||!path.length||stalled>1.05){
-     goal=next;path=route(nearest(car,5,true),goal);cursor=0
+     goal=next;path=route(nearest(car,5,true,network),goal);cursor=0
     }
    }
    const gap=range(car,target)
@@ -164,7 +184,7 @@ export function roadDriver(car){
    const turn=Math.abs(error)
    const bend=node?Math.abs(angleError(Math.atan2(node.dx,-node.dz),car.heading)):0
    const stop=follow?4.8:park?1.6:3
-   const limit=Math.min(turn>.53||bend>.62?3.15:pass?4.5:turn>.27||bend>.28?5.5:11.5,
+   const limit=Math.min(turn>.53||bend>.62?3.15:pass?4.5:turn>.27||bend>.28?5.5:top,
     Math.sqrt(2*5.5*Math.max(0,gap-stop)))
    // If the last seen position is beyond a drivable terminus, hold the lane
    // and wait for a fresh destination instead of circling or climbing the curb.
