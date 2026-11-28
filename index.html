@@ -7,7 +7,9 @@
 </head>
 <body>
 <section id="cinematic-intro" aria-label="Harborline 인트로" tabindex="-1">
- <audio src="/assets/intro/harborline-opening.m4a" preload="metadata"></audio>
+ <div id="intro-frame">
+  <video id="intro-video" src="/assets/intro/HL_GTA_Intro_Clean_Voice.mp4" playsinline preload="metadata" aria-label="Harborline 오프닝 영상"></video>
+ </div>
  <div id="intro-recovery" hidden>
   <p id="intro-message" role="status"></p>
   <button id="intro-retry" type="button">다시 시도</button>

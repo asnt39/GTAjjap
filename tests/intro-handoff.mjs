@@ -5,15 +5,15 @@ import {setImmediate} from 'node:timers/promises'
 import {test} from 'node:test'
 
 const source=await readFile(new URL('../src/cinematic-intro.js',import.meta.url),'utf8')
-function boot({stored=false,discarded=false,hidden=true,preview=false}={}){
+function boot({stored=false,discarded=false,hidden=true,preview=false,blockUnmuted=false}={}){
  const elements=new Map(),globalEvents=new Map(),visibility=[]
  const updateLifecycle=[]
  let playing=0,ready,started=0,initializations=0
  const record=new Map(stored?[['harborline.introSeen.v1','1']]:[])
  function element(querySelector){
-  return {classList:{add(){},remove(){},toggle(){}},listeners:{},querySelector,contains(){return false},
+  return {classList:{add(){},remove(){},toggle(name,active){this[name]=active}},listeners:{},querySelector,contains(){return false},
    addEventListener(type,fn){this.listeners[type]=fn},focus(){},pause(){},load(){},
-   play(){playing++;return Promise.resolve()},getAttribute(){},removeAttribute(){},remove(){this.removed=true},
+   play(){playing++;return blockUnmuted&&playing===1?Promise.reject({name:'NotAllowedError'}):Promise.resolve()},getAttribute(){},removeAttribute(){},remove(){this.removed=true},
    cloneNode(){const children=new Map();return element(id=>{
     if(!children.has(id))children.set(id,element(()=>null))
     return children.get(id)
@@ -37,13 +37,13 @@ function boot({stored=false,discarded=false,hidden=true,preview=false}={}){
   AbortController,mainModule,requestAnimationFrame(){},
   setTimeout:()=>0,clearTimeout(){},console
  })
- const end=node=>node.querySelector('audio').listeners.ended()
+ const end=node=>node.querySelector('video').listeners.ended()
  return {ready,game,intro:get('#cinematic-intro'),status:get('#status'),started:()=>started,playing:()=>playing,
   inits:()=>initializations,replay:()=>globalEvents.get('harborline:replay-intro')(),end,updateLifecycle,
   visible(value){doc.hidden=!value;for(const {fn,signal} of visibility)if(!signal.aborted)fn()}}
 }
 
-test('the audio ends before gameplay starts, and boot runs once',async()=>{
+test('the video ends before gameplay starts, and boot runs once',async()=>{
  const app=boot({hidden:false})
  assert.equal(app.playing(),1)
  assert.equal(typeof app.intro.listeners.click,'function')
@@ -69,7 +69,7 @@ test('asset previews use the same intro handoff without starting release monitor
  await setImmediate()
  assert.deepEqual(app.updateLifecycle,['enter','game'])
 })
-test('backgrounding pauses the audio and replay does not reset the game',async()=>{
+test('backgrounding pauses the video and replay does not reset the game',async()=>{
  const app=boot({hidden:false})
  app.visible(false)
  app.ready()
@@ -95,7 +95,7 @@ test('backgrounding pauses the audio and replay does not reset the game',async()
  assert.equal(app.started(),1)
  assert.equal(app.inits(),1)
 })
-test('new pages play the audio even with the old seen flag or a browser discard',async()=>{
+test('new pages play the video even with the old seen flag or a browser discard',async()=>{
  for(const options of [{stored:true},{discarded:true}]){
   const app=boot({...options,hidden:false})
   app.ready()
@@ -120,4 +120,23 @@ test('clicking the intro hands off to the game',async()=>{
  await setImmediate()
  assert.equal(app.started(),1)
  assert.equal(app.game.inert,false)
+})
+
+test('the corner wordmark appears after the preserved opening animation',()=>{
+ const app=boot({hidden:false}),video=app.intro.querySelector('video')
+ video.currentTime=7
+ video.listeners.timeupdate()
+ assert.equal(app.intro.classList['corner-logo'],false)
+ video.currentTime=8.2
+ video.listeners.timeupdate()
+ assert.equal(app.intro.classList['corner-logo'],true)
+})
+
+test('autoplay requests sound first and the first pointer input unmutes a browser fallback',async()=>{
+ const app=boot({hidden:false,blockUnmuted:true}),video=app.intro.querySelector('video')
+ assert.equal(video.muted,false)
+ await setImmediate()
+ assert.equal(video.muted,true)
+ app.intro.listeners.pointerdown()
+ assert.equal(video.muted,false)
 })

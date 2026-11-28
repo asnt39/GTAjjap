@@ -35,14 +35,14 @@ function mountIntro(intro,{replay=false}={}){
   active=true
   const previousFocus=document.activeElement
   game.inert=true
-  const audio = intro.querySelector('audio')
+  const video = intro.querySelector('video')
   const prompt = intro.querySelector('#intro-recovery')
   const play = intro.querySelector('#intro-retry')
   const message = intro.querySelector('#intro-message')
   const mediaEvents = new AbortController()
   const inputEvents = new AbortController()
-  const previewSource = window.harborPreviewAssets?.[audio.getAttribute('src')]
-  if (previewSource) audio.src = previewSource
+  const previewSource = window.harborPreviewAssets?.[video.getAttribute('src')]
+  if (previewSource) video.src = previewSource
 
   let phase = 'prompt'
   let playbackAttempt = 0
@@ -59,7 +59,7 @@ function mountIntro(intro,{replay=false}={}){
     phase = 'prompt'
     retry = restart
     clearTimeout(playbackTimeout)
-    audio.pause()
+    video.pause()
     intro.classList.remove('playing')
     prompt.hidden = false
     play.disabled = false
@@ -84,13 +84,13 @@ function mountIntro(intro,{replay=false}={}){
     clearTimeout(failureHandoff)
     phase = 'starting'
     const attempt = ++playbackAttempt
-    if (retry || audio.error) audio.load()
+    if (retry || video.error) video.load()
     retry = false
     play.disabled = true
     message.textContent = '오프닝 준비 중'
     watchForPlayback()
-    audio.muted = muted
-    audio.play().catch(error => {
+    video.muted = muted
+    video.play().catch(error => {
       if (attempt !== playbackAttempt || phase !== 'starting') return
       if (allowMutedFallback && error.name === 'NotAllowedError') startPlayback(true)
       else failPlayback()
@@ -103,12 +103,12 @@ function mountIntro(intro,{replay=false}={}){
     clearTimeout(playbackTimeout)
     clearTimeout(failureHandoff)
     mediaEvents.abort()
-    audio.pause()
-    audio.removeAttribute('src')
+    video.pause()
+    video.removeAttribute('src')
     if (!replay) status.hidden = Boolean(enableGame && !gameFailed)
     status.removeAttribute('aria-hidden')
     intro.remove()
-    audio.load()
+    video.load()
     if (replay) {
       game.inert = gameFailed
       inputEvents.abort()
@@ -137,12 +137,12 @@ function mountIntro(intro,{replay=false}={}){
 
   const media = {signal: mediaEvents.signal}
   play.addEventListener('click', () => {
-    if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : audio.muted)
+    if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : video.muted)
   }, media)
   function enableSound(){
-    if(!audio.muted)return
-    audio.muted=false
-    if(audio.paused&&phase!=='exiting')startPlayback(false)
+    if(!video.muted)return
+    video.muted=false
+    if(video.paused&&phase!=='exiting')startPlayback(false)
   }
   intro.addEventListener('pointerdown',enableSound,media)
   intro.addEventListener('keydown',event=>{
@@ -154,7 +154,7 @@ function mountIntro(intro,{replay=false}={}){
   intro.addEventListener('click',event=>{
     if(event?.target!==play)void finish()
   },media)
-  audio.addEventListener('playing', () => {
+  video.addEventListener('playing', () => {
     if (!isPlayingOrStarting()) return
     clearTimeout(playbackTimeout)
     phase = 'playing'
@@ -162,11 +162,14 @@ function mountIntro(intro,{replay=false}={}){
     prompt.hidden = true
     intro.classList.add('playing')
   }, media)
-  audio.addEventListener('waiting', () => {
+  video.addEventListener('waiting', () => {
     if (isPlayingOrStarting()) watchForPlayback()
   }, media)
-  audio.addEventListener('ended', finish, media)
-  audio.addEventListener('error', failPlayback, media)
+  // Preserve the original title animation until the embedded logo settles in the corner.
+  const showCornerWordmark=()=>intro.classList.toggle('corner-logo',video.currentTime>=8.2)
+  video.addEventListener('timeupdate',showCornerWordmark,media)
+  video.addEventListener('ended', finish, media)
+  video.addEventListener('error', failPlayback, media)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && isPlayingOrStarting()) {
       showPrompt('인트로 계속', '', false)

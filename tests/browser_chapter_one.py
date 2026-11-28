@@ -65,7 +65,7 @@ with ThreadingHTTPServer(('127.0.0.1',0),Handler) as server,sync_playwright() as
  current['value']=root
  page.bring_to_front()
  page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
- page.wait_for_function("document.querySelector('#intro-wordmark') !== null",timeout=20000)
+ page.wait_for_function("document.querySelector('#intro-video') !== null && document.querySelector('#intro-wordmark') !== null",timeout=20000)
  assert entry(root) in seen
  open_game(page)
  assert '빼앗긴 몫' in page.locator('#game').inner_text()
