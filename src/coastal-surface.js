@@ -46,7 +46,7 @@ function coastBreakers(){
 }
 
 export function coastalSurface(){
- const uniforms={...T.UniformsUtils.clone(T.UniformsLib.fog),time:{value:0},rippleQuality:{value:1},
+ const uniforms={...T.UniformsUtils.clone(T.UniformsLib.fog),time:{value:0},rippleQuality:{value:1},reflections:{value:2},
   waves:{value:waveNormals()},breakers:{value:coastBreakers()},skyMap:{value:null},
   sunDirection:{value:new T.Vector3(34,37,-40).normalize()},
   sunTint:{value:new T.Color(0xffc597)},skyIntensity:{value:.65},skyRotation:{value:2.1}}
@@ -67,7 +67,7 @@ export function coastalSurface(){
     #include <fog_vertex>
    }`,
   fragmentShader:`
-   uniform float time,rippleQuality,skyIntensity,skyRotation;
+   uniform float time,rippleQuality,reflections,skyIntensity,skyRotation;
    uniform sampler2D waves,breakers,skyMap;
    uniform vec3 sunDirection,sunTint;
    varying vec3 world;
@@ -100,18 +100,6 @@ export function coastalSurface(){
     n*=above*2.-1.;
     float ndv=max(dot(n,ray),0.);
     float fresnel=.021+.979*pow(1.-ndv,5.);
-    vec3 reflection=reflect(-ray,n);
-    float horizon=clamp(reflection.y*.75+.20,0.,1.);
-    vec3 sky=mix(vec3(.26,.40,.47),vec3(.17,.27,.44),horizon);
-    float sunGlare=pow(max(0.,dot(reflection,sunDirection)),52.);
-    if(rippleQuality>.6&&above>.5){
-     vec2 env=vec2(fract(atan(reflection.z,reflection.x)*.159155+.5-skyRotation*.159155),
-                    asin(clamp(reflection.y,-1.,1.))*.31831+.5);
-     vec3 hdr=clamp(texture2D(skyMap,env).rgb*skyIntensity,vec3(.07),vec3(1.35));
-     sky=mix(sky,hdr,.48);
-    }
-    sky+=sunTint*(.06*pow(max(0.,dot(reflection,sunDirection)),6.)+.66*sunGlare);
-
     float deep=1.-exp(-depth*.42);
     vec3 scatter=mix(vec3(.18,.32,.225),vec3(.028,.11,.145),mix(1.,deep,coast));
     float wet=1.-exp(-depth*.66);
@@ -130,10 +118,23 @@ export function coastalSurface(){
     // The vertical quay remains reflective, with a narrow band of breaking chop.
     float wall=(1.-smoothstep(.09,.55,abs(p.x-26.2-wave*2.)))*(1.-smoothstep(38.,44.,p.y))*smoothstep(-74.,-67.,p.y);
     white=max(white,wall*breakups*.32);
-    vec3 color=mix(scatter,sky,.09+.80*fresnel);
+    vec3 color=above>.5?scatter:vec3(.115,.32,.32);
+    if(reflections>.5){
+     vec3 reflection=reflect(-ray,n);
+     float horizon=clamp(reflection.y*.75+.20,0.,1.);
+     vec3 sky=mix(vec3(.26,.40,.47),vec3(.17,.27,.44),horizon);
+     if(reflections>1.5&&above>.5){
+      vec2 env=vec2(fract(atan(reflection.z,reflection.x)*.159155+.5-skyRotation*.159155),
+                     asin(clamp(reflection.y,-1.,1.))*.31831+.5);
+      vec3 hdr=clamp(texture2D(skyMap,env).rgb*skyIntensity,vec3(.07),vec3(1.35));
+      sky=mix(sky,hdr,.48);
+     }
+     float towardSun=max(0.,dot(reflection,sunDirection));
+     sky+=sunTint*(.06*pow(towardSun,6.)+.66*pow(towardSun,52.));
+     color=above>.5?mix(color,sky,.09+.80*fresnel):mix(color,sky*.65,.34+.41*fresnel);
+    }
     float opacity=mix(clarity,.995,fresnel*.85);
     if(above<.5){
-     color=mix(vec3(.115,.32,.32),sky*.65,.34+.41*fresnel);
      opacity=.73+.23*fresnel;
      white*=.4;
     }

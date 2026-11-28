@@ -153,6 +153,25 @@ test('mixer loads only after enabling and releases tracks on backgrounding',asyn
  assert.equal(musicCue({wanted:2,radio:true,driving:true}), 'radio')
 })
 
+test('death plays one cue and holds the current score until recovery',async()=>{
+ FakeAudio.files=[]
+ const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio})
+ const frame={x:0,z:0,yaw:0,t:0,car:{speed:0,setup:{}}}
+ assert(await mixer.toggle())
+ const ctx=FakeAudioContext.latest
+ ctx.currentTime=3;mixer.update(frame)
+ assert.match(FakeAudio.files.at(-1).src,/market-lights/)
+ const before=ctx.startedBuffers.length
+ mixer.death(true);mixer.death(true)
+ assert.equal(ctx.startedBuffers.length,before+1)
+ ctx.currentTime=5;mixer.update({...frame,wanted:2})
+ assert.equal(FakeAudio.files.length,1)
+ mixer.death(false);mixer.update({...frame,wanted:2})
+ assert.match(FakeAudio.files.at(-1).src,/blue-beacons/)
+ mixer.set('effects',0);mixer.death(true)
+ assert.equal(ctx.startedBuffers.length,before+1)
+})
+
 test('the brake recording plays once for each firm stop and stays silent when parked or muted',async()=>{
  const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio,fetch:async path=>({
   ok:true,arrayBuffer:async()=>new TextEncoder().encode(path).buffer

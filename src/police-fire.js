@@ -8,6 +8,11 @@ export function policeFire(boxes,traffic,residents,eligible=resident=>resident.o
  const start=new Vector3(),target=new Vector3(),ray=new Vector3(),end=new Vector3()
  const states=new WeakMap()
  let armed=false,spacing=0
+ function newState(officer){
+  const state={art:createEquipmentArt(officer.rig),aim:0,cooldown:0,recoil:0,mag:gear.pistol.capacity,reload:0,hold:0}
+  states.set(officer,state)
+  return state
+ }
  function targetPoint(player){
   target.copy(player.pos)
   target.y=player.inVehicle?(player.inVehicle.lift??0)+player.inVehicle.height*.68:target.y+1.28
@@ -24,6 +29,26 @@ export function policeFire(boxes,traffic,residents,eligible=resident=>resident.o
  }
  return {
   get active(){return armed},
+  snapshot(officers){
+   return {armed,spacing,officers:officers.map(officer=>{
+    const state=states.get(officer)
+    if(!state)return null
+    const {art,...timing}=state
+    return timing
+   })}
+  },
+  restore(officers,snapshot){
+   armed=snapshot.armed;spacing=snapshot.spacing
+   for(const [index,officer] of officers.entries()){
+    const timing=snapshot.officers[index],state=states.get(officer)
+    if(timing)Object.assign(state??newState(officer),timing)
+    else if(state){state.art.dispose();states.delete(officer)}
+   }
+  },
+  clear(officers){
+   for(const officer of officers){states.get(officer)?.art.dispose();states.delete(officer)}
+   armed=false;spacing=0
+  },
   reloading:officer=>states.get(officer)?.reload>0,
   escalate(){armed=true},
   update(dt,wanted){if(!wanted)armed=false;spacing=Math.max(0,spacing-dt)},
@@ -35,10 +60,7 @@ export function policeFire(boxes,traffic,residents,eligible=resident=>resident.o
   pose(officer,player,dt,aiming,shot){
    let state=states.get(officer)
    if(!state&&!aiming)return
-   if(!state){
-    state={art:createEquipmentArt(officer.rig),aim:0,cooldown:0,recoil:0,mag:gear.pistol.capacity,reload:0,hold:0}
-    states.set(officer,state)
-   }
+   state??=newState(officer)
    const drawn=armed&&!officer.f.action&&(aiming||state.reload>0||state.hold>0||officer.state==='guard')
    state.hold=aiming?3.4:Math.max(0,state.hold-dt)
    if(drawn&&state.reload>0){

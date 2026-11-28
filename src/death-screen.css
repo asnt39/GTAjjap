@@ -1,15 +1,13 @@
 #world {
+ filter:grayscale(0);
  transition:filter 380ms ease-out;
 }
 
 #game.player-death #world {
  filter:grayscale(1);
- transition-duration:1200ms;
+ transition:filter var(--death-fade,1100ms) ease-in-out;
 }
-
-#game.player-death:has(#death-screen[data-phase='title']) #world {
- transition:none;
-}
+#game.player-death.death-grayscale #world {transition:none}
 
 #game.player-death > :not(#world,#shade,#death-screen) {
  visibility:hidden;
@@ -24,57 +22,86 @@
  max-height:none;
  margin:0;
  border:0;
- padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right))
-  max(clamp(24px,12dvh,126px),calc(env(safe-area-inset-bottom) + 18px))
-  max(clamp(22px,8vw,124px),calc(env(safe-area-inset-left) + 14px));
- background:transparent;
+ padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right))
+  max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
  color:#f6f2e9;
+ background:transparent;
+ text-align:center;
 }
 
 #death-screen[open] {
- display:flex;
- flex-direction:column;
- justify-content:flex-end;
- align-items:flex-start;
+ display:grid;
+ grid-template-rows:1fr auto 1fr;
+ justify-items:center;
 }
 
 #death-screen::backdrop {
- background:linear-gradient(24deg,#090d12ed 2%,#090d1290 30%,transparent 67%);
- animation:death-shade 1200ms ease-out both;
+ background:radial-gradient(ellipse at 50% 44%,transparent 18%,#070b104a 66%,#070b10d9 100%),
+  linear-gradient(180deg,#11171f20,#0d101684 52%,#090e1450 76%,#080b11a6);
+ animation:death-shade var(--death-fade,1100ms) ease-out both;
 }
 
 #death-title {
- margin:0 0 clamp(10px,2.4vh,28px);
- font:900 clamp(4.4rem,min(15vw,29dvh),12rem)/.84 'Barlow Condensed',Impact,sans-serif;
- letter-spacing:.045em;
- text-shadow:0 2px 18px #0009;
+ grid-row:2;
+ grid-column:1;
+ margin:0;
+ color:#ff534b;
+ font:900 clamp(2.6rem,min(17vw,30dvh),11rem)/.88 'Barlow Condensed',Impact,sans-serif;
+ letter-spacing:.025em;
+ text-shadow:0 2px 4px #08070a,0 6px 30px #08070abd;
  visibility:hidden;
 }
 
 #death-screen[data-phase='title'] #death-title {
  visibility:visible;
+ animation:death-shade 160ms ease-out both;
 }
 
-#death-continue {
- min-width:10rem;
- min-height:48px;
- padding:10px 18px;
- border:1px solid #ff9d6d;
+.death-actions,#death-status {
+ grid-row:3;
+ grid-column:1;
+ align-self:start;
+ margin:clamp(12px,5dvh,40px) 0 0;
+}
+
+.death-actions {
+ display:flex;
+ flex-wrap:wrap;
+ justify-content:center;
+ gap:8px;
+}
+
+#death-status {
+ padding:8px 13px;
  border-radius:3px;
- background:#161a20;
- box-shadow:0 4px 18px #0007;
+ background:#10151beb;
 }
 
-#death-continue:disabled {
- visibility:hidden;
+#death-status:empty {
+ padding:0;
 }
 
-#death-screen[data-automatic] #death-continue {
- display:none;
+.death-actions button {
+ min-width:9rem;
+ min-height:48px;
+ padding:9px 16px;
+ border:1px solid #d5d6d79e;
+ border-radius:3px;
+ background:#151b23f0;
+ box-shadow:0 4px 16px #0006;
 }
 
-#death-continue:hover {
- background:#443128;
+.death-actions #death-retry {
+ border-color:#f2846d;
+ background:#3b2528;
+}
+
+.death-actions button:hover {
+ background:#333a42;
+}
+
+.death-actions #death-retry:hover {
+ background:#5b3434;
 }
 
 @keyframes death-shade {
@@ -83,5 +110,7 @@
 }
 
 @media (prefers-reduced-motion:reduce) {
- #game.player-death #world,#death-screen::backdrop {transition-duration:400ms;animation-duration:400ms}
+ #world {transition-duration:120ms}
+ #death-screen::backdrop {animation-duration:200ms}
+ #death-screen[data-phase='title'] #death-title {animation:none}
 }

@@ -1,9 +1,10 @@
 import {BoxGeometry,Group,Mesh,MeshStandardMaterial,Vector3} from 'three'
 import {createCharacter} from './character.js'
+import {missionActorSnapshot,missionVehicleSnapshot,restoreMissionActor,restoreMissionVehicle} from './mission-checkpoint.js'
 import {missionEnemyOutline} from './mission-enemy-outline.js'
 import {clearPose,nearBody,newDrive,overlapsCar,resetVehicleGround} from './driving.js'
 import {advance,combatPose,fighter,injure} from './melee.js'
-import {moveImpact} from './impact-motion.js'
+import {impactReaction,moveImpact} from './impact-motion.js'
 import {cameraFraction,canWalk,movePlayer} from './navigation.js'
 import {policeFire} from './police-fire.js'
 import {pursuitEntry,pursuitRoadNetwork,roadDriver} from './police-road.js'
@@ -78,6 +79,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
  let current=null,actors=[],loaded=false,engagement=0,pursuitCars=[],run=0,unseen=0,traveled=0,position=null
  let network,lastSeen,manifest,manifestSearch=null,manifestTaken=false
  function clean(){
+  gunfire.clear(actors)
   for(const n of actors){
    const i=crowd.all.indexOf(n);if(i>=0)crowd.all.splice(i,1)
    n.outline?.dispose();n.rig.root.removeFromParent();n.rig.dispose()
@@ -94,7 +96,10 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
  function enter(stage){
   clean()
   current=stage?.set??null
-  if(!current||current==='pursuit'){loaded=true;return}
+  if(!current||current==='pursuit'){
+   if(current==='pursuit')startPursuit()
+   loaded=true;return
+  }
   if(current==='quay'){
    manifest??=manifestProp()
    scene.add(manifest)
@@ -123,6 +128,44 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
     gunfire.escalate()
     loaded=true
    })
+ }
+ function prepare(stage){
+  if((stage?.set??null)!==current&&(!current||stage?.carry!==current))enter(stage)
+ }
+ function snapshot(){
+  if(current&&!loaded)return null
+  return {run,current,engagement,unseen,traveled,position,lastSeen,manifestSearch,manifestTaken,
+   actors:actors.map(n=>({...missionActorSnapshot(n),waypoint:n.waypoint})),gunfire:gunfire.snapshot(actors),
+   pursuit:pursuitCars.map(item=>({wait:item.wait,joinedAt:item.joinedAt,car:missionVehicleSnapshot(item.car)}))}
+ }
+ function planRestore(saved){
+  if(saved?.run!==run||saved.current!==current||current&&!loaded||saved.actors.length!==actors.length||
+   saved.pursuit.length!==pursuitCars.length||!actors.every((n,i)=>n.id===saved.actors[i].id))return null
+  return ()=>{
+   ({engagement,unseen,traveled,position,lastSeen,manifestSearch,manifestTaken}=saved)
+   for(const [index,n] of actors.entries()){
+    const state=saved.actors[index]
+    restoreMissionActor(n,state,scene,crowd.all,combatPose)
+    n.waypoint=state.waypoint;n.replan=0;n.leg=null
+   }
+   gunfire.restore(actors,saved.gunfire)
+   if(current==='quay'&&!manifestTaken)scene.add(manifest)
+   else manifest?.removeFromParent()
+   for(const [index,item] of pursuitCars.entries()){
+    const state=saved.pursuit[index],{car,rig,driver}=item
+    item.wait=state.wait;item.joinedAt=state.joinedAt
+    restoreMissionVehicle(car,state.car);driver.reset()
+    const present=traffic.indexOf(car)
+    if(item.joinedAt===null){
+     if(present!==-1)traffic.splice(present,1)
+     rig.root.removeFromParent()
+    }else{
+     if(present===-1)traffic.push(car)
+     if(rig.root.parent!==scene)scene.add(rig.root)
+    }
+    rig.updatePose({...car,dt:0})
+   }
+  }
  }
  function line(a,b){
   const samples=Math.ceil(range(a,b)/.35)
@@ -201,7 +244,14 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
    n.outline?.show(!!n.f.hp&&(lineOfSight||n.waypoint===n.approach.length&&d<13))
    if(!friendly)gunfire.pose(n,target,dt,lineOfSight&&n.speed<2.7,(shooter,from,to)=>{
     if(target===player)combat(shooter,from,to,true)
-    else{combat(shooter,from,to,false);injure(escort.f,8,1,'body',{weaponHit:true})}
+    else{
+     combat(shooter,from,to,false)
+     const earlierHealth=escort.f.hp
+     if(injure(escort.f,8,1,'body',{weaponHit:true})){
+      escort.f.reaction=impactReaction('shot',to.x-from.x,to.z-from.z,escort.face)
+      crowd.markImpact?.(escort,{point:to,source:from,kind:'shot',strength:earlierHealth-escort.f.hp})
+     }
+    }
    })
   }
   const guards=actors.filter(n=>n.missionRole==='hostile')
@@ -211,15 +261,15 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
    failed:!!escort&&!escort.f.hp,escortHealth:escort?.f.hp,threats,
    objectiveStatus:manifestSearch===null?'':'명세서 확인 중'}
  }
+ function startPursuit(){
+  network??=pursuitRoadNetwork()
+  pursuitCars=[{wait:1.8,offset:32,top:19.2},{wait:5.8,offset:43,top:17.8}].map(({wait,offset,top},i)=>{
+   const rig=rigs.civilianRig(i?2:0),setup={...rig.setup,top:24,power:7,brake:10.1}
+   const car=Object.assign(newDrive(rig,setup),{localOnly:true})
+   return {rig,car,wait,offset,joinedAt:null,driver:roadDriver(car,{network,top})}
+  })
+ }
  function stepPursuit(dt,player,driving){
-  if(!pursuitCars.length){
-   network??=pursuitRoadNetwork()
-   pursuitCars=[{wait:1.8,offset:32,top:19.2},{wait:5.8,offset:43,top:17.8}].map(({wait,offset,top},i)=>{
-    const rig=rigs.civilianRig(i?2:0),setup={...rig.setup,top:24,power:7,brake:10.1}
-    const car=Object.assign(newDrive(rig,setup),{localOnly:true})
-    return {rig,car,wait,offset,joinedAt:null,driver:roadDriver(car,{network,top})}
-   })
-  }
   if(driving){
    engagement+=dt
    const target=player.inVehicle
@@ -262,7 +312,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
   return {evaded:unseen>=5.4,threats:following.length,objectiveStatus:unseen>0?'시야를 벗어나는 중':''}
  }
  return {
-  enter,clean,
+  enter,clean,prepare,snapshot,planRestore,
   interaction(stage,pos){
    if(stage?.set!=='quay'||current!=='quay'||!loaded||manifestTaken||manifestSearch!==null||!nearManifest(pos))return null
    return {id:'cargo-manifest',label:'화물 명세서 확인',x:cargoManifest.x,z:cargoManifest.z,activate(){
@@ -277,7 +327,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
    return markers
   },
   step(stage,dt,player,onFoot,driving){
-   if((stage?.set??null)!==current&&(!current||stage?.carry!==current))enter(stage)
+   prepare(stage)
    if(!current)return {}
    if(current==='pursuit')return stepPursuit(dt,player,driving)
    return stepActors(dt,player,onFoot)

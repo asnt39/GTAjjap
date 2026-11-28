@@ -13,6 +13,13 @@ import {residentDisplayName} from './resident-profiles.js'
 import {defaultRoomEndpoint} from './room-client.js'
 import {ROOM_CODE} from './room-protocol.js'
 import {sights} from './navigation.js'
+import {appUpdates} from './app-updates.js'
+import {applyHudSettings, GRAPHICS_CHOICES, OPTION_RANGES} from './game-options.js'
+import {MAX_BACKUP_BYTES,parseSaveBackup} from './save-data.js'
+import {createHealthHUD} from './health-hud.js'
+import './health-hud.css'
+import {controlsMenu, escapeText, formatSaveTime, graphicsMenu, missionMenu, settingsMenu, settingsPages} from './settings-menu.js'
+import './settings-menu.css'
 const $=q=>document.querySelector(q)
 const nearbySight=p=>sights.filter(s=>(s.tag!=='ARM'||insideWeaponShop(p.x,p.z))&&Math.hypot(p.x-s.x,p.z-s.z)<(s.range??3.6)&&(s.y===undefined||Math.abs(p.y-s.y)<.86))
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
@@ -22,6 +29,9 @@ export function createUI(game){
  const selection=interactionSelection(),entries=new Map(),options=$('#interaction-options')
  const missionEvent=$('#mission-event'),toastElement=$('#toast')
  const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
+ const notice=$('#update-notice'),noticeStatus=$('#update-notice-status')
+ const healthHUD=createHealthHUD($('#game'),$('#vitals'))
+ let dismissedBuild=null,pendingBackup=null,dataMessage='',releaseMessage='',backupRequest=0
  let timer
  const toast=message=>{
   missionEvent.hidden=true
@@ -35,29 +45,34 @@ export function createUI(game){
  const missionGoal=()=>story.goal(game.driving()&&game.car.id==='touring')
  let visited=new Set()
  try{const saved=JSON.parse(localStorage.getItem('harborline.visits.v1')||'[]');if(Array.isArray(saved))visited=new Set(saved)}catch{}
- const row=(left,right)=>'<div class="control-row"><span>'+left+'</span><span>'+right+'</span></div>'
- const button=(action,label,end='›')=>'<button type="button" class="menubtn" data-action="'+action+'"><span>'+label+'</span><span>'+end+'</span></button>'
+ const row=(left,right)=>'<div class="control-row"><span>'+escapeText(left)+'</span><span>'+escapeText(right)+'</span></div>'
+ const button=(action,label,end='›')=>'<button type="button" class="menubtn" data-action="'+escapeText(action)+'"><span>'+escapeText(label)+'</span><span>'+escapeText(end)+'</span></button>'
  function close(){
   if(panel==='rooms'&&game.room.phase==='connecting')game.room.leave()
-  panel='';round=null;overlay.hidden=true;game.setPaused(false);audio.pause(false);if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
+  panel='';round=null;pendingBackup=null;backupRequest++;overlay.hidden=true;game.setPaused(false);audio.pause(false);refreshUpdate();updateHealth();if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
   if(game.crowd.talking)return
   $('#vehicle-tools').hidden=true
   if(panel==='rooms'&&name!=='rooms'&&game.room.phase==='connecting')game.room.leave()
   if(panel==='darts'&&name!=='darts')round=null
+  if(name!=='data'){pendingBackup=null;backupRequest++}
   objective.hidden=missionEvent.hidden=true
   if(!panel)priorFocus=document.activeElement;panel=name;game.setPaused(true);audio.pause(true);overlay.hidden=false;interact.hidden=true
+  updateHealth()
   entries.clear();options.replaceChildren()
   if(name!=='darts')audio.sound('ui',null,.60,true)
   const journal=game.episode.snapshot()
+  const archive=game.episode.openingActive?'':game.episode.showingLegacy?'메인 스토리 보기':'이전 항만 의뢰 보기'
+  const supplies=journal.items.filter(item=>item.count>0)
   const menu={
-   bag:[game.episode.showingLegacy?'PORTSIDE':journal.chapter?.toUpperCase()??'WRONG DEAL','교대 수첩',
-    row(journal.title,'₩'+journal.money.toLocaleString())+'<p>'+journal.objective+'</p>'+
-    ((journal.status==='failed'||(journal.status==='available'&&journal.stage>1&&!journal.chapter))?button('retry','의뢰 재시도'):journal.status==='active'?button('abandon','의뢰 중단'):'')+
-    (game.episode.openingActive?'':button('story-archive',game.episode.showingLegacy?'메인 스토리로 돌아가기':'이전 항만 의뢰 보기'))+
-    journal.items.map(i=>i.count?button('use-'+i.id,i.name+' 사용',i.count+'개'):'').join('')+(journal.found?.map(name=>row('발견 기록',name)).join('')??'')],
-   pause:['PORTSIDE DISTRICT','일시 정지',button('resume','탐험 계속하기','↵')+(!game.missionEnabled()||game.mission.active?'':button('mission',game.mission.completed?'FIRST DRIVE 다시 주행':'FIRST DRIVE 시운전 시작'))+button('bag','교대 수첩 · 소지품')+(game.mode()==='walk'?button('equipment','장비함','Q'):'')+button('rooms','온라인 플레이')+button('map','구역 지도','M')+button('controls','조작법','?')+button('audio','오디오 설정')+button('runMode','Shift 이동 속도',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('quality','그래픽 품질',game.quality())+button('traffic','교통량',game.trafficLabel())+button('recovery','복구 도구')+button('replay-intro','인트로 다시 보기')+button('credits','제작 · 라이선스')],
+   missions:['HARBORLINE','미션 보기',missionMenu(journal,game.episode.tracking(),row,button,archive,game.storyStatus())],
+   pause:['','게임 설정',settingsMenu(button,appUpdates.state.current)],
+   graphics:['HARBORLINE','그래픽 상세 설정',graphicsMenu(game.options.values,GRAPHICS_CHOICES,button)],
+   controls:['HARBORLINE','조작 설정',controlsMenu(game.options.values,OPTION_RANGES,button)],
+   data:['HARBORLINE','게임 데이터',dataMenu()],
+   updates:['HARBORLINE','업데이트 확인','<div id="update-details"></div>'+button('check-update','업데이트 확인')+button('apply-update','저장 후 업데이트')+'<p id="update-feedback" class="settings-message" role="status"></p>'],
+   runMode:['HARBORLINE','Shift 이동 속도',row('현재 설정',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('switch-run-mode',game.foot.preference==='toggle'?'누르는 동안 걷기 적용':'걷기와 달리기 전환 적용')],
    audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
     button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
     [['music','배경음악'],['effects','효과음'],['ambient','환경음'],['voice','대사 음량']].map(([key,label])=>
@@ -65,13 +80,14 @@ export function createUI(game){
    atm:['CLOCK COURT','ATM',row('현금','₩'+journal.money.toLocaleString())+row('예금','₩'+journal.bank.toLocaleString())+button('deposit','₩500 입금')+button('withdraw','₩500 출금')],
    darts:['SOUTH ROW SOCIAL CLUB','다트', '<p id="dart-score"></p><meter id="dart-power" aria-label="던지는 힘" min="0" max="1" low=".56" high=".66" optimum=".61"></meter>'+
     '<p class="smallnote">힘이 61%에 가까울수록 점수가 높아. 한 라운드에 세 번 던져.</p>'+button('throw-dart','던지기')],
-   equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'미보유')).join('')+'<p class="smallnote">장비와 예비탄은 차고지 남쪽의 Breakwater Arms에서 살 수 있어. 온라인 방에서도 장비와 전투는 각자 진행해.</p>'],
-   rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방이야. 주민, 전투와 스토리는 각자 진행해.</p>'],
+   equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'미보유')).join('')+
+    (supplies.length?'<h2 class="supply-title">회복 및 보급</h2>'+supplies.map(item=>button('use-'+item.id,item.name+' 사용',item.count+'개')).join(''):'')+
+    '<p class="smallnote">장비와 예비탄 구입처 · 차고지 남쪽 Breakwater Arms</p>'],
+   rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방. 주민, 전투 및 스토리는 개별 진행.</p>'],
    recovery:['HARBORLINE','복구 도구',button('recover-position','캐릭터 위치 재설정')+button('recover-input','조작 및 입력 상태 재설정')+
     button('recover-camera','카메라 재설정')+button('recover-ui','UI 및 메뉴 재설정')+button('recover-all','종합 긴급 복구','Shift + R')],
-   controls:['FIELD MANUAL','조작법',row('이동','<kbd>W A S D</kbd>')+row('걷기 전환 · 점프','<kbd>Shift</kbd> · <kbd>Space</kbd>')+row('시점 회전','화면 드래그 · <kbd>← →</kbd>')+row('카메라 거리','마우스 휠')+row('장비함 · 무기 변경','<kbd>Q</kbd> · <kbd>1–6</kbd>')+row('공격 · 조준','<kbd>F</kbd> / 좌클릭 · 우클릭 누르기')+row('재장전','<kbd>R</kbd> · 달리는 중 가능')+row('대화 · 상호작용 · 승하차','<kbd>E</kbd>')+row('상호작용 선택','<kbd>Tab</kbd> · <kbd>Shift + Tab</kbd>')+row('긴급 복구','<kbd>Shift + R</kbd>')+row('경적 · 전조등 · 라디오','<kbd>H</kbd> · <kbd>L</kbd> · <kbd>B</kbd>')+row('가속 · 제동 후 후진','<kbd>W</kbd> / <kbd>S</kbd>')+row('조향 · 핸드브레이크','<kbd>A D</kbd> · <kbd>Space</kbd>')+row('구역 지도 · 일시 정지','<kbd>M</kbd> · <kbd>Esc</kbd>')+'<p class="smallnote">터치 화면에서는 왼쪽 조이스틱으로 걷고 오른쪽 화면을 밀어 둘러봐. 조이스틱을 끝까지 밀면 달려. 조이스틱을 누른 채 오른쪽의 전환·장전 버튼을 사용할 수 있어. 키보드에서는 기본으로 달려. Shift로 걷기와 달리기를 바꿀 수 있어.</p>'],
-   map:['PORT AUTHORITY','Portside District','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
-   credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판, 항구 환경음은 이 게임을 위해 제작했어.</p><div id="credit-list"></div>']
+   map:['PORT AUTHORITY','구역 지도','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
+   credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판 및 항구 환경음은 Harborline을 위해 제작되었습니다.</p><div id="credit-list"></div>']
   }
   if(name==='sight'&&near){const result=game.episode.interact({sight:near.tag});if(result)toast(result.message);menu.sight=['PORT AUTHORITY  /  '+near.tag,near.title,'<p>'+near.body+'</p>'];visited.add(near.tag);try{localStorage.setItem('harborline.visits.v1',JSON.stringify([...visited]))}catch{}}
   if(name==='sight'&&near?.tag==='ARM'){
@@ -95,13 +111,78 @@ export function createUI(game){
   if(name==='sight'&&near?.tag==='06')menu.sight[2]+=button('lamp-test','작업대 시험등 점등')
   if(name==='sight'&&['HOME','PARK','WEST'].includes(near?.tag))menu.sight[2]+=button('west-bank',near.tag==='HOME'?'휴식 및 개인 차량 점검':'시설 작동')
   const content=menu[name];
-  if(name==='pause'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+' · '+s.calls+' 드로 콜</p>'}
-  $('#eyebrow').textContent=content[0];head.textContent=content[1];body.innerHTML=content[2]
+  if(name==='graphics'){const s=game.stats();if(s.ms>0)content[2]+='<p class="smallnote">최근 평균 '+Math.round(1000/s.ms)+' FPS · '+s.width+' × '+s.height+'</p>'}
+  $('#panel').dataset.page=name
+  $('#eyebrow').hidden=!content[0]||settingsPages.has(name)
+  $('#eyebrow').textContent=content[0];$('#settings-back').hidden=!settingsPages.has(name);head.textContent=content[1];body.innerHTML=content[2]
+  if(name==='controls')applyHudSettings($('.control-preview'),game.options.values)
+  refreshUpdate()
   if(name==='darts'){round={at:performance.now(),points:[],next:0};drawRound()}
   if(name==='rooms')updateRoom()
   if(name==='map')drawMap($('.big-map'),game.pos,game.yaw(),true,game.cars,missionGoal(),game.storyMarkers())
   if(name==='credits'){for(const [label,path] of [['도시 음악과 효과음','city-audio/CREDITS.md'],['엔진과 타이어 음원','driving-audio/CREDITS.md'],['휴대 장비','equipment/CREDITS.md'],['구시가지 상점과 숙소','market-row/CREDITS.md'],['서편 정비 지구','works/CREDITS.md'],['캐릭터 · 애니메이션','character/CREDITS.md'],['건축 표면','architecture/CREDITS.md'],['도로 · 차량 · 식생','street/CREDITS.md'],['항만 재질','port/CREDITS.txt'],['환경 조명','sky/CREDITS.md'],['Noto Sans KR 글꼴','fonts/OFL-NotoSansKR.txt'],['Barlow Condensed 글꼴','fonts/OFL-BarlowCondensed.txt'],['Three.js','THREE-LICENSE.txt']]){let a=document.createElement('a');a.href=window.harborPreviewAssets?.['/assets/'+path]||'/assets/'+path;a.target='_blank';a.rel='noopener';a.className='menubtn';a.textContent=label;$('#credit-list').append(a)}}
   $('#close').focus({preventScroll:true})
+ }
+ function dataMenu(){
+  const state=game.data.status
+  const confirm=pendingBackup?'<div class="restore-confirm"><p>선택한 파일로 진행 상황과 설정을 교체합니다. 계속하려면 복원을 확인하십시오.</p>'+
+   row('백업 생성 시각',formatSaveTime(pendingBackup.backup.exportedAt))+
+   button('restore-data','복원 확인')+button('cancel-restore','취소')+'</div>':''
+  const autoSave=!state.available?'저장소 사용 불가':state.code?'최근 저장 실패':game.room.phase==='offline'?'사용 중':'온라인 플레이 중 일시 중지'
+  return row('자동 저장',autoSave)+row('마지막 저장',formatSaveTime(state.savedAt))+
+   button('save-data','수동 저장')+button('export-data','백업 내보내기')+button('select-backup','백업 불러오기')+
+   '<input id="backup-file" type="file" accept="application/json,.json" hidden>'+confirm+
+   '<p class="settings-message" role="status">'+escapeText(dataMessage)+'</p>'
+ }
+ async function readBackup(file){
+  if(!file)return
+  const request=++backupRequest
+  pendingBackup=null
+  if(file.size>MAX_BACKUP_BYTES){dataMessage='백업 파일이 허용 크기를 초과합니다.';if(panel==='data')show('data');return}
+  try{
+   const text=await file.text(),result=parseSaveBackup(text)
+   if(panel!=='data'||request!==backupRequest)return
+   if(result.ok){pendingBackup={text,backup:result.backup};dataMessage='백업 검증 완료'}
+   else dataMessage=result.message
+  }catch{if(request===backupRequest)dataMessage='백업 파일을 읽지 못했습니다.'}
+  if(panel==='data'&&request===backupRequest)show('data')
+ }
+ function exportBackup(){
+  const result=game.data.exportBackup()
+  if(!result.ok){dataMessage=result.message;show('data');return}
+  const url=URL.createObjectURL(new Blob([result.text],{type:'application/json'})),link=document.createElement('a')
+  link.href=url;link.download='Harborline-'+new Date().toISOString().slice(0,10)+'.json'
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)
+  dataMessage='백업 내보내기 완료';show('data')
+ }
+ function refreshUpdate(state=appUpdates.state){
+  const {current,latest,status,lastChecked}=state
+  const available=latest&&latest.build!==current.build
+  notice.hidden=!!panel||!available||latest.build===dismissedBuild
+  noticeStatus.textContent=releaseMessage||(status==='applying'?'업데이트 준비 중':'버전 '+(latest?.version??'')+' 업데이트 가능')
+  notice.querySelector('[data-update="apply"]').disabled=status==='checking'||status==='applying'
+  if(panel!=='updates')return
+  const label={idle:'확인 대기',checking:'확인 중',current:'최신 버전',available:'업데이트 가능',applying:'업데이트 준비 중',error:'확인 또는 적용 실패'}
+  $('#update-details').innerHTML=row('현재 버전',current.version+' · '+current.build)+
+   row('최신 버전',latest?latest.version+' · '+latest.build:'확인 대기')+
+   row('마지막 확인',formatSaveTime(lastChecked))+row('상태',label[status])
+  $('[data-action="check-update"]').disabled=status==='checking'||status==='applying'
+  $('[data-action="apply-update"]').disabled=!available||status==='checking'||status==='applying'
+  $('#update-feedback').textContent=releaseMessage
+ }
+ async function applyUpdate(){
+  releaseMessage=''
+  const applied=await appUpdates.apply({beforeReload:()=>{
+   const result=game.saveNow({update:true})
+   if(!result.ok)releaseMessage=result.message
+   return result.ok
+  }})
+  if(!applied){releaseMessage||='업데이트를 적용하지 못했습니다. 잠시 후 다시 시도하십시오.';refreshUpdate()}
+ }
+ notice.onclick=e=>{
+  const action=e.target.closest('[data-update]')?.dataset.update
+  if(action==='later'){dismissedBuild=appUpdates.state.latest?.build;releaseMessage='';refreshUpdate()}
+  if(action==='apply')void applyUpdate()
  }
  let roomForm,code=''
  function updateRoom(){
@@ -109,7 +190,7 @@ export function createUI(game){
   const phase=room.phase
   if(!root){roomForm=null;return}
   if(!defaultRoomEndpoint){
-   root.textContent='온라인 서버 준비 중. 지금은 싱글플레이를 이용할 수 있어.'
+   root.textContent='온라인 서버 준비 중 · 싱글플레이 이용 가능'
    return
   }
   if(roomForm?.root!==root||roomForm.phase!==phase){
@@ -138,7 +219,7 @@ export function createUI(game){
  }
  function joinRoom(create){
   code=code.trim().toUpperCase()
-  if(!create&&!ROOM_CODE.test(code)){$('#room-message').textContent='12자리 방 코드를 확인해';return}
+  if(!create&&!ROOM_CODE.test(code)){$('#room-message').textContent='12자리 초대 코드를 확인하십시오.';return}
   game.startRoom(defaultRoomEndpoint,create?{t:'create'}:{t:'join',code})
  }
  function reflectSound(){
@@ -154,6 +235,19 @@ export function createUI(game){
  $('#panel-body').addEventListener('input',e=>{
   const key=e.target.dataset.audio
   if(key){audio.set(key,Number(e.target.value)/100);e.target.nextElementSibling.value=e.target.value+'%'}
+  if(e.target.matches('input[data-option]')){
+   const setting=e.target.dataset.option
+   game.options.set(setting,Number(e.target.value))
+   e.target.nextElementSibling.value=game.options.values[setting]+'%'
+   applyHudSettings($('.control-preview'),game.options.values)
+  }
+ })
+ body.addEventListener('change',e=>{
+  if(e.target.id==='backup-file'){void readBackup(e.target.files?.[0]);return}
+  if(!e.target.matches('select[data-option]'))return
+  const value=e.target.value
+  game.options.set(e.target.dataset.option,/^\d+$/.test(value)?Number(value):value)
+  for(const select of body.querySelectorAll('select[data-option]'))select.value=game.options.values[select.dataset.option]
  })
  function drawRound(){
   if(!round||panel!=='darts')return
@@ -174,16 +268,26 @@ export function createUI(game){
   else game.useCity(site)
  }
  $('#vehicle-tools').onclick=e=>{const action=e.target.closest('button')?.dataset.vehicle;if(action)game.vehicleAction(action)}
- $('#pause').onclick=()=>show('pause');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
+ $('#pause').onclick=()=>show('pause');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close;$('#settings-back').onclick=()=>show('pause')
  overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
   if(panel==='equipment'&&action.startsWith('equip-')){
    const id=action.slice(6)
-   if(game.selectEquipment(id)){close();toast(gear[id].name+' 장착')}else toast(game.loadout.items[id]?'동작을 마친 뒤 장비를 변경해.':'Breakwater Arms에서 구입할 수 있어.')
+   if(game.selectEquipment(id)){close();toast(gear[id].name+' 장착')}else toast(game.loadout.items[id]?'현재 동작을 마친 뒤 장비를 변경하십시오.':'Breakwater Arms에서 구입 가능')
    return
   }
   if(action?.startsWith('recover-')){recover(action.slice(8));return}
-  if(action==='traffic'){game.cycleTraffic();show('pause');return}
-  if(action==='replay-intro'){window.dispatchEvent(new Event('harborline:replay-intro'));return}
+  if(action==='reset-controls'||action==='reset-graphics'){const group=action.slice(6);game.options.reset(group);show(group);return}
+  if(action==='check-update'){releaseMessage='';void appUpdates.check();return}
+  if(action==='apply-update'){void applyUpdate();return}
+  if(action==='save-data'){dataMessage=game.saveNow().message;show('data');return}
+  if(action==='export-data'){exportBackup();return}
+  if(action==='select-backup'){$('#backup-file').click();return}
+  if(action==='cancel-restore'){pendingBackup=null;dataMessage='복원 취소';show('data');return}
+  if(action==='restore-data'&&pendingBackup){
+   const result=game.restoreData(pendingBackup.text)
+   if(result.ok){location.reload();return}
+   dataMessage=result.message;show('data');return
+  }
   if(action==='master-sound'){audio.toggle().then(()=>{reflectSound();if(panel==='audio')show('audio')});return}
   if(action==='voice'){const message=voice.toggle();show('audio');toast(message);return}
   if(panel==='atm'&&(action==='deposit'||action==='withdraw')){
@@ -209,13 +313,16 @@ export function createUI(game){
   if(action==='roomCreate'||action==='roomJoin'||action==='roomLeave'){
    e.preventDefault();if(action==='roomLeave')game.room.leave();else joinRoom(action==='roomCreate');return
   }
-  if(action==='story-archive'){const result=game.episode.switchJournal();toast(result.message);show('bag');return}
+  if(action==='story-archive'){const result=game.episode.switchJournal();toast(result.message);show('missions');return}
   if(action==='retry'||action==='abandon'||action.startsWith('use-')){
    const result=action==='retry'?game.episode.retry():action==='abandon'?game.episode.abandon():game.useItem(action.slice(4))
    if(action==='retry'&&result.ok)game.restartPrologue()
-   toast(result.message);show('bag');return
+   toast(result.message);show(action.startsWith('use-')?'equipment':'missions');return
   }
-  if(action==='mission'){game.mission.start(game.driving()&&game.car.id==='touring');close();toast('FIRST DRIVE · 지도에 표시된 목표로 이동해')}else if(action==='runMode'){game.foot.changePreference();show('pause')}else if(action==='resume')close();else if(action==='quality'){game.cycleQuality();show('pause')}else show(action)}
+  if(action==='switch-run-mode'){game.foot.changePreference();show('runMode')}
+  else if(action==='resume')close()
+  else if(settingsPages.has(action))show(action)
+ }
  function currentInteractions(){
   if(panel)return []
   const items=game.interactions()
@@ -280,20 +387,19 @@ export function createUI(game){
  },true)
  window.addEventListener('keydown',e=>{
   if(e.repeat||$('#death-screen').open)return
-  if(e.target instanceof HTMLInputElement&&!['Escape','Tab'].includes(e.code))return
+  if((e.target instanceof HTMLInputElement||e.target instanceof HTMLSelectElement)&&!['Escape','Tab'].includes(e.code))return
   if(game.crowd.talking && (e.code==='Escape'||e.code==='KeyE')){
    e.preventDefault();game.crowd.endTalk();return
   }
   if(e.code==='Escape'){e.preventDefault();panel?close():show('pause')}
   if(e.code==='KeyM'){e.preventDefault();panel==='map'?close():show('map')}
-  if(e.code==='Slash'&&e.shiftKey){panel==='controls'?close():show('controls')}
   if(e.code==='KeyE'&&!panel){e.preventDefault();activate()}
   if(e.code==='Tab'&&!panel&&!game.crowd.talking){
    const items=currentInteractions()
    if(items.length>1){e.preventDefault();selection.cycle(items,e.shiftKey?-1:1);renderInteractions(items)}
   }
   if(e.code==='Enter'&&panel==='pause'&&document.activeElement===$('#close')){e.preventDefault();close()}
-  if(e.code==='Tab'&&panel){const f=[...$('#panel').querySelectorAll('button,a,input')];if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f.at(-1).focus()}else if(!e.shiftKey&&document.activeElement===f.at(-1)){e.preventDefault();f[0].focus()}}
+  if(e.code==='Tab'&&panel){const f=[...$('#panel').querySelectorAll('button,a,input,select')].filter(el=>!el.disabled&&!el.hidden);if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===f.at(-1)){e.preventDefault();f[0]?.focus()}}
  })
  const objective=$('#objective')
  let beforeMission=null,missionNotice=null,nextMissionRead=0
@@ -403,22 +509,19 @@ export function createUI(game){
   document.body.classList.toggle('speaking',!!dialogue&&!panel)
   story.dialogue(dialogue?.text)
   if(opened)(box.querySelector('.episode-choices button')??dialogueClose).focus({preventScroll:true})
-  const target=game.feedback(),health=$('#vitals')
-  const armor=game.player.f.armor
-  health.hidden=panel||driving||(!target&&game.player.f.hp===100&&!armor)
-  if(!health.hidden){
-   health.querySelector('b').textContent=game.player.f.hp===0?'다운':'체력 '+game.player.f.hp+(armor?' · 보호 '+armor:'')
-   const opponent=health.querySelector('span')
-   opponent.textContent=target?residentDisplayName(target)+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
-  }
+  updateHealth()
   if(!panel)renderInteractions(currentInteractions())
   drawMap($('#mini'),p,y,false,game.cars,goal,game.storyMarkers())
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
  }
- function impact(received){
+ function updateHealth(){
+  const target=game.feedback()
+  healthHUD.update(game.player.f,target?residentDisplayName(target)+' · '+(target.f.hp?target.f.hp+'/'+target.f.maxHealth:'다운'):'',!!panel)
+ }
+ function impact(received,amount,kind){
   audio.sound('hit')
-  const el=$('#vitals');el.animate?.([{opacity:.55,color:received?'#ff9b77':'#ffd3a1'},{opacity:1,color:'#f5f2e9'}],{duration:240})
+  if(received){updateHealth();healthHUD.hit(amount,kind)}
  }
  let lastAudio=-Infinity
  function updateAudio(now,state){
@@ -430,5 +533,6 @@ export function createUI(game){
   if(audio.active)audio.update(state())
   if(audio.active!==($('#sound').getAttribute('aria-pressed')==='true'))reflectSound()
  }
- return {update,updateAudio,prepareDriveAudio:audio.prepareDrive,updateRoom,show,close,toast,impact,sound:audio.sound,shot:(id,point)=>audio.sound(id,point),missionGoal,isOpen:()=>!!panel}
+ appUpdates.subscribe(refreshUpdate)
+ return {update,updateAudio,prepareDriveAudio:audio.prepareDrive,updateRoom,show,close,toast,impact,clearImpact:()=>{healthHUD.clear();updateHealth()},deathAudio:value=>audio.death?.(value),sound:audio.sound,shot:(id,point)=>audio.sound(id,point),missionGoal,isOpen:()=>!!panel}
 }

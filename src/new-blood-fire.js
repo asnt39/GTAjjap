@@ -7,6 +7,11 @@ export function clubFire(boxes,traffic,residents){
  const trace=equipmentTrace(boxes,traffic,residents)
  const start=new Vector3(),targetPoint=new Vector3(),ray=new Vector3(),end=new Vector3()
  const states=new Map(),spacing={ally:0,hostile:0}
+ function newState(shooter){
+  const state={art:createEquipmentArt(shooter.rig),mag:shooter.combat.mag,reload:0,cooldown:0,aim:0,shots:0,recoil:0}
+  states.set(shooter,state)
+  return state
+ }
 
  function center(target){
   targetPoint.copy(target.pos)
@@ -29,6 +34,22 @@ export function clubFire(boxes,traffic,residents){
  }
 
  return {
+  snapshot(actors){
+   return {spacing:{...spacing},actors:actors.map(actor=>{
+    const state=states.get(actor)
+    if(!state)return null
+    const {art,...timing}=state
+    return timing
+   })}
+  },
+  restore(actors,snapshot){
+   Object.assign(spacing,snapshot.spacing)
+   for(const [index,actor] of actors.entries()){
+    const timing=snapshot.actors[index],state=states.get(actor)
+    if(timing)Object.assign(state??newState(actor),timing)
+    else if(state){state.art.dispose();states.delete(actor)}
+   }
+  },
   update(dt){for(const side of Object.keys(spacing))spacing[side]=Math.max(0,spacing[side]-dt)},
   visible(shooter,target,point=shooter.pos){
    if(!target||!target.f.hp||target.exposed===false)return false
@@ -41,10 +62,7 @@ export function clubFire(boxes,traffic,residents){
    if(!role)return
    let state=states.get(shooter)
    if(!state&&!active)return
-   if(!state){
-    state={art:createEquipmentArt(shooter.rig),mag:role.mag,reload:0,cooldown:0,aim:0,shots:0,recoil:0}
-    states.set(shooter,state)
-   }
+   state??=newState(shooter)
    const drawn=active&&shooter.f.hp>0&&!shooter.f.action
    if(drawn&&state.reload){
     state.reload=Math.max(0,state.reload-dt)

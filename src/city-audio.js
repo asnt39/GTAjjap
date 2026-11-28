@@ -39,7 +39,7 @@ export function cityAudio(browser=globalThis){
  try{storage=browser.localStorage}catch{}
  const settings=readMixer(storage)
  let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
- let active=false,paused=false,hidden=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
+ let active=false,paused=false,hidden=false,dead=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
  let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0,brakeActive=false
  const shots=new Map(),roadClips=new Map(),firearmClips=new Map()
  let roadMedia=null,loadingRoad=false,firearmsRequested=false
@@ -85,13 +85,47 @@ export function cityAudio(browser=globalThis){
   siren=ctx.createOscillator();siren.type='triangle';sirenGain=gain(0)
   siren.connect(sirenGain).connect(buses.ambient);siren.start()
  }
+ function musicVolume(){
+  return settings.music*(dead?.08:paused?.35:listener.dialogue?.24:1)
+ }
  function volumes(){
   if(!ctx)return
   const live=active&&!hidden
   fade(master.gain,live?1:0,.08)
-  fade(buses.music.gain,settings.music*(paused?.35:1),.14)
-  fade(buses.effects.gain,paused?0:settings.effects)
-  fade(buses.ambient.gain,settings.ambient*(paused?.20:1),.14)
+  fade(buses.music.gain,musicVolume(),dead?.34:.14)
+  fade(buses.effects.gain,settings.effects*(paused?0:dead?.34:1))
+  fade(buses.ambient.gain,settings.ambient*(dead?.30:paused?.20:1),dead?.28:.14)
+ }
+ function deathCue(){
+  if(!active||paused||hidden||!settings.effects||ctx.state!=='running')return
+  const now=ctx.currentTime
+  const breath=ctx.createBufferSource(),tone=ctx.createOscillator()
+  const level=gain(0),resonance=gain(0)
+  const filter=filtered(breath,'lowpass',520,level)
+  breath.buffer=noise;breath.playbackRate.value=.86
+  filter.frequency.setValueAtTime(520,now)
+  filter.frequency.exponentialRampToValueAtTime(160,now+.62)
+  level.gain.setValueAtTime(.001,now)
+  level.gain.exponentialRampToValueAtTime(Math.max(.001,settings.effects*.29),now+.045)
+  level.gain.exponentialRampToValueAtTime(.001,now+.64)
+  level.connect(master)
+  tone.type='sine'
+  tone.frequency.setValueAtTime(87,now)
+  tone.frequency.exponentialRampToValueAtTime(53,now+.60)
+  resonance.gain.setValueAtTime(.001,now)
+  resonance.gain.exponentialRampToValueAtTime(Math.max(.001,settings.effects*.31),now+.095)
+  resonance.gain.exponentialRampToValueAtTime(.001,now+.72)
+  tone.connect(resonance).connect(master)
+  breath.onended=()=>{breath.disconnect();filter.disconnect();level.disconnect()}
+  tone.onended=()=>{tone.disconnect();resonance.disconnect()}
+  breath.start(now);breath.stop(now+.66)
+  tone.start(now);tone.stop(now+.74)
+ }
+ function death(value){
+  if(dead===value)return
+  dead=value
+  volumes()
+  if(dead)deathCue()
  }
  function haltTracks(){
   for(const track of tracks){track.audio.pause();track.source.disconnect();track.gain.disconnect();track.audio.removeAttribute('src');track.audio.load()}
@@ -243,26 +277,28 @@ export function cityAudio(browser=globalThis){
   },
   pause(value){paused=value;volumes();if(value&&ctx)fade(motorGain.gain,0)},
   visibility(value){hidden=value;if(ctx)syncMedia()},
+  death,
   sound,
   update(frame){
    listener=frame
+   if(typeof frame.dead==='boolean')death(frame.dead)
    if(!active||hidden||ctx.state!=='running')return
    for(const [name,until] of shots)if(until<ctx.currentTime)shots.delete(name)
    cleanup()
    const zone=musicCue(frame)
-   fade(buses.music.gain,settings.music*(paused?.35:frame.dialogue?.24:1),.23)
-   if((!targetTrack||cue!==zone||targetTrack.audio.ended||targetTrack.audio.duration-targetTrack.audio.currentTime<3.4)&&
+   fade(buses.music.gain,musicVolume(),dead?.34:.23)
+   if(!dead&&(!targetTrack||cue!==zone||targetTrack.audio.ended||targetTrack.audio.duration-targetTrack.audio.currentTime<3.4)&&
     ctx.currentTime-lastPlayback>1.4&&settings.music>0){
     lastPlayback=ctx.currentTime;startTrack(zone)
    }
    const {indoor,driving,car,harbor,wanted,t,boat,underwater,coastal}=frame
    if(driving||frame.passing)prepareRoad()
-   fade(roomFilter.frequency,underwater?420:indoor?1140:14000,.23);fade(echo.send.gain,indoor?.20:.035,.21)
+   fade(roomFilter.frequency,underwater?420:dead?760:indoor?1140:14000,.23);fade(echo.send.gain,indoor?.20:.035,.21)
    fade(windGain.gain,underwater?.025:(indoor?.04:.25)*(frame.park?1.2:.67),.31)
    fade(waterGain.gain,underwater?.16:coastal?.29+.12*Math.sin(t*1.45):harbor?(.14+.06*Math.sin(t*1.15))*(indoor?.42:1):frame.park?.047:0,.26)
    const nearby=frame.passing?Math.max(0,1-frame.passingDistance/32)*.18:0
    fade(cityGain.gain,(indoor?.065:.105)+nearby*(indoor?.24:1),.34)
-   if(!paused&&!indoor&&t>nextAmbience&&(harbor||frame.park)){
+   if(!dead&&!paused&&!indoor&&t>nextAmbience&&(harbor||frame.park)){
     const kind=harbor?(Math.random()<.67?'gull':'harborBell'):'bird'
     sound(kind,{x:frame.x+(harbor?12:-9),z:frame.z-6},1,false,true)
     nextAmbience=t+5+Math.random()*6
@@ -270,7 +306,7 @@ export function cityAudio(browser=globalThis){
    fade(siren.frequency,710+230*Math.sin(t*4.4),.13)
    fade(sirenGain.gain,wanted&&frame.policeDistance<72?.05*(1-frame.policeDistance/72):0,.28)
    const speed=Math.abs(car.speed),bike=car.setup.bike,sport=car.setup.top>=20
-   const driveLevel=driving&&!paused?1:0
+   const driveLevel=driving&&!paused&&!dead?1:0
    const throttle=unit(Math.abs(car.throttle??0))
    const gears=shiftSpeeds[bike?'bike':sport?'sport':'car']
    const engaged=driving&&car.speed>=0
@@ -295,8 +331,8 @@ export function cityAudio(browser=globalThis){
    fade(harmonicGain.gain,boat?.33:bike?.50:sport?.34:.18,.12)
    fade(motorFilter.frequency,boat?340+marineRPM*480:(bike?970:sport?740:420)+throttle*690,.18)
    const synthetic=roadMedia?.low&&roadMedia.high&&!bike ? .19 : 1
-   fade(motorGain.gain,boat&&!paused?.037+marineRPM*.086:driveLevel*(.037+rpm*.039+throttle*.075)*synthetic,.13)
-   fade(roadGain.gain,boat&&!paused?Math.min(.15,marineSpeed*.018):driveLevel*Math.min(.19,speed*.012),.18)
+   fade(motorGain.gain,boat&&!paused&&!dead?.037+marineRPM*.086:driveLevel*(.037+rpm*.039+throttle*.075)*synthetic,.13)
+   fade(roadGain.gain,boat&&!paused&&!dead?Math.min(.15,marineSpeed*.018):driveLevel*Math.min(.19,speed*.012),.18)
    const slip=Math.abs(car.slip??0)
    const scrub=unit((speed-2.8)/8)*unit(slip*3.8)
    const skid=scrub**1.5

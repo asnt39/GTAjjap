@@ -10,6 +10,8 @@ export const gear = Object.freeze({
 const saveKey='harborline.equipment.v1'
 const sniperCycle=.72
 const count=(value,max)=>Number.isInteger(value)?Math.min(max,Math.max(0,value)):0
+const validRounds=(id,item)=>Object.hasOwn(gear,id)&&item&&Number.isInteger(item.mag)&&Number.isInteger(item.reserve)&&
+ item.mag===count(item.mag,gear[id].capacity??0)&&item.reserve===count(item.reserve,gear[id].stock??0)
 
 export function createLoadout(storage,episode){
  let saved
@@ -41,6 +43,32 @@ export function createLoadout(storage,episode){
   get recoil(){return kick},get reloadProgress(){return reloading?1-reloading/gear[selected].reload:0},
   get boltProgress(){return boltLeft?1-boltLeft/sniperCycle:0},
   get reloading(){return reloading>0},get coolingDown(){return cooldown>0},
+  missionSnapshot(){
+   return {personal:state(),selected,loan:loan?{...items.pistol}:null}
+  },
+  planMissionRestore(snapshot){
+   if(!snapshot?.personal?.items||!!snapshot.loan!==!!loan)return null
+   const {personal,selected:weapon,loan:missionPistol}=snapshot
+   if(!Object.hasOwn(personal.items,personal.selected)||
+    !Object.hasOwn(personal.items,weapon)&&!(missionPistol&&weapon==='pistol'))return null
+   const rounds=[]
+   for(const [id,item] of Object.entries(personal.items)){
+    const equipped=id==='pistol'&&loan?loan.pistol:Object.hasOwn(items,id)?items[id]:null
+    if(!equipped||!validRounds(id,item))return null
+    rounds.push([equipped,item.mag,item.reserve])
+   }
+   if(missionPistol){
+    if(!validRounds('pistol',missionPistol))return null
+    rounds.push([items.pistol,missionPistol.mag,missionPistol.reserve])
+   }
+   return ()=>{
+    for(const [equipped,mag,reserve] of rounds)Object.assign(equipped,{mag,reserve})
+    if(loan)loan.selected=personal.selected
+    selected=weapon
+    cooldown=reloading=swingLeft=kick=boltLeft=0
+    save()
+   }
+  },
   missionLoan(enabled){
    if(enabled&&!loan){
     loan={pistol:items.pistol,selected};items.pistol={mag:8,reserve:32};selected='pistol'

@@ -181,3 +181,40 @@ test('a solid club wall obstructs hostile aim while the same distance outside st
  player.pos.set(-160,.083,93.45)
  assert(fire.visible(shooter,player))
 })
+
+test('a retry restores the same encounter rigs, a delayed roster, and the original Jack once',async()=>{
+ const stage={set:'ambush',goal:clubPlan.vip}
+ const {world,crowd,step,wait}=fixture(clubPlan.vip)
+ const courier={id:'courier',pos:new Vector3(7.6,.083,16.2),f:fighter(110),rig:{root:new Group()}}
+ crowd.all.push(courier)
+ world.prepare(stage)
+ let saved=world.snapshot()
+ for(let i=0;i<200&&!saved;i++){
+  await new Promise(resolve=>setTimeout(resolve,4))
+  saved=world.snapshot()
+ }
+ assert(saved)
+ assert(saved.actors.every(n=>!n.joined),'checkpoint captures actors before the simulation starts')
+ await wait(stage,()=>crowd.all.some(n=>n.missionRole==='hostile'))
+ const initialJack=crowd.all.find(n=>n.localId==='jack'),initialEnemies=crowd.all.filter(n=>n.missionRole==='hostile')
+ const savedJack=saved.actors.find(n=>n.id===initialJack.id)
+ for(let attempt=0;attempt<3;attempt++){
+  initialJack.f.hp=20;initialJack.pos.x-=1.5;initialJack.route.command('hold')
+  for(const n of initialEnemies)n.f.hp=0
+  world.planRestore(saved)()
+  assert.deepEqual(crowd.all,[courier]);assert(courier.rig.root.visible)
+  assert.deepEqual(initialJack.pos.toArray(),savedJack.pos)
+  assert.equal(initialJack.f.hp,126);assert.equal(initialJack.route.mode,'join')
+  assert.equal(initialJack.rig.root.parent,null)
+  for(const enemy of initialEnemies){assert.equal(enemy.f.hp,54);assert.equal(enemy.rig.root.parent,null)}
+  assert.equal(world.markers().length,0)
+  step(stage,1.9)
+  assert.equal(crowd.all.filter(n=>n.localId==='jack').length,1)
+  assert(crowd.all.includes(initialJack));assert(!crowd.all.includes(courier))
+  assert(initialEnemies.every(n=>crowd.all.includes(n)))
+ }
+ world.prepare({set:'evacuation',goal:clubPlan.exit})
+ assert.equal(world.planRestore(saved),null)
+ world.clean()
+ assert.deepEqual(crowd.all,[courier])
+})

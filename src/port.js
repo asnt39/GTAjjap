@@ -405,9 +405,10 @@ export async function buildPort(scene, addCollider) {
     mesh.computeBoundingSphere();
     group.add(mesh);
   }
-  const update=(_dt,elapsed,low=false)=>{
+  const update=(_dt,elapsed,low=false,reflections=2)=>{
     water.material.uniforms.time.value=elapsed;
     water.material.uniforms.rippleQuality.value=low?.45:1;
+    water.material.uniforms.reflections.value=reflections;
   };
   update.optics=(scene,sun)=>{
     const uniforms=water.material.uniforms;

@@ -46,6 +46,9 @@ export function createCompanion({position,waypoints=[],canStand,move,canTraverse
    if(next!==mode){mode=next;replan=0;route=[];direct=false}
    return true
   },
+  restart(next){
+   mode=next;replan=0;route=[];direct=false
+  },
   update(dt,{target,enabled=true}={}){
    if(!enabled||!valid(target)||mode==='hold'){replan=0;return status()}
    if(!Number.isFinite(dt)||dt<=0)return status()

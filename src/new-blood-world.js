@@ -1,9 +1,10 @@
 import {Vector3} from 'three'
 import {createCharacter} from './character.js'
+import {missionActorSnapshot,restoreMissionActor} from './mission-checkpoint.js'
 import {missionEnemyOutline} from './mission-enemy-outline.js'
 import {createCompanion} from './companion.js'
 import {nearBody} from './driving.js'
-import {moveImpact} from './impact-motion.js'
+import {impactReaction,moveImpact} from './impact-motion.js'
 import {advance,combatPose,fighter,injure} from './melee.js'
 import {cameraFraction,canWalk,movePlayer} from './navigation.js'
 import {clubPlan} from './new-blood-club-plan.js'
@@ -130,6 +131,34 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
   const phase=phaseOf(stage)
   if(phase)start(phase)
  }
+ function prepare(stage){
+  const phase=phaseOf(stage)
+  if(phase!==current)start(phase)
+ }
+ function snapshot(){
+  if(current&&!ready)return null
+  return {run,current,elapsed,met,evacLeg,failed,firearms:firearms.snapshot(actors),actors:actors.map(n=>({
+   ...missionActorSnapshot(n),mode:n.route.mode,joinedCommand:n.joinedCommand,nextLeg:n.nextLeg,sideStep:n.sideStep,
+   flankUntil:n.flankUntil,flankPoint:n.flankPoint,flanked:n.flanked
+  }))}
+ }
+ function planRestore(saved){
+  if(saved?.run!==run||saved.current!==current||current&&!ready||saved.actors.length!==actors.length||
+   !actors.every((n,i)=>n.id===saved.actors[i].id))return null
+  return ()=>{
+   ({elapsed,met,evacLeg,failed}=saved)
+   playerPos=null
+   for(const [index,n] of actors.entries()){
+    const state=saved.actors[index]
+    if(n.localId==='jack'&&!state.joined)restoreJack()
+    restoreMissionActor(n,state,scene,crowd.all,combatPose)
+    const {mode,joinedCommand,nextLeg,sideStep,flankUntil,flankPoint,flanked}=state
+    n.route.restart(mode)
+    Object.assign(n,{joinedCommand,nextLeg,sideStep,flankUntil,flankPoint,flanked,rethink:0,focus:null,spot:null})
+   }
+   firearms.restore(actors,saved.firearms)
+  }
+ }
  function join(n){
   if(elapsed<n.delay)return false
   const clear=(x,z)=>stand(x,z)&&!blocked(n,x,z)
@@ -245,11 +274,15 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
  function shot(shooter,target,start,end,hit,weapon,damage){
   const playerHit=target.missionRole!==undefined?false:hit
   combat?.(shooter,start,end,playerHit,weapon,damage)
-  if(target.missionRole&&hit)injure(target.f,damage,1,'body',{weaponHit:true})
+  const earlierHealth=target.f.hp
+  if(target.missionRole&&hit&&injure(target.f,damage,1,'body',{weaponHit:true})){
+   target.f.reaction=impactReaction('shot',end.x-start.x,end.z-start.z,target.face)
+   crowd.markImpact?.(target,{point:end,source:start,kind:'shot',strength:earlierHealth-target.f.hp})
+  }
  }
  function step(stage,dt,player,onFoot){
-  const phase=phaseOf(stage)
-  if(phase!==current)start(phase)
+  prepare(stage)
+  const phase=current
   if(!current)return {}
   if(!ready)return {failed,status:failed?'':'장소 확인 중'}
   elapsed+=dt;playerPos=player.pos
@@ -303,5 +336,6 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
    isFight(phase)&&threats?'위협 '+threats+'명':''
   return {arrived,met,cleared,escaped,failed,status,threats,moving:actors.some(n=>n.speed>.12||n.f.action)}
  }
- return {enter,clean,interactions,step,markers:()=>actors.filter(n=>n.joined&&n.f.hp>0&&n.missionRole==='hostile').map(n=>({x:n.pos.x,z:n.pos.z}))}
+ return {enter,clean,prepare,snapshot,planRestore,interactions,step,
+  markers:()=>actors.filter(n=>n.joined&&n.f.hp>0&&n.missionRole==='hostile').map(n=>({x:n.pos.x,z:n.pos.z}))}
 }
