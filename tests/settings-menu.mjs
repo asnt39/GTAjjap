@@ -8,7 +8,7 @@ test('settings sections contain only the requested actions in order and show the
  })
  assert.deepEqual([...menu.matchAll(/<h2>([^<]+)/g)].map(match => match[1]), ['게임','환경 설정','시스템'])
  assert.deepEqual([...menu.matchAll(/data-action="([^"]+)/g)].map(match => match[1]), [
-  'map','missions','equipment','rooms','controls','graphics','audio','runMode','data','garage-return','recovery','updates','credits'
+  'map','missions','equipment','rooms','freeMode','controls','graphics','audio','runMode','data','garage-return','recovery','updates','credits'
  ])
  assert.match(menu,/0\.2\.0/)
  assert.match(menu,/example-build/)

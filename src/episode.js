@@ -81,6 +81,7 @@ export function createEpisode(options={}) {
   const step=()=>mission().steps[record().step]
   const canStartOpening=()=>options.canStartOpening?.()??true
   function write(fields){
+    if(options.readOnly?.())return wrong('자유 모드에서는 스토리 진행 데이터를 변경할 수 없습니다.')
     if(!storage)return wrong('저장소를 사용할 수 없어.')
     try {
       if(storage.getItem(EPISODE_SAVE_KEY)!==lastSave)return wrong('다른 탭에서 진행 상황이 바뀌었어. 새로고침해 줘.')

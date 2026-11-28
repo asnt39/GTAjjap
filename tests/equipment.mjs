@@ -250,3 +250,13 @@ assert(crowd.blastHit(target,new Vector3(0,.1,0),.7))
 assert.equal(target.f.action,'knockdown')
 assert(target.f.hp<50&&target.f.motion.z>0)
 assert.equal(crowd.wanted.level,0)
+
+const freeRecords=new Map()
+const freeStorage={getItem:key=>freeRecords.get(key),setItem:(key,value)=>freeRecords.set(key,value)}
+const sandboxLoadout=createLoadout(freeStorage)
+assert(sandboxLoadout.enterFreeMode())
+assert(sandboxLoadout.select('sniper'))
+for(let i=0;i<12;i++){assert(sandboxLoadout.use());sandboxLoadout.tick(3)}
+assert.equal(sandboxLoadout.item.mag,gear.sniper.capacity)
+assert.equal(freeRecords.size,0)
+assert.equal(createLoadout(freeStorage).selected,'fists')

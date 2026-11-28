@@ -72,6 +72,10 @@ export function createUI(game){
    pause:['','게임 설정',settingsMenu(button,appUpdates.state.current)],
    graphics:['Harborline','그래픽 상세 설정',graphicsMenu(game.options.values,GRAPHICS_CHOICES,button)],
    controls:['Harborline','조작 설정',controlsMenu(game.options.values,OPTION_RANGES,button)],
+   freeMode:['Harborline','자유 모드',row('현재 모드',game.freeMode?'자유 모드':'스토리 모드')+
+    '<p>오프라인 전용. 스토리 진행과 저장을 중지하고 잠금 제한 없이 무기와 탄약을 사용합니다.</p>'+
+    '<label class="settings-slider"><span>달리기 속도</span><input type="range" min="10" max="18" step="1" value="'+game.freeSpeed+'" data-free-speed><output>'+game.freeSpeed+' m/s</output></label>'+
+    button(game.freeMode?'leave-free-mode':'enter-free-mode',game.freeMode?'스토리 저장으로 복귀':'자유 모드 시작')],
    data:['Harborline','게임 데이터',dataMenu()],
    updates:['Harborline','업데이트 확인','<div id="update-details"></div>'+button('check-update','업데이트 확인')+button('apply-update','저장 후 업데이트')+'<p id="update-feedback" class="settings-message" role="status"></p>'],
    runMode:['Harborline','Shift 이동 속도',row('현재 설정',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('switch-run-mode',game.foot.preference==='toggle'?'누르는 동안 걷기 적용':'걷기와 달리기 전환 적용')],
@@ -237,6 +241,9 @@ export function createUI(game){
  },{passive:true})
  document.addEventListener('visibilitychange',()=>{audio.visibility(document.hidden);if(document.hidden)voice.stop()})
  $('#panel-body').addEventListener('input',e=>{
+  if(e.target.matches('[data-free-speed]')){
+   game.setFreeSpeed(Number(e.target.value));e.target.nextElementSibling.value=game.freeSpeed+' m/s';return
+  }
   const key=e.target.dataset.audio
   if(key){audio.set(key,Number(e.target.value)/100);e.target.nextElementSibling.value=e.target.value+'%'}
   if(e.target.matches('input[data-option]')){
@@ -283,6 +290,10 @@ export function createUI(game){
   if(action==='reset-controls'||action==='reset-graphics'){const group=action.slice(6);game.options.reset(group);show(group);return}
   if(action==='check-update'){releaseMessage='';void appUpdates.check();return}
   if(action==='apply-update'){void applyUpdate();return}
+  if(action==='enter-free-mode'){
+   const result=game.enterFreeMode();if(result.ok)close();toast(result.message);return
+  }
+  if(action==='leave-free-mode'&&game.freeMode){location.reload();return}
   if(action==='garage-return'){
    const result=game.goToGarage()
    if(result.ok)close()
@@ -501,7 +512,7 @@ export function createUI(game){
   $('#gear-reload').disabled=equipped.reloading||!equipped.item.reserve||equipped.item.mag===equipped.def.capacity
   $('#gear-status').hidden=equipped.selected==='fists'
   $('#gear-status').classList.toggle('grenade',throwable)
-  $('#gear-status').textContent=equipped.def.name+(gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):throwable?' · '+equipped.item.reserve+'개':'')
+  $('#gear-status').textContent=equipped.def.name+(game.freeMode&&(gun||throwable)?' · ∞':gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):throwable?' · '+equipped.item.reserve+'개':'')
   const inCell=game.inCell()
   attackButton.dataset.attack=!inCell&&(gun||throwable)?'ranged':'melee'
   attackButton.setAttribute('aria-label',inCell?'주먹 공격':gun?'발사':throwable?'수류탄 투척':equipped.selected==='bat'?'방망이 공격':'주먹 공격')

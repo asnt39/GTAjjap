@@ -256,7 +256,8 @@ export async function start(onContextLost){
  const deathScreen=createDeathScreen(canvas,document.querySelector('#death-screen'))
  const missionCheckpoint=createMissionCheckpoint()
  let deathTime=0
- const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,chapterMissions,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
+ let freeMode=false,freeSpeed=13
+ const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,chapterMissions,readOnly:()=>freeMode,canStartOpening:()=>!freeMode&&room.phase==='offline'&&!custody.active&&!mission.active})
  let storyStatus=''
  function storyShot(n,from,to,hit,weapon='pistol',damage=9){
   effects.trace(from,to);effects.muzzle(from,2);ui.shot(weapon,from)
@@ -338,7 +339,7 @@ export async function start(onContextLost){
  }
  let coffee=0
  function useItem(id){
-  if(custody.active||player.f.hp<=0)return {ok:false,message:'현재 보급품 사용 불가'}
+  if(freeMode||custody.active||player.f.hp<=0)return {ok:false,message:'현재 보급품 사용 불가'}
   const vehicle=id==='repair-kit'&&room.phase==='offline'?
    driving()?car:mode==='walk'?nearestDoor(candidate=>!!candidate.dents)?.car:null:null
   const repairable=!!vehicle?.dents&&Math.abs(vehicle.speed)<=.45
@@ -847,7 +848,7 @@ export async function start(onContextLost){
   if(joining){
    ui.sound(car.setup.bike?'bikeStart':'engineStart',pos)
    mode='drive';pos.set(car.x,deck,car.z);actor.visible=!!car.setup.bike
-   if(!offline&&car===cars.touring)mission.board()
+   if(!freeMode&&!offline&&car===cars.touring)mission.board()
    if(room.phase==='offline')playerParked.add(car)
   }else{
    mode='walk';actor.visible=true;plantFeet(pos.x,pos.z,floorAt(pos.x,pos.z,deck))
@@ -992,6 +993,7 @@ export async function start(onContextLost){
   }
  })
  function startRoom(endpoint,request){
+  if(freeMode){ui.toast('자유 모드를 종료한 뒤 온라인 방에 입장하십시오.');return}
   if(custody.active){ui.toast('석방 후 방 입장 가능');return}
   if(mode!=='walk'){ui.toast('차량에서 내린 뒤 방에 입장해');return}
   if(episode.openingActive){ui.toast('스토리 의뢰를 완료하거나 미션 보기에서 중단한 뒤 방에 입장하십시오.');return}
@@ -1018,7 +1020,16 @@ export async function start(onContextLost){
   effects.setLowDetail(settings.lowEffects)
   if(isPaused&&!contextLost){effects.update(0,canvas.height);renderer.render(scene,camera)}
  }
- const ui=createUI({options,data,saveNow,restoreData,resetProgress,goToGarage,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
+ function enterFreeMode(){
+  const result=saveNow({update:true})
+  if(!result.ok||!loadout.enterFreeMode())return {ok:false,message:result.ok?'임무 장비 반납 후 시작하십시오.':result.message}
+  freeMode=savesSuspended=true
+  cancelAim();equipment.interrupt();crowd.endTalk()
+  document.querySelector('#free-mode-badge').hidden=false
+  return {ok:true,message:'자유 모드 시작'}
+ }
+ const ui=createUI({get freeMode(){return freeMode},get freeSpeed(){return freeSpeed},
+  setFreeSpeed(value){if(Number.isFinite(value))freeSpeed=clamp(value,10,18)},enterFreeMode,options,data,saveNow,restoreData,resetProgress,goToGarage,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||player.f.hp<=0||document.querySelector('#game').inert)return;
   const cabinKey={KeyH:'horn',KeyL:'lights',KeyB:'radio'}[e.code]
@@ -1344,6 +1355,7 @@ export async function start(onContextLost){
   return checkpoint.flush()
  }
  function saveNow({update=false}={}){
+  if(freeMode)return {ok:false,message:'자유 모드를 종료한 뒤 저장하십시오.'}
   if(room.phase!=='offline')return {ok:false,message:'온라인 방에서 나간 뒤 다시 시도하십시오.'}
   if(update&&(mode!=='walk'||custody.active||episode.openingActive||mission.active||feedbackTime>0||crowd.wanted.level||player.f.action))
    return {ok:false,message:'진행 중인 전투, 운전 또는 미션을 마친 뒤 업데이트하십시오.'}
@@ -1352,6 +1364,7 @@ export async function start(onContextLost){
   return {ok:true,message:'저장 완료'}
  }
  function resetProgress(){
+  if(freeMode)return {ok:false,message:'자유 모드를 종료한 뒤 초기화하십시오.'}
   if(room.phase!=='offline')return {ok:false,message:'온라인 방에서 나간 뒤 초기화하십시오.'}
   const result=data.resetProgress()
   if(result.ok)savesSuspended=true
@@ -1371,6 +1384,7 @@ export async function start(onContextLost){
   return {ok:true,message:'차고지 복귀 완료'}
  }
  function restoreData(text){
+  if(freeMode)return {ok:false,message:'자유 모드를 종료한 뒤 백업을 복원하십시오.'}
   if(room.phase!=='offline')return {ok:false,message:'온라인 방에서 나간 뒤 백업을 복원하십시오.'}
   const result=data.restoreBackup(text)
   if(result.ok)savesSuspended=true
@@ -1531,7 +1545,8 @@ export async function start(onContextLost){
    }else{
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
-   const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)*(player.f.action==='punch'?.36:player.f.action?0:1)
+   const basePace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)
+   const pace=(freeMode?1.85+(basePace-1.85)*(freeSpeed-1.85)/(6.8-1.85):basePace)*(player.f.action==='punch'?.36:player.f.action?0:1)
    if(activity.current&&(Math.abs(joystick.x)>.5||Math.abs(joystick.y)>.5))activity.leave()
    const rate=activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
     (custody.active?Math.min(pace,1.85):aiming?Math.min(pace,loadout.def.aimSpeed??2.15):pace)*(coffee>0&&pace>1.85?1.15:1)
@@ -1628,7 +1643,7 @@ export async function start(onContextLost){
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
    const below=belowGround()
    player.available=!below&&!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
-   const progress=player.f.hp>0?episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:operating(),driving:driving()&&car===cars.touring,onFoot:player.available}):null
+   const progress=!freeMode&&player.f.hp>0?episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:operating(),driving:driving()&&car===cars.touring,onFoot:player.available}):null
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
    player.exposed=!below&&!custody.active&&player.f.hp>0&&(mode==='walk'||driving())

@@ -16,12 +16,12 @@ const validRounds=(id,item)=>Object.hasOwn(gear,id)&&item&&Number.isInteger(item
 export function createLoadout(storage,episode){
  let saved
  try{saved=episode?.savedEquipment??JSON.parse(storage?.getItem(saveKey)??'null')}catch{}
- const items={fists:{mag:0,reserve:0}}
+ let items={fists:{mag:0,reserve:0}}
  for(const [id,def] of Object.entries(gear)){
   if(id!=='fists'&&saved?.items?.[id])items[id]={mag:count(saved.items[id].mag,def.capacity??0),reserve:count(saved.items[id].reserve,def.stock??0)}
  }
  let selected=Object.hasOwn(items,saved?.selected)?saved.selected:'fists'
- let cooldown=0,reloading=0,swingLeft=0,kick=0,boltLeft=0,loan=null
+ let cooldown=0,reloading=0,swingLeft=0,kick=0,boltLeft=0,loan=null,personal=null
  function state(){
   const personal={...items}
   if(loan){if(loan.pistol)personal.pistol=loan.pistol;else delete personal.pistol}
@@ -29,6 +29,7 @@ export function createLoadout(storage,episode){
    selected:loan&&selected==='pistol'?loan.selected:selected}
  }
  function save(){
+  if(personal)return
   const next=state()
   if(episode?.savedEquipment)episode.saveEquipment(next)
   else try{storage?.setItem(saveKey,JSON.stringify(next))}catch{}
@@ -38,7 +39,15 @@ export function createLoadout(storage,episode){
   return Object.hasOwn(items,id)?Math.max(0,(gear[id].stock??0)-items[id].reserve):0
  }
  return {
-  items,get selected(){return selected},get def(){return gear[selected]},get item(){return items[selected]},
+  get items(){return items},
+  enterFreeMode(){
+   if(personal||loan)return false
+   personal={items,selected}
+   items=Object.fromEntries(Object.entries(gear).map(([id,def])=>[id,{mag:def.capacity??0,reserve:def.stock??0}]))
+   cooldown=reloading=swingLeft=kick=boltLeft=0
+   return true
+  },
+  get selected(){return selected},get def(){return gear[selected]},get item(){return items[selected]},
   get swing(){return swingLeft?1-swingLeft/gear.bat.delay:0},
   get recoil(){return kick},get reloadProgress(){return reloading?1-reloading/gear[selected].reload:0},
   get boltProgress(){return boltLeft?1-boltLeft/sniperCycle:0},
@@ -93,6 +102,7 @@ export function createLoadout(storage,episode){
   },
   buy(id,kind){
    const fail=message=>({ok:false,message})
+   if(personal)return fail('자유 모드에서는 장비 구매를 사용할 수 없습니다.')
    if(loan&&id==='pistol')return fail('임무 장비 반납 후 구매하십시오.')
    if(!Object.hasOwn(gear,id)||!gear[id].price||!episode)return fail('판매하지 않는 장비야.')
    const def=gear[id],owned=Object.hasOwn(items,id)
@@ -127,9 +137,10 @@ export function createLoadout(storage,episode){
    if(def.capacity&&!item.mag||def.consumable&&!item.reserve)return false
    cooldown=def.delay
    if(selected==='bat')swingLeft=def.delay
-   else if(def.consumable){item.reserve--;save()}
+   else if(def.consumable){if(!personal){item.reserve--;save()}}
    else{
-    item.mag--;kick=1
+    if(!personal)item.mag--
+    kick=1
     if(selected==='sniper'){
      boltLeft=sniperCycle
      if(item.mag===0&&item.reserve>0)reloading=def.reload
