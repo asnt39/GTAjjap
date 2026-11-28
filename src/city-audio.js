@@ -39,7 +39,7 @@ export function cityAudio(browser=globalThis){
  try{storage=browser.localStorage}catch{}
  const settings=readMixer(storage)
  let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
- let active=false,paused=false,hidden=false,dead=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
+ let active=false,paused=false,hidden=false,dead=false,deathTitlePlayed=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
  let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0,brakeActive=false
  const shots=new Map(),roadClips=new Map(),firearmClips=new Map()
  let roadMedia=null,loadingRoad=false,firearmsRequested=false
@@ -123,9 +123,23 @@ export function cityAudio(browser=globalThis){
  }
  function death(value){
   if(dead===value)return
-  dead=value
+  dead=value;deathTitlePlayed=false
   volumes()
   if(dead)deathCue()
+ }
+ function deathTitle(){
+  if(!dead||deathTitlePlayed||!active||hidden||paused||!settings.effects||ctx?.state!=='running')return
+  deathTitlePlayed=true
+  const now=ctx.currentTime,tone=ctx.createOscillator(),level=gain(0)
+  tone.type='triangle'
+  tone.frequency.setValueAtTime(102,now)
+  tone.frequency.exponentialRampToValueAtTime(43,now+.37)
+  level.gain.setValueAtTime(.001,now)
+  level.gain.exponentialRampToValueAtTime(Math.max(.001,settings.effects*.27),now+.022)
+  level.gain.exponentialRampToValueAtTime(.001,now+.44)
+  tone.connect(level).connect(master)
+  tone.onended=()=>{tone.disconnect();level.disconnect()}
+  tone.start(now);tone.stop(now+.45)
  }
  function haltTracks(){
   for(const track of tracks){track.audio.pause();track.source.disconnect();track.gain.disconnect();track.audio.removeAttribute('src');track.audio.load()}
@@ -261,7 +275,7 @@ export function cityAudio(browser=globalThis){
   tone.onended=()=>{for(const n of [tone,dust,partial,pan,hit,sum])n?.disconnect()}
  }
  return {
-  prepareDrive(){if(active)prepareRoad()},
+  prepareDrive(){if(active)prepareRoad()},deathTitle,
   settings,get active(){return active},get song(){return previousTrack},
   async toggle(){
    if(!active)return enable()

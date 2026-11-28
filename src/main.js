@@ -481,7 +481,7 @@ export async function start(onContextLost){
    if(!restored){missionCheckpoint.clear();respawn();if(practice)mission.start(false)}
    clearDeathView()
    if(restored)ui.toast('체크포인트에서 재개')
-  },{auto,retry,continueLabel:'부활',autoMessage:'부활 준비 중'})
+  },{auto,retry,continueLabel:'부활',autoMessage:'부활 준비 중',onTitle:ui.deathTitle})
  }
  function clearDeathView(){
   cameraBlend=wetView=shoulder=shake=deathTime=0

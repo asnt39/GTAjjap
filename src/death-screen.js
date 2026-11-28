@@ -1,7 +1,7 @@
 import './death-screen.css'
 
 const timings={
- normal:{fade:1100,reveal:1200,choices:360,auto:1050},
+ normal:{fade:1100,reveal:1200,choices:650,auto:1500},
  reduced:{fade:200,reveal:280,choices:80,auto:760}
 }
 
@@ -42,7 +42,7 @@ export function createDeathScreen(canvas,dialog){
 
  return {
   get active(){return dialog.open},
-  begin(onContinue,{auto=false,retry=false,continueLabel='계속하기',autoMessage='곧 안전한 장소에서 깨어납니다.'}={}){
+  begin(onContinue,{auto=false,retry=false,continueLabel='계속하기',autoMessage='곧 안전한 장소에서 깨어납니다.',onTitle}={}){
    if(dialog.open)return
    const timing=reducedMotion.matches?timings.reduced:timings.normal
    resume=onContinue
@@ -59,6 +59,7 @@ export function createDeathScreen(canvas,dialog){
     if(!resume||!dialog.open)return
     game.classList.add('death-grayscale')
     dialog.dataset.phase='title'
+    onTitle?.()
     if(status&&auto)status.textContent=autoMessage
     timer=setTimeout(()=>{
      if(auto){finish('continue');return}

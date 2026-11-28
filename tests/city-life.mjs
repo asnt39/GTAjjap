@@ -98,12 +98,13 @@ class FakeAudioContext {
  sampleRate=100
  destination=new FakeNode()
  startedBuffers=[]
+ startedOscillators=0
  constructor(){FakeAudioContext.latest=this}
  createGain(){return new FakeNode()}
  createDynamicsCompressor(){return new FakeNode()}
  createBiquadFilter(){return new FakeNode()}
  createDelay(){return new FakeNode()}
- createOscillator(){return new FakeNode()}
+ createOscillator(){const node=new FakeNode();node.start=()=>this.startedOscillators++;return node}
  createBufferSource(){
   const source=new FakeNode()
   source.start=()=>this.startedBuffers.push(source.buffer)
@@ -164,6 +165,9 @@ test('death plays one cue and holds the current score until recovery',async()=>{
  const before=ctx.startedBuffers.length
  mixer.death(true);mixer.death(true)
  assert.equal(ctx.startedBuffers.length,before+1)
+ const title=ctx.startedOscillators
+ mixer.deathTitle();mixer.deathTitle()
+ assert.equal(ctx.startedOscillators,title+1)
  ctx.currentTime=5;mixer.update({...frame,wanted:2})
  assert.equal(FakeAudio.files.length,1)
  mixer.death(false);mixer.update({...frame,wanted:2})
