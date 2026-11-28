@@ -12,7 +12,7 @@ import {canWalk,movePlayer} from '../src/navigation.js'
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){},fillText(){}})})}
 const boxes=[]
-buildChapterBuildings(new Scene(),(...bounds)=>boxes.push(bounds),{street:[],architecture:[]})
+const scenery=buildChapterBuildings(new Scene(),(...bounds)=>boxes.push(bounds),{street:[],architecture:[]})
 const cruiser={width:1.82,length:4.35,height:1.45}
 
 test('the getaway car has a continuous surfaced route from the roof to Basin Crossing',()=>{
@@ -114,4 +114,18 @@ test('Breakwater Yard parking and mission interactions are physically reachable'
   [hideout.rest.x,hideout.rest.z]])
  for(const point of [hideout.meeting,hideout.armory,hideout.desk])assert.ok(canWalk(point.x,point.z,boxes,.32,point.y),point.label)
  assert.ok(clearPose({...cruiser,x:hideout.parking.x,z:hideout.parking.z,lift:0,heading:Math.PI},boxes,true,true))
+})
+
+test('interior detail is discarded at distance while the collision structure remains',()=>{
+ const point=factory.panel
+ assert.ok(scenery.updateDetails(point))
+ const indoor=scenery.group.children.find(group=>group.name==='Facility interior detail')
+ assert.ok(indoor?.children.length)
+ let disposed=false
+ indoor.children[0].geometry.addEventListener('dispose',()=>{disposed=true})
+ const collisionCount=boxes.length
+ assert.ok(scenery.updateDetails({x:0,z:0}))
+ assert.ok(disposed)
+ assert.equal(indoor.parent,null)
+ assert.equal(boxes.length,collisionCount)
 })

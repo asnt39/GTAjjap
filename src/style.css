@@ -180,3 +180,4 @@ body.speaking #mission-event,body.speaking #toast{visibility:hidden}
  font:600 clamp(12px,2vw,17px)/1.45 var(--game-font);word-break:keep-all}
 body.speaking #story-subtitle,body.dead #story-subtitle{visibility:hidden}
 @media(pointer:coarse){#story-subtitle{bottom:max(64px,14vh);max-width:52vw}}
+@media(pointer:coarse) and (orientation:landscape){#story-subtitle{bottom:max(110px,26vh)}}

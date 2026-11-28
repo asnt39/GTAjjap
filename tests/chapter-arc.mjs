@@ -35,13 +35,16 @@ test('chapter records are independent of Mission 04 and retry preserves the acti
 
 import {createEpisode,EPISODE_SAVE_KEY} from '../src/episode.js'
 import {chapterMissions} from '../src/chapter-missions.js'
+import {createSaveData} from '../src/save-data.js'
 
 test('completed Mission 04 saves unlock all four missions and retain the chosen lead on reload',()=>{
  const initial={version:1,index:0,status:'available',money:8000,bank:2500,inventory:{water:3},
   wrongDeal:{mission:2,step:0,status:'complete'},newBlood:{step:0,status:'complete'}}
  for(const lead of ['intercepted','escaped']){
   const records=new Map([[EPISODE_SAVE_KEY,JSON.stringify(initial)]])
-  const storage={getItem:key=>records.get(key)??null,setItem:(key,value)=>records.set(key,value)}
+  const memory=values=>({getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),
+   removeItem:key=>values.delete(key)})
+  const storage=memory(records)
   const options={storage,mainStory:true,chapterOne:{},chapterMissions}
   let episode=createEpisode(options)
   for(const job of chapterMissions){
@@ -63,5 +66,11 @@ test('completed Mission 04 saves unlock all four missions and retain the chosen 
   assert.deepEqual(saved.newBlood,{step:0,status:'complete',reason:''})
   assert.equal(episode.chapter.update({reported:true}),null)
   assert.deepEqual(state.journal.at(-1),chapterMissions.at(-1).finish)
+  const backup=createSaveData(storage).exportBackup(),destination=memory(new Map())
+  assert.ok(backup.ok)
+  assert.ok(createSaveData(destination).restoreBackup(backup.text).ok)
+  const imported=createEpisode({...options,storage:destination})
+  assert.equal(imported.snapshot().lead,lead)
+  assert.equal(imported.snapshot().money,saved.money)
  }
 })

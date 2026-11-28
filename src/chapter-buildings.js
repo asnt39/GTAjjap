@@ -4,7 +4,7 @@ import {cargoLadder} from './coast-plan.js'
 import {parking,parkingFloors,parkingRamps,parkingStair,parkingLanding,rampHeight,workshop,hotel,cargoPier,cargoPlatform,factory,hideout} from './chapter-sites.js'
 
 export function buildChapterBuildings(scene,addCollider,maps){
- const group=new T.Group(),batches=new Map()
+ const group=new T.Group(),batches=new Map(),interiors=[]
  group.name='Chapter 1 waterfront facilities'
  scene.add(group)
  const material=(color,map)=>new T.MeshStandardMaterial({color,map:map??null,roughness:.82})
@@ -26,6 +26,7 @@ export function buildChapterBuildings(scene,addCollider,maps){
   box((w+e)/2,(low+high)/2,(n+s)/2,e-w,high-low,s-n,mat)
   addCollider(w,e,n,s,high,false,low)
  }
+ function decorate(bounds,build){interiors.push({bounds,build,root:null})}
  function slab(w,e,n,s,y){
   box((w+e)/2,y-.12+(y<.2?.004:0),(n+s)/2,e-w,.24,s-n)
   if(y>.2)addCollider(w,e,n,s,y,true,y-.24)
@@ -98,9 +99,12 @@ export function buildChapterBuildings(scene,addCollider,maps){
  wall(a,a+1.65,n,n+.28,.083,4.2,brick);wall(b-1.65,b,n,n+.28,.083,4.2,brick)
  wall(a,b,n,n+.30,3.98,5.25,brick)
  slab(a,b,n,s,5.25)
- for(const z of [153,157,160.8]){
-  box(-105.5,3.9,z,5.4,.14,.28,steel);box(-105.5,3.80,z,2.8,.07,.18,lamp)
- }
+ decorate(workshop.bounds,()=>{
+  for(const z of [153,157,160.8]){
+   box(-105.5,3.9,z,5.4,.14,.28,steel);box(-105.5,3.80,z,2.8,.07,.18,lamp)
+  }
+  for(let z=159;z<161.5;z+=.47)batch(new T.TorusGeometry(.27,.09,9,16).rotateX(Math.PI/2).translate(-109.3,.55,z),rubber)
+ })
  for(const x of [-108.25,-102.65]){
   wall(x-.14,x+.14,155.7,156.0,.083,2.90,steel)
   box(x-.12,.35,156.05,.3,.14,1.3,stripe)
@@ -108,10 +112,6 @@ export function buildChapterBuildings(scene,addCollider,maps){
  }
  wall(-109.64,-108.35,158.5,161.4,.083,.99,steel)
  wall(-103.96,-102.52,163,164.6,.083,1.02,wood)
- for(let z=159;z<161.5;z+=.47){
-  const tire=new T.TorusGeometry(.27,.09,9,16).rotateX(Math.PI/2).translate(-109.3,.55,z)
-  batch(tire,rubber)
- }
  sign('KEEL MOTOR WORKS',-105.5,4.61,149.98,7.4).rotation.y=Math.PI
  flush()
  buildHotel()
@@ -175,9 +175,16 @@ export function buildChapterBuildings(scene,addCollider,maps){
   }
   box(-127.73,top+2.22,195.57,.56,.18,.11,brass)
   sign('205',-127.73,top+2.23,195.64,.49)
-  for(const x of [-137.7,-133.7,-129.5,-125.4,-120.7]){
-   box(x,5.96,199.9,.82,.08,.43,lamp)
-  }
+  decorate(hotel.bounds,()=>{
+   for(const x of [-137.7,-133.7,-129.5,-125.4,-120.7]){
+    box(x,5.96,199.9,.82,.08,.43,lamp)
+   }
+   for(const x of [-133.25,-125.7])for(const z of [190.25,204.78]){
+    box(x,top+.80,z+.91,.43,.08,.43,brass)
+    box(x,top+1.05,z+.91,.12,.42,.12,steel)
+    box(x,top+1.27,z+.91,.33,.18,.33,lamp)
+   }
+  })
   wall(-116.9,-116.05,195.3,196.6,base,1.12,steel)
   wall(-114.1,-113.13,197.45,198.2,base,.96,brick)
   wall(-112.0,-110.95,202.0,203.45,base,1.07,steel)
@@ -281,10 +288,16 @@ export function buildChapterBuildings(scene,addCollider,maps){
    for(const z of [f+.13,k-.13])box((l+r)/2,height+.07,z,r-l,.10,.092,safety)
    box((l+r)/2,(height+base)*.5,k+.025,r-l,.15,.05,steel)
   }
-  for(const x of [-177.1,-170.5,-165.4]){
-   batch(new T.CylinderGeometry(.15,.15,15.2,10).rotateX(Math.PI/2).translate(x,5.1,163.45),iron)
-   for(const z of [156.6,161.1,165.6,170.2])batch(new T.TorusGeometry(.15,.035,8,12).translate(x,5.1,z),steel)
-  }
+  decorate(factory.bounds,()=>{
+   for(const x of [-177.1,-170.5,-165.4]){
+    batch(new T.CylinderGeometry(.15,.15,15.2,10).rotateX(Math.PI/2).translate(x,5.1,163.45),iron)
+    for(const z of [156.6,161.1,165.6,170.2])batch(new T.TorusGeometry(.15,.035,8,12).translate(x,5.1,z),steel)
+   }
+   for(const z of [154.7,158.2,162.1,165.4,169.2,172.25]){
+    box(-175,6.22,z,.04,.55,.04,steel)
+    box(-175,5.89,z,1.26,.10,.20,lamp)
+   }
+  })
   for(const [l,r,f,k] of [[-159.4,-159.25,152.2,170.7],[-163.4,-159.4,174.36,174.48]]){
    wall(l,r,f,k,deck,deck+.96,steel)
    box((l+r)/2,deck+.93,(f+k)/2,r-l+.10,.09,k-f+.10,safety)
@@ -292,7 +305,11 @@ export function buildChapterBuildings(scene,addCollider,maps){
   wall(-159.42,-155.6,155.01,155.22,deck,6.12,iron)
   wall(-153.86,-150.25,155.01,155.22,deck,6.12,iron)
   wall(-155.6,-153.86,155.01,155.22,5.66,6.12,iron)
-  wall(-153.9,-151.4,152.24,152.42,deck,6.12,steel)
+  wall(-153.32,-151.05,152.24,152.42,deck,6.12,steel)
+  wall(-153.32,-153.12,152.39,153.78,deck,6.12,iron)
+  wall(-151.23,-151.04,152.39,153.78,deck,6.12,iron)
+  box(-152.22,deck+1.14,152.46,1.09,2.28,.09,steel)
+  box(-152.23,deck+2.36,152.505,.47,.10,.06,lamp)
   wall(-153.12,-151.23,153.67,153.79,deck,deck+1.03,iron)
   const pane=new T.Mesh(new T.BoxGeometry(1.89,1.13,.075),new T.MeshStandardMaterial({
    color:0x789398,roughness:.25,metalness:.08,transparent:true,opacity:.31}))
@@ -331,20 +348,41 @@ export function buildChapterBuildings(scene,addCollider,maps){
    box(x,1.53,201.96,.24,.099,.07,stripe)
   }
   for(const z of [189.2,193.8])for(const x of [-161.5,-158.9])box(x,.101,z,.081,.032,2.7,stripe)
-  for(const [x,z] of [[-175.5,198.9],[-167.1,195.7],[-160.5,191.5],[-167.2,201.7]]){
-   box(x,4.5,z,1.45,.112,.24,lamp)
-  }
+  decorate(hideout.bounds,()=>{
+   for(const [x,z] of [[-175.5,198.9],[-167.1,195.7],[-160.5,191.5],[-167.2,201.7]]){
+    box(x,4.5,z,1.45,.112,.24,lamp)
+   }
+   for(const z of [196.45,197.3,198.1]){
+    box(-166.55,.57,z,.73,.15,.44,fabric)
+    for(const dz of [-.16,.16])box(-166.55,.32,z+dz,.66,.48,.046,steel)
+   }
+  })
   for(const x of [-175.7,-172.6,-155.4])box(x,3.12,n-.057,1.87,1.01,.12,painted)
   box(-166.6,2.67,186.5,3.75,.18,1.71,steel)
   sign('BREAKWATER YARD',-165.9,3.95,186.84,5.4).rotation.y=Math.PI
  }
- function flush(){
+ function flush(parent=group){
   for(const [mat,parts] of batches){
    const mesh=new T.Mesh(mergeGeometries(parts),mat)
    mesh.receiveShadow=true;mesh.castShadow=mat===concrete||mat===brick||mat===steel
-   group.add(mesh);parts.forEach(g=>g.dispose())
+   parent.add(mesh);parts.forEach(g=>g.dispose())
   }
   batches.clear()
  }
- return group
+ function updateDetails(pos){
+  let changed=false
+  for(const detail of interiors){
+   const [w,e,n,s]=detail.bounds
+   const distance=Math.hypot(pos.x-Math.max(w,Math.min(e,pos.x)),pos.z-Math.max(n,Math.min(s,pos.z)))
+   if(detail.root&&distance>91){
+    detail.root.traverse(mesh=>mesh.geometry?.dispose())
+    detail.root.removeFromParent();detail.root=null;changed=true
+   }else if(!detail.root&&distance<64){
+    detail.root=new T.Group();detail.root.name='Facility interior detail'
+    detail.build();flush(detail.root);group.add(detail.root);changed=true
+   }
+  }
+  return changed
+ }
+ return {group,updateDetails}
 }

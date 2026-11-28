@@ -6,8 +6,9 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {buildChapterBuildings} from '../src/chapter-buildings.js'
 import {buildOldTown} from '../src/old-town.js'
 import {chapterWorld} from '../src/chapter-world.js'
+import {freeCrew} from '../src/chapter-eight.js'
 import {chapterMissions} from '../src/chapter-missions.js'
-import {facilityFloor,hotel,marina,parking,workshop} from '../src/chapter-sites.js'
+import {facilityFloor,hideout,hotel,marina,parking,workshop} from '../src/chapter-sites.js'
 import {cargoLaunch,quaySkiff} from '../src/chapter-sea.js'
 import {createBoats} from '../src/coastal-motion.js'
 import {stepDrive} from '../src/driving.js'
@@ -161,4 +162,18 @@ test('the Rivet pursuit reports distinct outcomes for sustained pressure and esc
   world.prepare(null)
  }
  assert.equal(traffic.length,0)
+})
+
+test('free-roam allies can be found, recruited, and dismissed without a mission goal',async()=>{
+ const {world,crowd,ready,place,player}=fixture()
+ place({x:hideout.maya.x+1.25,y:hideout.maya.y,z:hideout.maya.z})
+ await ready(freeCrew)
+ const maya=crowd.all.find(npc=>npc.name==='Maya')
+ const action=id=>world.interactions(freeCrew,player.pos).find(item=>item.id===id)
+ assert.ok(action('chapter-talk-chapter-maya'))
+ action('chapter-order-chapter-maya').activate()
+ assert.ok(maya.follow)
+ action('chapter-dismiss-chapter-maya').activate()
+ assert.equal(maya.follow,false)
+ world.prepare(null)
 })

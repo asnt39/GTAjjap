@@ -168,7 +168,7 @@ export async function start(onContextLost){
  const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  buildTransferYard(scene,addCollider,surfaceMaps)
  const updateClub=buildNewBloodClub(scene,addCollider,surfaceMaps)
- buildChapterBuildings(scene,addCollider,surfaceMaps)
+ const chapterBuildings=buildChapterBuildings(scene,addCollider,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
@@ -1207,7 +1207,7 @@ export async function start(onContextLost){
    plantFeet(x,z,y)
   }
  }
- updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
+ chapterBuildings.updateDetails(pos);updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
  trackedX=pos.x;trackedZ=pos.z
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
@@ -1676,7 +1676,8 @@ export async function start(onContextLost){
    const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw),coastChanged=coastUpdate(pos,elapsed,camera.position.y)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   const clubChanged=updateClub(pos,elapsed,settings.lowEffects)
+   const chapterDetailChanged=chapterBuildings.updateDetails(pos)
+   const clubChanged=updateClub(pos,elapsed,settings.lowEffects)||chapterDetailChanged
    if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||coastChanged||doorsChanged||fittingsChanged||clubChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()

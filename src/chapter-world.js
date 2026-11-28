@@ -124,9 +124,9 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
    if(was?.set!=='chapter-sea-cargo')resetBoat(quayBoat,false)
    if(stage.set==='chapter-sea-return')sailed=false
   }else if(stage.set!=='chapter-sea-check')resetBoat(quayBoat,true)
-  const first=[{name:'Maya',point:{...stage.goal,x:stage.goal.x+1.12,z:stage.goal.z+.76}}]
+  const mayaAtGoal=()=>[{name:'Maya',point:{...stage.goal,x:stage.goal.x+1.12,z:stage.goal.z+.76}}]
   switch(stage.set){
-   case 'chapter-maya':setupActors(first);break
+   case 'chapter-maya':setupActors(mayaAtGoal());break
    case 'chapter-scan':
     if(!recoveryCar)deployRecoveryCar()
     spawnTarget(true);setupActors([{name:'Maya',point:parking.recovery}]);break
@@ -137,7 +137,7 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
     if(!target)spawnTarget(false,'street')
     target.storyLocked=false
     setupActors([{name:'Maya',point:{x:target.x-2.5,y:target.lift,z:target.z}}]);break
-   case 'chapter-invoice':setupActors(first);break
+   case 'chapter-invoice':setupActors(mayaAtGoal());break
    case 'chapter-adrian-chase':
     spawnTarget(true);deployRecoveryCar({x:-161.5,z:181.8,heading:Math.PI/2})
     setupActors(stage.actors??[])
