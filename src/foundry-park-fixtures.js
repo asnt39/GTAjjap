@@ -38,8 +38,8 @@ export function foundryParkFixtures(group,addCollider,maps){
   const map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace
   const panel=new T.Group();panel.position.set(x,0,z);panel.rotation.y=turn;group.add(panel)
   const surface=new T.Mesh(new T.PlaneGeometry(width,width*176/512),new T.MeshStandardMaterial({map,side:T.DoubleSide,roughness:.8}))
-  surface.position.set(0,1.25,.034);panel.add(surface)
-  const backing=new T.Mesh(cube,iron);backing.scale.set(width+.06,width*176/512+.05,.052);backing.position.y=1.25;panel.add(backing)
+  surface.position.set(0,1.25,.048);panel.add(surface)
+  const backing=new T.Mesh(cube,iron);backing.scale.set(width+.06,width*176/512+.05,.09);backing.position.y=1.25;panel.add(backing)
   const sideways=Math.abs(Math.sin(turn))>.5
   for(const dx of [-width*.37,width*.37]){
    const post=new T.Mesh(cube,iron);post.scale.set(.075,1.32,.085);post.position.set(dx,.72,0);panel.add(post)
