@@ -18,7 +18,7 @@ function turn(n,angle,dt){
  n.face+=clamp(d*(1-Math.exp(-8*dt)),-4.8*dt,4.8*dt)
 }
 function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37)>6?.087:.008}
-export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=ground){
+export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=ground,onCharacterImpact){
  const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
   const rig=await createCharacter({variant:profile.variant??i,model:profile.model}),pos=new Vector3(profile.x,0,profile.z)
@@ -164,10 +164,17 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    wanted.report(source,1);dispatch(source);sensing=0
   }
  }
- function receive(n,source,zone,point,damage,kind=damage==null?'melee':'shot'){
+ function markImpact(n,impact){
+  const surface=n.rig.markImpact(impact)
+  if(surface)onCharacterImpact?.(surface,impact.kind,impact.strength)
+ }
+ function receive(n,source,zone,point,damage,kind=damage==null?'melee':'shot',visual={}){
   const angle=Math.atan2(source.x-n.pos.x,source.z-n.pos.z)
   const side=Math.cos(n.face)*(point.x-n.pos.x)-Math.sin(n.face)*(point.z-n.pos.z)>0?1:-1
+  const earlierHealth=n.f.hp
   if(!injure(n.f,damage??24,side,zone,{weaponHit:damage!=null}))return false
+  markImpact(n,{point:point===n.pos?undefined:point,source:visual.source??{x:source.x,z:source.z},
+   direction:visual.direction,zone,kind,strength:earlierHealth-n.f.hp})
   if(n.missionRole){
    impulse(n.f,kind,-Math.sin(angle),-Math.cos(angle),damage??24,{face:n.face})
    return true
@@ -184,7 +191,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   return true
  }
  function vehicleHit(n,source,damage,impact){
-  if(!receive(n,source,'body',n.pos,damage,'vehicle'))return false
+  if(!receive(n,source,'body',n.pos,damage,'vehicle',{direction:impact}))return false
   if(impact.speed>=5.4){
    impulse(n.f,'vehicle',impact.x,impact.z,impact.speed*5,{face:n.face,lift:impact.knockout?.62:.17})
    n.f.side=impact.x*Math.cos(n.face)-impact.z*Math.sin(n.face)<0?1:-1
@@ -286,7 +293,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(n.f.action==='knockdown'){
     n.state='react';n.path=[];n.speed=0
    }else if(n.f.action==='down'){
-    if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.state='idle';n.alert=0;n.wait=2}
+    if(n.f.downTime>16&&!visible&&d>9){revive(n.f);n.rig.clearImpacts();n.state='idle';n.alert=0;n.wait=2}
    }else if(n.f.action==='hit'){
     n.speed=0
    }else if(n.f.action==='punch'){turn(n,toward,tick)}
@@ -376,6 +383,6 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    if(onPoliceShot&&n.officer)firearms.pose(n,player,tick,aiming,onPoliceShot)
   }
  }
- return {all,officers,wanted,takePursuit,candidate,candidates,beginTalk,endTalk,receive,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
+ return {all,officers,wanted,takePursuit,candidate,candidates,beginTalk,endTalk,receive,markImpact,vehicleHit,blastHit,hearShot,lineClear,update,blockedBy, get talking(){return talking},
   get dialogue(){return talking?{name:talking.name,displayName:residentDisplayName(talking),role:talking.role,text:lastTalk}:null},get shadowDirty(){return shadowDirty}}
 }

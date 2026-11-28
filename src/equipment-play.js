@@ -22,9 +22,9 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
  const throwRelease=.28,throwLength=.53
  const origin=()=>chest.copy(player.pos).addScaledVector(worldUp,1.25)
  function mark(point){impact.position.copy(point);impact.visible=true;impactTime=.10}
- function hit(n,point,amount,kind='shot'){
+ function hit(n,point,amount,kind='shot',source){
   const zone=point.y>n.pos.y+n.height*.77?'upper':'body'
-  if(crowd.receive(n,player.pos,zone,point,amount,kind)){
+  if(crowd.receive(n,player.pos,zone,point,amount,kind,{source})){
    scriptedHit||=n.missionRole==='hostile'
    onHit(n)
   }
@@ -48,7 +48,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   const occlusion=segment(origin(),muzzle)
   if(occlusion.blocked||occlusion.target){
    contact.copy(chest).addScaledVector(direction,occlusion.distance);mark(contact)
-   if(occlusion.target)hit(occlusion.target,contact,shotgun||sniper?occlusion.target.f.hp:loadout.def.damage)
+   if(occlusion.target)hit(occlusion.target,contact,shotgun||sniper?occlusion.target.f.hp:loadout.def.damage,'shot',chest)
   }else{
    direction.subVectors(aimPoint,muzzle).normalize()
    right.crossVectors(direction,worldUp).normalize();up.crossVectors(right,direction)
@@ -74,7 +74,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
    }
    for(const [n,event] of hits){
     const close=shotgun&&Math.hypot(n.pos.x-player.pos.x,n.pos.z-player.pos.z)<=2.4
-    hit(n,event.point,close||sniper?n.f.hp:Math.max(1,Math.round(event.amount)))
+    hit(n,event.point,close||sniper?n.f.hp:Math.max(1,Math.round(event.amount)),'shot',muzzle)
    }
   }
   effects?.muzzle(muzzle,sniper?8:shotgun?5:2)
@@ -87,7 +87,7 @@ export function equipmentPlay({scene,camera,char,boxes,fleet,crowd,player,loadou
   contact.copy(from).addScaledVector(direction,result.distance)
   const cover=segment(origin(),contact)
   if(cover.blocked)return false
-  hit(result.target,contact,loadout.def.damage,'melee');mark(contact);return true
+  hit(result.target,contact,loadout.def.damage,'melee',from);mark(contact);return true
  }
  function interrupt(){
   queued=hasPrevious=batConnected=false;throwTime=null;loadout.interrupt();impact.visible=false

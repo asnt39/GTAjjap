@@ -8,7 +8,9 @@ const palettes={
  sparks:{color:0xffba54,size:.045,growth:-.08,opacity:.94,life:[.13,.34],spread:3.1,rise:2.1,gravity:9.8},
  rubber:{color:0x9a9b98,size:.16,growth:.41,opacity:.26,life:[.32,.70],spread:.53,rise:.23,gravity:-.31},
  burst:{color:0xff9b49,size:.72,growth:.72,opacity:.82,life:[.13,.23],spread:.94,rise:.46,gravity:.7},
- flash:{color:0xffd18a,size:.28,growth:.65,opacity:.9,life:[.075,.13],spread:.6,rise:.06,gravity:0}
+ flash:{color:0xffd18a,size:.28,growth:.65,opacity:.9,life:[.075,.13],spread:.6,rise:.06,gravity:0},
+ impactMist:{color:0x9b3834,size:.105,growth:.24,opacity:.54,life:[.15,.29],spread:.52,rise:.28,gravity:1.1},
+ impactFleck:{color:0x83312c,size:.031,growth:-.032,opacity:.79,life:[.19,.37],spread:1.15,rise:.66,gravity:5.5}
 }
 
 export function worldEffects(scene,{capacity=120}={}){
@@ -51,16 +53,20 @@ export function worldEffects(scene,{capacity=120}={}){
  marks.setAttribute('position',new BufferAttribute(markCoords,3));marks.setDrawRange(0,0)
  const tyreLines=new LineSegments(marks,new LineBasicMaterial({color:0x242520,transparent:true,opacity:.36,depthWrite:false}))
  tyreLines.frustumCulled=false;tyreLines.visible=false;scene.add(tyreLines)
- let markIndex=0,markCount=0
+ let markIndex=0,markCount=0,lowDetail=false
+ const lowCapacity=Math.max(1,Math.ceil(capacity*.4))
  const particles=[],trails=[],timers=new WeakMap()
  const color=new Color()
  const variation=(min,max)=>min+(max-min)*Math.random()
- function emit(type,x,y,z,count=1,driftX=0,driftZ=0){
+ function emit(type,x,y,z,count=1,driftX=0,driftZ=0,driftY=0){
+  if(lowDetail&&(type==='exhaust'||type==='rubber'))return
+  const limit=lowDetail?lowCapacity:capacity
+  if(lowDetail)count=Math.ceil(count*.4)
   const style=palettes[type]
   color.setHex(style.color)
   for(let i=0;i<count;i++){
-   if(particles.length>=capacity)particles.shift()
-   particles.push({style,x,y,z,vx:driftX+variation(-style.spread,style.spread),vy:style.rise*variation(.52,1.38),
+   if(particles.length>=limit)particles.shift()
+   particles.push({style,x,y,z,vx:driftX+variation(-style.spread,style.spread),vy:driftY+style.rise*variation(.52,1.38),
     vz:driftZ+variation(-style.spread,style.spread),life:variation(...style.life),age:0,r:color.r,g:color.g,b:color.b})
   }
  }
@@ -74,8 +80,18 @@ export function worldEffects(scene,{capacity=120}={}){
   emit('flash',point.x,point.y,point.z,power)
   emit('smoke',point.x,point.y,point.z,1)
  }
+ function characterImpact(surface,kind='melee',strength=24){
+  if(!surface||!Number.isFinite(strength)||strength<=0)return
+  const {point,direction}=surface
+  const force=kind==='shot'?1.45:kind==='melee'?.72:1.2
+  const x=point.x+.018*direction.x,y=point.y+.018*direction.y,z=point.z+.018*direction.z
+  const scatter=kind==='shot'?4:kind==='melee'?2:3
+  const intensity=Math.min(2,Math.floor(strength/24))
+  emit('impactMist',x,y,z,intensity+1,direction.x*force,direction.z*force,direction.y*force)
+  if(strength>=5)emit('impactFleck',x,y,z,scatter+intensity,direction.x*force,direction.z*force,direction.y*force)
+ }
  function vehicle(car,dt,distance){
-  if(distance>42)return
+  if(distance>(lowDetail?25:42))return
   const timer=timers.get(car)??{exhaust:0,smoke:0,skid:0,burst:false}
   const speed=Math.abs(car.speed)
   timer.exhaust-=dt;timer.smoke-=dt;timer.skid-=dt
@@ -88,7 +104,7 @@ export function worldEffects(scene,{capacity=120}={}){
    }
   }
   if(!car.dents)timer.burst=false
-  if(timer.skid<=0&&Math.abs(car.travel)>.055&&speed>4.2&&(car.braking||Math.abs(car.steer)*speed>2.05)){
+  if(!lowDetail&&timer.skid<=0&&Math.abs(car.travel)>.055&&speed>4.2&&(car.braking||Math.abs(car.steer)*speed>2.05)){
    const sides=car.setup?.bike?[0]:[-.36,.36]
    for(const side of sides){
     const track=worldPoint(car,side*car.width,car.length*.33),y=.014+(car.lift??0)
@@ -100,7 +116,7 @@ export function worldEffects(scene,{capacity=120}={}){
    marks.setDrawRange(0,markCount*2);marks.attributes.position.needsUpdate=true;tyreLines.visible=true
    timer.skid=.045
   }
-  if(speed>1.25&&timer.exhaust<=0){
+  if(!lowDetail&&speed>1.25&&timer.exhaust<=0){
    const at=worldPoint(car,-car.width*.26,car.length*.51)
    emit('exhaust',at.x,.24+(car.lift??0),at.z,1,-Math.sin(car.heading)*.6,Math.cos(car.heading)*.6)
    timer.exhaust=speed>9?.09:.16
@@ -150,6 +166,15 @@ export function worldEffects(scene,{capacity=120}={}){
   trailGeometry.setDrawRange(0,index*2)
   if(index)trailGeometry.attributes.position.needsUpdate=true
  }
- return {emit,vehicle,trace,muzzle,update,
+ return {emit,vehicle,trace,muzzle,characterImpact,update,
+  clearCombat(){
+   for(let i=particles.length-1;i>=0;i--)if(particles[i].style===palettes.impactMist||particles[i].style===palettes.impactFleck)particles.splice(i,1)
+   trails.length=0;line.visible=false
+  },
+  setLowDetail(value){
+   if(value===lowDetail)return
+   lowDetail=value;tyreLines.visible=!lowDetail&&markCount>0
+   if(lowDetail&&particles.length>lowCapacity)particles.splice(0,particles.length-lowCapacity)
+  },
   land(x,y,z,force){if(force>2.2)emit('dust',x,y+.07,z,force>4?6:3)}}
 }

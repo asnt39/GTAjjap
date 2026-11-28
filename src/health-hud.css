@@ -1,0 +1,20 @@
+#injury-vignette,#damage-flash {position:absolute;inset:0;pointer-events:none;z-index:1}
+#injury-vignette {background:radial-gradient(ellipse at center,transparent 46%,#6a11172e 67%,#580810 100%);opacity:var(--injury-vignette,0);transition:opacity 380ms ease-out}
+#damage-flash {background:radial-gradient(ellipse at center,#b83a2411 17%,#bd362e76 71%,#df473d 100%);opacity:0}
+#damage-flash[data-hit="shot"] {background:radial-gradient(ellipse at center,transparent 26%,#a1273459 58%,#de3747 100%)}
+#damage-flash[data-hit="vehicle"] {background:radial-gradient(ellipse at center,#b2412924 26%,#ad211f73 65%,#d7513e 100%)}
+#game #vitals {left:auto;right:max(22px,env(safe-area-inset-right));top:calc(var(--hud-top) + 49px);width:148px;max-width:calc(100vw - 40px);padding:7px 10px 8px;background:#101c23ed;border:1px solid #9caaa66b;border-radius:5px;box-shadow:0 3px 12px #07101670;color:#f6f3e9}
+.health-caption {display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:11px;line-height:1.35}
+.health-count {font-size:13px;letter-spacing:.035em;font-variant-numeric:tabular-nums}
+.health-meter {position:relative;height:6px;margin-top:5px;background:#090e13;border:1px solid #66757377;border-radius:2px;overflow:hidden}
+.health-meter i {position:absolute;inset:0;transform-origin:left;transform:scaleX(var(--health,1));transition:transform 150ms ease-out,background-color 180ms}
+.health-meter .health-trail {background:#f0c5ac;transition:transform 520ms ease-out}
+.health-meter .health-fill {background:#8be2b5}
+#vitals[data-health="hurt"] .health-fill {background:#ffd08a}
+#vitals[data-health="critical"] .health-fill {background:#ff7178}
+#game #vitals .health-caption span {margin:0;color:#f6f3e9}
+#game #vitals .health-armor,#game #vitals .health-opponent {display:block;margin-top:5px;color:#ffd3b5;font:500 10px/1.2 var(--game-font)}
+#game #vitals .health-armor:empty,#game #vitals .health-opponent:empty {display:none}
+.player-death #injury-vignette {opacity:0}
+@media(pointer:coarse){#game #vitals {top:calc(var(--hud-top) + 37px);right:max(12px,env(safe-area-inset-right));width:117px;padding:6px 7px}}
+@media(prefers-reduced-motion:reduce){.health-meter i,#injury-vignette {transition-duration:0ms}}

@@ -153,14 +153,23 @@ export function characterPose(scene){
    curl(sign,turn*.32)
   }
  }
- function gesture(action,p,side,zone,ready=0,run=0){
+ function gesture(action,p,side,zone,ready=0,run=0,reaction){
   if(!action)return
   if(action==='hit'){
-   const recoil=Math.sin(Math.PI*Math.pow(p,.66))
-   offset('Spine','z',-side*.20*recoil);offset('Spine1','x',-.33*recoil)
-   offset('Neck','y',side*.25*recoil);offset('Head','x',(zone==='upper'?-.34:-.11)*recoil)
+   const {kind='melee',front=-.82,lateral=side*.57,pitch=.28}=reaction??{}
+   const recoil=Math.sin(Math.PI*Math.pow(p,kind==='shot'?.46:.66))
+   const spread=kind==='shot'?.17:kind==='melee'?.37:.54
+   offset('Spine','x',front*pitch*.44*recoil)
+   offset('Spine','z',-lateral*pitch*.64*recoil)
+   offset('Spine1','x',front*pitch*1.28*recoil)
+   offset('Spine1','z',-lateral*pitch*1.2*recoil)
+   offset('Neck','y',lateral*pitch*.75*recoil)
+   offset('Head','x',front*pitch*(zone==='upper'?1.25:.36)*recoil)
+   offset('Head','z',-lateral*pitch*(zone==='upper'?.90:.24)*recoil)
    for(const [limb,s] of [['L',1],['R',-1]]){
-    offset(limb+' UpperArm','z',s*.39*recoil);offset(limb+' Forearm','x',-.48*recoil)
+    const uneven=1+s*lateral*.35
+    offset(limb+' UpperArm','z',s*spread*uneven*recoil)
+    offset(limb+' Forearm','x',-spread*1.22*uneven*recoil)
    }
    return
   }

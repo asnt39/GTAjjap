@@ -2,6 +2,7 @@ import {AnimationMixer,Group,MathUtils} from 'three'
 import {clone} from 'three/addons/utils/SkeletonUtils.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {characterPose} from './character-motion.js'
+import {characterImpacts} from './character-impacts.js'
 import {applyWardrobe} from './resident-wardrobe.js'
 
 const modelFiles = {resident:'harbor-resident.glb',crew:'harbor-crew.glb',mariner:'harbor-mariner.glb',patrol:'harbor-patrol.glb'}
@@ -45,7 +46,10 @@ export async function createCharacter({variant,model='resident'}={}){
  actions.Walk.paused=actions.Run.paused=true
  let guard=0,guardHold=0,gait=0,stride=0,lean=0,bank=0
  const layer=characterPose(scene)
- return {root,equipmentRig:layer.equipment,dispose(){mixer.stopAllAction();mixer.uncacheRoot(scene);skeletons.forEach(skin=>skin.dispose())},handPosition:layer.handPosition,update(dt,speed,pose={}){
+ const impacts=characterImpacts(root,scene)
+ return {root,equipmentRig:layer.equipment,markImpact:impacts.markImpact,clearImpacts:impacts.clearImpacts,
+  dispose(){impacts.dispose();mixer.stopAllAction();mixer.uncacheRoot(scene);skeletons.forEach(skin=>skin.dispose())},
+  handPosition:layer.handPosition,update(dt,speed,pose={}){
   layer.reset()
   const phase=pose.jump==null?null:MathUtils.clamp(pose.jump,0,1)
   const landing=MathUtils.clamp(pose.land||0,0,1)
@@ -70,12 +74,8 @@ export async function createCharacter({variant,model='resident'}={}){
   const movingShape=pose.vehicle||pose.motorcycle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
   lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
-  posture.rotation.set(-1.49*fall*(reaction?.front>.38?-1:1),0,(reaction?.lateral??side)*.27*fall)
-  if(reaction&&pose.action==='hit'){
-   const swing=Math.sin(Math.PI*Math.min(1,progress))
-   layer.offset('Spine1','x',reaction.front*reaction.pitch*swing)
-   layer.offset('Spine1','z',-reaction.lateral*reaction.pitch*swing)
-  }
+  const fallFront=reaction?.front??-1,fallSide=reaction?.lateral??-side*.18
+  posture.rotation.set(1.49*fallFront*fall,0,-1.49*fallSide*fall)
   // Apply travelling lean to the spine, keeping feet at their planted height.
   if(movingShape){
    layer.offset('Spine1','x',lean)
@@ -83,7 +83,7 @@ export async function createCharacter({variant,model='resident'}={}){
    layer.offset('Neck','x',-lean*.52)
    layer.offset('Neck','z',bank*.46)
   }
-  posture.position.set(0,-.082*landing*landing+.21*fall,.51*fall)
+  posture.position.set(-fallSide*.49*fall,-.082*landing*landing+.21*fall,-fallFront*.51*fall)
   layer.jump(phase,landing)
   if(pose.city){
    const {spot,weight}=pose.city
@@ -103,7 +103,7 @@ export async function createCharacter({variant,model='resident'}={}){
   const guarding=!pose.vehicle&&!pose.motorcycle&&(pose.guard||pose.action==='guard'||guardHold>0)
   guard=MathUtils.damp(guard,guarding?1:0,12,dt)
   if(pose.action==='punch')layer.gesture('punch',progress,side,pose.zone,guard)
-  else if(pose.action&&pose.action!=='guard')layer.gesture(pose.action,progress,side,pose.zone)
+  else if(pose.action&&pose.action!=='guard')layer.gesture(pose.action,progress,side,pose.zone,0,0,reaction)
   else if(!pose.vehicle&&!pose.motorcycle&&guard>.015)layer.gesture('guard',guard*.2*(1-.7*airborne),side,pose.zone,0,run)
   if(pose.vehicle)layer.vehicle(pose.vehicle)
   if(pose.motorcycle){

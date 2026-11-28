@@ -7,12 +7,18 @@ const profiles={
  vehicle:{force:2.2,gain:.10,decay:4.6,pitch:.39},
  blast:{force:2.8,gain:.10,decay:4.2,pitch:.44}
 }
+export function impactReaction(kind,x,z,face=0){
+ const length=Math.hypot(x,z),pitch=profiles[kind].pitch
+ if(length<.0001)return {kind,lateral:0,front:-1,pitch}
+ const nx=x/length,nz=z/length
+ return {kind,lateral:nx*Math.cos(face)-nz*Math.sin(face),front:nx*Math.sin(face)+nz*Math.cos(face),pitch}
+}
 export function impulse(f,kind,x,z,strength,{vx=0,vz=0,face=0,lift=0}={}){
  const profile=profiles[kind]
  const length=Math.hypot(x,z)||1
  const nx=x/length,nz=z/length
  const force=Math.min(8,profile.force+Math.max(0,strength)*profile.gain)
- f.reaction={lateral:nx*Math.cos(face)-nz*Math.sin(face),front:nx*Math.sin(face)+nz*Math.cos(face),pitch:profile.pitch}
+ f.reaction=impactReaction(kind,x,z,face)
  f.motion={x:nx*force+vx*.33,z:nz*force+vz*.33,decay:profile.decay,lift,time:0}
 }
 export function moveImpact(f,pos,dt,boxes,occupied){
