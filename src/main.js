@@ -1724,7 +1724,10 @@ export async function start(onContextLost){
     const v=traffic[i],distance=Math.hypot(v.x-x,v.z-z)
     if(Math.abs(v.speed)>1&&distance<passingDistance){passingDistance=distance;passing=v}
    }
+   const chase=room.phase==='offline'&&driving()&&(squads.units.some(unit=>unit.stage==='chase')||
+    episode.prologue?.stage?.set==='pursuit'||['chapter-chase','chapter-adrian-chase'].includes(episode.chapter?.stage?.set))
    return {x,z,t:elapsed,yaw,car,boat:boating()?boat:null,underwater:inWater()&&swimming.wet>.55,coastal,radio,harbor,park,indoor,policeDistance,passing,passingDistance,driving:driving(),
+    chase,
     dialogue:!!crowd.talking,combat:feedbackTime>2.4,wanted:crowd.wanted.level,
     story:episode.openingActive,night:x<-82||elapsed>120}
   })

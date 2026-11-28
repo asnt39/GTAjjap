@@ -2,9 +2,9 @@ const settingsKey='harborline.audio.v1'
 const defaults={music:.45,effects:.65,ambient:.65,voice:.9,enabled:false}
 const scores={
  explore:['market-lights','after-hours','last-ferry'],night:['after-hours','last-ferry'],drive:['causeway','after-hours'],
- harbor:['last-ferry','after-hours'],danger:['blue-beacons','crosswind'],story:['crosswind','after-hours'],radio:['causeway','after-hours','market-lights']
+ harbor:['last-ferry','after-hours'],danger:['blue-beacons','crosswind'],story:['crosswind','after-hours'],radio:['causeway','after-hours','market-lights'],chase:['ambush-chase']
 }
-const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.45,radio:.68}
+const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.45,radio:.68,chase:.54}
 const firearmReports={pistol:{level:.68,interval:.043},shotgun:{level:.82,interval:.07},sniper:{level:.76,interval:.07}}
 const drivingReports={engineStart:{clip:'ignition',level:.74},brake:{clip:'brake',level:.42}}
 const shiftSpeeds={bike:[4.5,9.5,15.5,23,31],sport:[6.5,13,20,27,34],car:[5,10.5,16.5,22,27]}
@@ -31,8 +31,8 @@ export function readMixer(storage){
    key,key==='enabled'?raw?.enabled===true:Number.isFinite(raw?.[key])?Math.max(0,Math.min(1,raw[key])):value]))}
  }catch{return {...defaults}}
 }
-export function musicCue({wanted,combat,radio,driving,story,harbor,night}){
- return radio&&driving?'radio':wanted||combat?'danger':story?'story':driving?'drive':harbor?'harbor':night?'night':'explore'
+export function musicCue({wanted,combat,radio,driving,story,harbor,night,chase}){
+ return chase?'chase':radio&&driving?'radio':wanted||combat?'danger':story?'story':driving?'drive':harbor?'harbor':night?'night':'explore'
 }
 export function cityAudio(browser=globalThis){
  let storage
@@ -163,6 +163,7 @@ export function cityAudio(browser=globalThis){
   const choices=scores[next],song=choices[(choices.indexOf(previousTrack)+1)%choices.length]
   const path='/assets/city-audio/'+song+'.mp3'
   const audio=new browser.Audio(browser.harborPreviewAssets?.[path]??path)
+  audio.loop=next==='chase'
   const source=ctx.createMediaElementSource(audio),level=gain(0)
   source.connect(level).connect(buses.music)
   const track={audio,source,gain:level,stopAt:Infinity}
@@ -289,7 +290,7 @@ export function cityAudio(browser=globalThis){
    if(key==='enabled'||!Object.hasOwn(defaults,key)||!Number.isFinite(value))return
    settings[key]=Math.max(0,Math.min(1,value));store();volumes()
   },
-  pause(value){paused=value;volumes();if(value&&ctx)fade(motorGain.gain,0)},
+  pause(value){paused=value;volumes();if(value&&ctx)fade(motorGain.gain,0);for(const track of tracks){if(value)track.audio.pause();else if(active&&!hidden)track.audio.play().catch(()=>{})}},
   visibility(value){hidden=value;if(ctx)syncMedia()},
   death,
   sound,
@@ -301,7 +302,7 @@ export function cityAudio(browser=globalThis){
    cleanup()
    const zone=musicCue(frame)
    fade(buses.music.gain,musicVolume(),dead?.34:.23)
-   if(!dead&&(!targetTrack||cue!==zone||targetTrack.audio.ended||targetTrack.audio.duration-targetTrack.audio.currentTime<3.4)&&
+   if(!dead&&!paused&&(!targetTrack||cue!==zone||targetTrack.audio.ended||cue!=='chase'&&targetTrack.audio.duration-targetTrack.audio.currentTime<3.4)&&
     ctx.currentTime-lastPlayback>1.4&&settings.music>0){
     lastPlayback=ctx.currentTime;startTrack(zone)
    }
