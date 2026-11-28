@@ -17,8 +17,8 @@ const mainNames={
  Maya:{model:'crew',variant:6,role:'차량 전문가',line:'길은 내가 봐 둘게. 네가 할 일에 집중해.'},
  Jack:{model:'mariner',variant:2,role:'현장 연락책',line:'괜찮아. 오늘은 기왕이면 조용히 끝내자.'},
  Theo:{model:'mariner',variant:4,role:'항만 배선 담당',line:'조류 표를 봤어. 안쪽 물길이 비는 때를 알려 줄게.'},
- Leon:{model:'patrol',variant:8,role:'현장 지원',line:'뒤는 내가 본다. 사람부터 챙겨.'},
- Adrian:{model:'mariner',variant:5,role:'운송권 책임자',line:'운송 계약은 사라지지 않습니다. 서명하는 사람이 바뀔 뿐이지.'},
+ Leon:{model:'resident',variant:20,role:'현장 지원',line:'뒤는 내가 본다. 사람부터 챙겨.'},
+ Adrian:{model:'resident',variant:21,role:'운송권 책임자',line:'운송 계약은 사라지지 않습니다. 서명하는 사람이 바뀔 뿐이지.'},
  Elliot:{model:'resident',variant:7,role:'운송업자',line:'여기서는 이름을 묻지 마십시오.'},
  Victor:{model:'resident',variant:3,role:'항만 사업 책임자',line:'일은 끝까지 처리해. 약속한 몫은 내가 책임진다.'}
 }
@@ -56,7 +56,7 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
  }
  function addActor(spec,token,index){
   const {name,point,side='ally',health=110}=spec
-  const person=mainNames[name]??{model:'patrol',variant:spec.variant??2,role:side==='hostile'?'Adrian의 조직원':'운송업자',line:''}
+  const person=mainNames[name]??{model:'resident',variant:22+(spec.variant??2)%3,role:side==='hostile'?'Adrian의 조직원':'운송업자',line:''}
   return createCharacter({model:person.model,variant:person.variant}).then(rig=>{
    if(token!==generation){rig.dispose();return}
    const pos=new Vector3(point.x,point.y??.083,point.z)
@@ -124,7 +124,7 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
    if(was?.set!=='chapter-sea-cargo')resetBoat(quayBoat,false)
    if(stage.set==='chapter-sea-return')sailed=false
   }else if(stage.set!=='chapter-sea-check')resetBoat(quayBoat,true)
-  const first=[{name:'Maya',point:stage.goal}]
+  const first=[{name:'Maya',point:{...stage.goal,x:stage.goal.x+1.12,z:stage.goal.z+.76}}]
   switch(stage.set){
    case 'chapter-maya':setupActors(first);break
    case 'chapter-scan':

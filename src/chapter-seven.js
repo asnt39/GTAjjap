@@ -1,6 +1,6 @@
 import {marina} from './chapter-sites.js'
 
-const maya=(point,extra={})=>({name:'Maya',point,...extra})
+const maya=(point,extra={})=>({name:'Maya',point:point===marina.meetup?{...point,x:point.x+1.27,z:point.z-.66}:point,...extra})
 export const chapterSeven={
  id:'black-waters',title:'검은 바다',reward:6600,
  contact:{residentId:'courier',label:'Jack',resident:'Jack',x:7.6,z:16.2,radius:2},
