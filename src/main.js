@@ -50,6 +50,10 @@ import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
+import {chapterMissions} from './chapter-missions.js'
+import {chapterWorld as continuationWorld} from './chapter-world.js'
+import {buildChapterBuildings} from './chapter-buildings.js'
+import {parkingLevel,workshop} from './chapter-sites.js'
 import {buildTransferYard} from './transfer-yard.js'
 import {buildNewBloodClub} from './new-blood-club.js'
 import {clubPlan,clubDoors,insideClub,clubFloorAt,clubCeilingAt} from './new-blood-club-plan.js'
@@ -162,6 +166,7 @@ export async function start(onContextLost){
  const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  buildTransferYard(scene,addCollider,surfaceMaps)
  const updateClub=buildNewBloodClub(scene,addCollider,surfaceMaps)
+ buildChapterBuildings(scene,addCollider,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
@@ -248,7 +253,7 @@ export async function start(onContextLost){
  const deathScreen=createDeathScreen(canvas,document.querySelector('#death-screen'))
  const missionCheckpoint=createMissionCheckpoint()
  let deathTime=0
- const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
+ const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,chapterMissions,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
  let storyStatus=''
  function storyShot(n,from,to,hit,weapon='pistol',damage=9){
   effects.trace(from,to);effects.muzzle(from,2);ui.shot(weapon,from)
@@ -257,8 +262,43 @@ export async function start(onContextLost){
  const storyWorld=prologueWorld({scene,boxes,crowd,traffic,rigs,height:groundHeight,inView:trafficInView,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)},
   combat:storyShot})
- const chapterWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
+ const clubWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)}})
+ const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat:storyShot,
+  notify(message,failed){if(failed)episode.fail(message);ui.toast(message)},
+  registerVehicle(vehicle,rig){
+   fleet.push(vehicle);traffic.push(vehicle)
+   cars[vehicle.id]=vehicle;rigs[vehicle.id]=rig;soloTunings.set(vehicle.id,soloRoadTuning(vehicle.setup))
+  },
+  unregisterVehicle(vehicle){
+   if(car===vehicle){
+    if(mode!=='walk'){releaseSeat();resetWalk(pos.x,pos.z,face,floorAt(pos.x,pos.z,pos.y))}
+    car=cars.touring
+   }
+   for(const list of [fleet,traffic]){
+    const index=list.indexOf(vehicle)
+    if(index>=0)list.splice(index,1)
+   }
+   delete cars[vehicle.id];delete rigs[vehicle.id];soloTunings.delete(vehicle.id);unattended.delete(vehicle)
+  }})
+ const isArcStage=stage=>stage?.set?.startsWith('chapter-')??false
+ const worldFor=stage=>isArcStage(stage)?arcWorld:clubWorld
+ const chapterWorld={
+  prepare(stage){
+   clubWorld.prepare(isArcStage(stage)?null:stage)
+   arcWorld.prepare(isArcStage(stage)?stage:null)
+  },
+  enter(stage){this.prepare(null);worldFor(stage).enter(stage)},
+  step(stage,...args){return worldFor(stage).step(stage,...args)},
+  interactions(stage,pos){return worldFor(stage).interactions(stage,pos)},
+  markers(){return worldFor(episode.chapter?.stage).markers()},
+  snapshot(){
+   const stage=episode.chapter?.stage
+   return worldFor(stage).snapshot()
+  },
+  planRestore(snapshot){return worldFor(episode.chapter?.stage).planRestore(snapshot)}
+ }
+ const storyFocus=()=>arcWorld.focus()
  const storyMarkers=()=>episode.chapter?.active?chapterWorld.markers():storyWorld.markers()
  const setFirstWorkRoadblock=firstWorkRoadblock(scene,boxes)
  setFirstWorkRoadblock(episode.roadClosed)
@@ -392,7 +432,7 @@ export async function start(onContextLost){
  const belowGround=()=>inBunker(pos.x,pos.z,pos.y)
  const canRestore=(x,z,y)=>inBunker(x,z,y)?canWalk(x,z,bunkerWalls,.32,y):
   canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&(y>2.4||!occupied(x,z))
- const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
+ const occupied=(x,z,y=0)=>traffic.some(vehicle=>Math.abs((vehicle.lift??0)-y)<1.5&&nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
   for(const n of crowd.all){
@@ -647,15 +687,15 @@ export async function start(onContextLost){
    })
   }
  }
- const repairSpots=citySpots.filter(s=>s.type==='repair'),walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
+ const repairSpots=[...citySpots.filter(s=>s.type==='repair'),{id:'keel-works',type:'repair',...workshop.bay,price:350,title:'Keel Motor Works',label:'차량 수리',range:2.5}],walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
   {id:'lantern-room-water',...clubPlan.bar,title:'Lantern Room',label:'바에서 생수 주문',price:120,heal:8,pose:'drink',range:1.35}]
- const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
+ const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&Math.abs((vehicle.lift??0)-(other.lift??0))<1.5&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function doorCandidates(qualifies){
-  if(pos.y-groundHeight(pos.x,pos.z)>.16)return []
   const nearby=[]
   for(const vehicle of traffic){
-   if(vehicle.localOnly&&room.phase!=='offline'||vehicle.owner!=null)continue
+   if(vehicle.storyLocked||vehicle.localOnly&&room.phase!=='offline'||vehicle.owner!=null)continue
+   if(Math.abs(pos.y-(vehicle.lift??groundHeight(vehicle.x,vehicle.z)))>.65)continue
    if(Math.abs(vehicle.x-pos.x)>5||Math.abs(vehicle.z-pos.z)>5)continue
    const driver=room.phase==='offline'?trafficDriver(vehicle):null
    if((!driver&&!cars[vehicle.id])||Math.abs(vehicle.speed)>(driver?2.25:.45))continue
@@ -680,7 +720,7 @@ export async function start(onContextLost){
   if(!exit)car.speed=car.travel=car.accel=car.slip=0
   car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
   lastSide=destination.side
-  transition={time:0,from:{x:pos.x,z:pos.z},door:destination.door,side:lastSide,
+  transition={time:0,from:{x:pos.x,y:pos.y,z:pos.z},door:destination.door,side:lastSide,
    x:car.x,z:car.z,heading:car.heading,face,exit}
   renderer.shadowMap.needsUpdate=true
   ui.sound('doorOpen',pos)
@@ -767,14 +807,15 @@ export async function start(onContextLost){
   }
   const changed=!exit&&(Math.hypot(car.x-transition.x,car.z-transition.z)>.09||Math.abs(car.heading-transition.heading)>.09)
   const origin=joining?transition.from:doorPoint(car,lastSide,.05)
-  if(changed||player.f.action||!clearPath(origin,transition.door,boxes,.32,(x,z)=>blockedAtDoor(car,x,z))){
+  if(changed||player.f.action||!clearPath(origin,transition.door,boxes,.32,(x,z)=>blockedAtDoor(car,x,z),car.lift)){
    cancelTransition();ui.toast('차량 주변이 막혀 승하차가 중단됐어');return
   }
   transition.time+=dt
   const pose=exit?movingExitPose(car,lastSide,transition.door,transition.time,exit):entryPose(car,transition,joining)
   car.door=rigs[car.id].hinged?pose.opening:0
   vehiclePose=pose;walkSpeed=pose.speed
-  pos.set(pose.x,0,pose.z);actor.position.set(pose.x,pose.y,pose.z)
+  const deck=parkingLevel(car.x,car.z,car.lift??0)??0
+  pos.set(pose.x,deck,pose.z);actor.position.set(pose.x,pose.y+deck,pose.z)
   face=pose.face;actor.rotation.set(0,face,pose.bank??0);actor.visible=pose.visible;char.root.position.y=0
   if(!car.setup.bike||!pose.ride)char.update(dt,pose.speed,car.setup.bike?{}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
   renderer.shadowMap.needsUpdate=true
@@ -787,7 +828,7 @@ export async function start(onContextLost){
    if(!offline&&car===cars.touring)mission.board()
    if(room.phase==='offline')playerParked.add(car)
   }else{
-   mode='walk';actor.visible=true;plantFeet(pos.x,pos.z)
+   mode='walk';actor.visible=true;plantFeet(pos.x,pos.z,floorAt(pos.x,pos.z,deck))
    if(exit)unattended.set(car,1.4)
    releaseSeat()
    if(!offline&&car===cars.touring&&mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')
@@ -955,7 +996,7 @@ export async function start(onContextLost){
   effects.setLowDetail(settings.lowEffects)
   if(isPaused&&!contextLost){effects.update(0,canvas.height);renderer.render(scene,camera)}
  }
- const ui=createUI({options,data,saveNow,restoreData,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
+ const ui=createUI({options,data,saveNow,restoreData,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||player.f.hp<=0||document.querySelector('#game').inert)return;
   const cabinKey={KeyH:'horn',KeyL:'lights',KeyB:'radio'}[e.code]
@@ -1142,7 +1183,8 @@ export async function start(onContextLost){
  const storyCheckpoint=(episode.chapter??episode.prologue)?.checkpoint
  if(storyCheckpoint){
   const {x,z}=storyCheckpoint
-  if(canWalk(x,z,boxes,.32,groundHeight(x,z))&&!occupied(x,z))plantFeet(x,z)
+  const y=storyCheckpoint.y??groundHeight(x,z)
+  if(canWalk(x,z,boxes,.32,y)&&!occupied(x,z,y))plantFeet(x,z,y)
  }
  updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
  trackedX=pos.x;trackedZ=pos.z
@@ -1185,6 +1227,8 @@ export async function start(onContextLost){
  }
  function floorAt(x,z,feet,airborne=false){
   if(inBunker(x,z,feet))return bunker.floor
+  const parkingFloor=parkingLevel(x,z,feet,airborne?0:.24)
+  if(parkingFloor!==null)return parkingFloor
   const localRoom=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):
    terrace?.loft?terraceFloorAt(terrace,x,z,feet,airborne):insideWorks(x,z)?worksUpper(x,z,feet,airborne):groundHeight(x,z)
@@ -1203,9 +1247,10 @@ export async function start(onContextLost){
   encounter.enter(story.stage)
   loadout.missionLoan(false)
   const point=story.checkpoint
-  if(point&&canWalk(point.x,point.z,boxes,.32,groundHeight(point.x,point.z))&&!occupied(point.x,point.z)){
+  const y=point&&(point.y??groundHeight(point.x,point.z))
+  if(point&&canWalk(point.x,point.z,boxes,.32,y)&&!occupied(point.x,point.z,y)){
    releaseSeat();restorePlayerHealth()
-   resetWalk(point.x,point.z,face)
+   resetWalk(point.x,point.z,face,y)
   }else if(!point&&fallback&&room.phase==='offline'){
    const safe=resolveCheckpoint(fallback,[],floorAt,(x,z,y)=>canRestore(x,z,y)&&!canStartSwimming(x,z))
    if(!safe)return
@@ -1266,7 +1311,7 @@ export async function start(onContextLost){
   if(savesSuspended)return false
   rememberCheckpoint()
   if(checkpointEnabled&&room.phase==='offline'&&!offline){
-   const poses=parkedPoses(fleet.filter(vehicle=>!trafficDriver(vehicle)),parkedSpawns)
+   const poses=parkedPoses(fleet.filter(vehicle=>!vehicle.storyVehicle&&!trafficDriver(vehicle)),parkedSpawns)
    for(const {id,x,z,heading} of playerParked)poses[id]={x,z,heading:wrapAngle(heading)}
    checkpoint.sampleVehicles(poses,true)
   }
@@ -1551,7 +1596,7 @@ export async function start(onContextLost){
     rememberMission(episode.tracking())
     const roadDriving=!!player.inVehicle
     const beats=storyWorld.step(stage,dt,player,player.available,roadDriving)
-    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving)
+    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving,boating()?boat:null)
     remoteShadow ||= !!chapterBeats.moving
     storyStatus=chapterBeats.status||beats.objectiveStatus||(stage?.kind==='escort'&&Number.isFinite(beats.escortHealth)?'Theo '+beats.escortHealth+'/130':
      stage?.kind==='evade'&&beats.threats?'추격 차량 '+beats.threats+'대':
@@ -1560,7 +1605,10 @@ export async function start(onContextLost){
      const chapterUpdate=chapterStage&&(chapterBeats.failed?chapter.fail(chapterBeats.failed):chapter.update(chapterBeats))
      const update=chapterUpdate||(beats.failed?prologue?.fail('Theo를 구출하지 못했습니다.'):
       prologue?.update({x:pos.x,z:pos.z,speed,onFoot:player.available,driving:roadDriving,...beats}))
-     if(update?.message)ui.toast(update.message)
+     if(update?.message){
+      if(chapterUpdate&&isArcStage(chapterStage))ui.announceStory(update.message)
+      else ui.toast(update.message)
+     }
     }
    }
    player.legacyArrest=room.phase!=='offline'

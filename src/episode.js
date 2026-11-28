@@ -2,6 +2,7 @@ import {firstWork,goods,missions,storyContracts} from './episode-data.js'
 import {basinPlate} from './south-basin-plan.js'
 import {createPrologue,readPrologue} from './prologue.js'
 import {createNewBlood,readNewBlood} from './new-blood.js'
+import {createChapterArc,readChapterArc} from './chapter-arc.js'
 
 export const EPISODE_SAVE_KEY = 'harborline.episode.v1'
 const driveSeconds = 65
@@ -38,6 +39,7 @@ function read(raw) {
     if (natural(saved.bank)) state.bank=saved.bank
     if (saved.wrongDeal) state.wrongDeal=readPrologue(saved.wrongDeal)
     if (saved.newBlood) state.newBlood=readNewBlood(saved.newBlood)
+    if (saved.chapterArc) state.chapterArc=readChapterArc(saved.chapterArc)
     if (Array.isArray(saved.discoveries)&&saved.discoveries.includes(basinPlate.id)) state.discoveries.push(basinPlate.id)
     for (const item of goods) {
       if (natural(saved.inventory?.[item.id])) state.inventory[item.id]=saved.inventory[item.id]
@@ -111,7 +113,18 @@ export function createEpisode(options={}) {
       return saved
     }
   }):null
-  const activeCampaign=()=>usePrologue()?(chapter&&prologue.complete?chapter:prologue):null
+  const continuation=chapter&&options.chapterMissions?.length?createChapterArc({
+    saved:state.chapterArc,missions:options.chapterMissions,available:canStartOpening,
+    commit(chapterArc,reward){
+      const money=state.money+reward
+      if(!natural(money))return wrong('보상을 저장할 수 없습니다.')
+      const saved=write({chapterArc,money})
+      if(saved.ok)Object.assign(state,{chapterArc,money})
+      return saved
+    }
+  }):null
+  const currentChapter=()=>chapter&&prologue.complete?(continuation&&chapter.snapshot().status==='complete'?continuation:chapter):null
+  const activeCampaign=()=>usePrologue()?(currentChapter()??prologue):null
   function save() {
     const saved=write()
     savedSecond=Math.ceil(state.remaining ?? 0)
@@ -335,9 +348,10 @@ export function createEpisode(options={}) {
     }
     if(!prologue)return old
     const story=prologue.snapshot()
-    const currentChapter=chapter&&prologue.complete?chapter.snapshot():null
-    return {...old,...(legacy?{}:currentChapter??story),
-      storyCompleted:[...old.storyCompleted,...story.storyCompleted,...(currentChapter?.storyCompleted??[])]}
+    const previousChapter=chapter&&prologue.complete?chapter.snapshot():null
+    const later=currentChapter()===continuation?continuation?.snapshot():null
+    return {...old,...(legacy?{}:later??previousChapter??story),
+      storyCompleted:[...old.storyCompleted,...story.storyCompleted,...(previousChapter?.storyCompleted??[]),...(later?.storyCompleted??[])]}
   }
   function tracking(){
     if(usePrologue())return activeCampaign().tracking()
@@ -356,12 +370,12 @@ export function createEpisode(options={}) {
   return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,discovered,discover,save,
     storyComment(resident){return this.chapter?.comment(resident)??null},
     get prologue(){return usePrologue()?prologue:null},
-    get chapter(){return chapter&&activeCampaign()===chapter?chapter:null},
+    get chapter(){return usePrologue()?currentChapter():null},
     get showingLegacy(){return legacy},
     switchJournal(){
       if(activeCampaign()?.active)return wrong('진행 중인 임무를 중단한 뒤 이전 의뢰를 확인하십시오.')
       legacy=!legacy
-      return result(true,legacy?'이전 항만 의뢰':activeCampaign()===chapter?'새로운 일원':'잘못된 거래')
+      return result(true,legacy?'이전 항만 의뢰':this.chapter?'새로운 일원':'잘못된 거래')
     },
     get savedEquipment(){return state.equipment},
     get openingActive(){return usePrologue()?activeCampaign().active:!!selectedStory()&&record().status==='active'},

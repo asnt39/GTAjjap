@@ -2,6 +2,7 @@ import {missions,storyContracts} from './episode-data.js'
 import {EPISODE_SAVE_KEY,isEpisodeRecord} from './episode.js'
 import {GAME_OPTIONS_KEY,isGameOptions} from './game-options.js'
 import {PLAY_CHECKPOINT_KEY,isCheckpointPosition} from './play-checkpoint.js'
+import {chapterIds} from './chapter-arc.js'
 import {wrongDeal} from './prologue.js'
 import {isVehicleCheckpointPose} from './vehicle-checkpoint.js'
 
@@ -49,7 +50,10 @@ function episode(value){
   remaining:remaining=>remaining===null||Number.isFinite(remaining)&&remaining>=0,
   inventory:inventory=>dictionary(inventory,natural),equipment,discoveries:strings,
   firstJob:saved=>run(saved,storyContracts[0].steps.length),followups:saved=>fields(saved,followups),
-  selected:string,wrongDeal:prologue,newBlood:saved=>run(saved,5)
+  selected:string,wrongDeal:prologue,newBlood:saved=>run(saved,5),
+  chapterArc:saved=>run(saved,16)&&step(chapterIds.length)(saved.mission)&&
+   (saved.status!=='complete'||saved.mission===chapterIds.length-1)&&
+   [null,'intercepted','escaped'].includes(saved.lead)
  })
 }
 
