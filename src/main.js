@@ -20,7 +20,7 @@ import {insideTerrace,terraceRoomAt,terraceFloorAt,terraceCeilingAt} from './ter
 import {streamTerraceRooms} from './terrace-interior.js'
 import {buildEstuary,landscapeMaterial} from './estuary.js'
 import {grenadeModel} from './grenade-art.js'
-import {grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
+import {blastRadius,grenadeFlight,grenadeBlast,kickVehicle} from './grenade-flight.js'
 import {insideWeaponShop,shopSite} from './weapon-shop-plan.js'
 import {buildWeaponShop} from './weapon-shop.js'
 import * as THREE from 'three'
@@ -389,11 +389,11 @@ export async function start(onContextLost){
    scene.remove(prop);grenades.splice(i,1)
    const point=flight.position
    ui.sound('blast',point)
-   effects.emit('burst',point.x,point.y+.24,point.z,12)
+   effects.emit('burst',point.x,point.y+.24,point.z,8)
    effects.emit('dust',point.x,point.y+.08,point.z,8)
-   effects.emit('smoke',point.x,point.y+.26,point.z,16)
+   effects.emit('smoke',point.x,point.y+.26,point.z,10)
    effects.emit('sparks',point.x,point.y+.1,point.z,13)
-   shake=Math.max(shake,Math.max(0,1-Math.hypot(point.x-pos.x,point.z-pos.z)/17))
+   shake=Math.max(shake,Math.max(0,1-Math.hypot(point.x-pos.x,point.z-pos.z)/(blastRadius*1.5)))
    const wantedBefore=crowd.wanted.level
    for(const n of crowd.all){
     if(n.f.hp<=0||n.policeOrder?.aboard)continue
@@ -481,9 +481,13 @@ export async function start(onContextLost){
   const hp=player.f.hp
   const dx=pos.x-n.pos.x,dz=pos.z-n.pos.z,d=Math.hypot(dx,dz)||1
   const side=(point.x-pos.x)*Math.cos(face)-(point.z-pos.z)*Math.sin(face)>0?1:-1
-  if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65}))return false
-  impulse(player.f,kind,dx/d,dz/d,amount,{vx:velocity.x,vz:velocity.y,face})
-  activity.stop();equipment.interrupt();cancelAim();crowd.endTalk();focus=n;feedbackTime=4
+  const shot=kind==='shot'
+  if(custody.active||!injure(player.f,amount,side,zone,{responseWindow:.65,weaponHit:shot,stagger:!shot}))return false
+  if(!shot||!player.f.hp){
+   impulse(player.f,kind,dx/d,dz/d,amount,{vx:velocity.x,vz:velocity.y,face})
+   equipment.interrupt();cancelAim()
+  }
+  activity.stop();crowd.endTalk();focus=n;feedbackTime=4
   playerImpact(hp,{point,source,zone,kind,direction:kind==='shot'?undefined:{x:dx/d,y:0,z:dz/d}})
   if(!player.f.hp)beginPlayerDeath()
   return true
@@ -1124,7 +1128,7 @@ export async function start(onContextLost){
   camera.lookAt(aim)
   scopeVisible=stance.eye===1
   hideScopeBody=blend>.50
-  if(scopeVisible)setZoom(4)
+
   camera.updateMatrixWorld()
   return scopeVisible
  }
@@ -1530,8 +1534,8 @@ export async function start(onContextLost){
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const pace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)*(player.f.action==='punch'?.36:player.f.action?0:1)
    if(activity.current&&(Math.abs(joystick.x)>.5||Math.abs(joystick.y)>.5))activity.leave()
-   const rate=sniperAiming()||activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
-    (custody.active?Math.min(pace,1.85):pace)*(coffee>0&&pace>1.85?1.15:1)
+   const rate=activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
+    (custody.active?Math.min(pace,1.85):aiming?Math.min(pace,loadout.def.aimSpeed??2.15):pace)*(coffee>0&&pace>1.85?1.15:1)
    const targetX=(ax*cs+az*sn)*rate/length,targetZ=(ax*sn-az*cs)*rate/length
    player.walkIntent.x=targetX;player.walkIntent.z=targetZ
    const accelerate=!foot.air&&!player.f.action
@@ -1703,7 +1707,8 @@ export async function start(onContextLost){
    camera.updateMatrixWorld()
    equipment.update(dt,{active:mode==='walk'&&!custody.active&&!pendingSeat&&!crowd.talking&&!player.f.action&&!activity.current,aiming,
     speed,raise:stance.raise,ready:sniperAiming()&&stance.eye===1,alignScope,pitch:sniperAiming()?-pitch:Math.asin(clamp(camera.getWorldDirection(cameraDirection).y,-1,1))})
-   if(!scopeVisible)setZoom(1)
+   const zoom=scopeVisible?4:aiming&&mode==='walk'?loadout.def.aimZoom??1:1
+   setZoom(Math.abs(camera.zoom-zoom)<.005?zoom:damp(camera.zoom,zoom,scopeVisible?22:15,frameDt))
    if(aiming&&loadout.def.consumable&&loadout.item.reserve&&!equipment.throwing&&canAttack())guide.show(now,currentThrow())
    else guide.hide()
    if((sampleClock+=dt)>=.5){sampleClock=0;rememberCheckpoint()}

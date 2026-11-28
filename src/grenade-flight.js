@@ -4,7 +4,7 @@ import {clearPose,localPoint,nearBody,overlapsCar} from './driving.js'
 import {dentVehicle} from './vehicle-damage.js'
 
 const step=1/90, radius=.08, fuse=1.8
-export const blastRadius=11
+export const blastRadius=6
 const noFloor=()=>0,noCeiling=()=>Infinity
 
 export function grenadeFlight({origin,heading,pitch,boxes,floor=noFloor,ceiling=noCeiling,vehicles=[]}){

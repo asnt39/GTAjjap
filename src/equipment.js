@@ -1,11 +1,11 @@
 // These are game balance values in world units and simulation seconds.
 export const gear = Object.freeze({
  fists: {name:'맨손'},
- pistol: {name:'권총', price:1800, ammoPrice:60, capacity:8, stock:32, delay:.32, reload:1.15, damage:29, range:24},
- shotgun: {name:'산탄총', price:3600, ammoPrice:200, capacity:4, stock:16, delay:.88, reload:1.65, damage:16, range:17},
+ pistol: {name:'권총', price:1800, ammoPrice:60, aimZoom:1.10,capacity:8, stock:32, delay:.32, reload:1.15, damage:29, range:24},
+ shotgun: {name:'산탄총', price:3600, ammoPrice:200, aimZoom:1.04,capacity:4, stock:16, delay:.88, reload:1.65, damage:16, range:17},
  bat: {name:'야구방망이', price:800, delay:.78, damage:36},
  grenade: {name:'수류탄',price:650,consumable:true,stock:4,delay:.62},
- sniper: {name:'저격총', price:7000, ammoPrice:310, capacity:3, stock:9, delay:2, reload:2, lethal:true, range:Infinity}
+ sniper: {name:'저격총', price:7000, ammoPrice:310, aimSpeed:1.48,capacity:3, stock:9, delay:2, reload:2, lethal:true, range:Infinity}
 })
 const saveKey='harborline.equipment.v1'
 const sniperCycle=.72

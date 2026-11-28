@@ -200,7 +200,7 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   return true
  }
  function blastHit(n,source,strength){
-  if(!receive(n,source,'body',n.pos,Math.round(22+strength*90),'blast'))return false
+  if(!receive(n,source,'body',n.pos,Math.max(1,Math.round(strength*112)),'blast'))return false
   if(n.f.hp>0){
    const dx=n.pos.x-source.x,dz=n.pos.z-source.z,d=Math.hypot(dx,dz)||1
    impulse(n.f,'blast',dx/d,dz/d,strength*65,{face:n.face,lift:.20+strength*.36})

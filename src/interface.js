@@ -491,6 +491,7 @@ export function createUI(game){
   $('#equipment-hud').hidden=!walking
   const scoped=walking&&game.scoped()
   $('#sniper-scope').hidden=!scoped
+  $('#gear-reticle').dataset.weapon=equipped.selected
   $('#gear-reticle').hidden=scoped||!walking||(!gun&&!throwable)||!!game.player.f.action
   $('#gear-aim').hidden=!gun&&!throwable
   $('#gear-reload').hidden=!gun

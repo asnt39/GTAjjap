@@ -11,11 +11,12 @@ export function swing(f,side=-f.side,{bufferHit=false}={}){
  Object.assign(f,{action:'punch',side,elapsed:0,duration:side===1?.54:.48,connected:false,handReady:false})
  return true
 }
-export function injure(f,amount,side,zone,{responseWindow=0,weaponHit=false}={}){
+export function injure(f,amount,side,zone,{responseWindow=0,weaponHit=false,stagger=true}={}){
  if(f.hp===0||(!weaponHit&&(f.action==='hit'||f.immune>0)))return false
  const absorbed=Math.min(f.armor??0,amount)
  if(absorbed)f.armor-=absorbed
  f.hp=Math.max(0,f.hp-amount+absorbed)
+ if(f.hp&&!stagger)return true
  Object.assign(f,{action:f.hp?'hit':'down',side,zone,elapsed:0,duration:f.hp?.45:.79,immune:.48,responseWindow,recovery:0,
   queued:false,handReady:false,connected:false,downTime:0,motion:null,reaction:null})
  return true

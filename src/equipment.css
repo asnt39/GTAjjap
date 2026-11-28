@@ -47,3 +47,14 @@
 @media(pointer:fine) { #gear-next { display:none; } }
 
 #gear-status.grenade{padding-left:1.8rem;background-image:url(/icons/grenade.svg);background-repeat:no-repeat;background-position:.35rem center;background-size:1.2rem}
+
+#gear-reticle[data-weapon="shotgun"] {
+ width:34px;height:34px;border:1.5px solid #fff3d9;border-radius:50%;
+ background:radial-gradient(circle,#fff3d9 1.2px,transparent 2px);
+}
+#gear-reticle[data-weapon="sniper"] {
+ width:17px;height:17px;border:1px solid #fff3d9;background:transparent;
+}
+#gear-reticle[data-weapon="grenade"] {
+ width:10px;height:10px;border:1px dashed #ffd597;background:transparent;
+}

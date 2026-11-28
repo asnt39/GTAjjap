@@ -47,7 +47,7 @@ test('preview and actual landing use the same fixed step and the expanded damage
  for(let i=0;i<600&&!actual.update(1/120);i++){}
  assert(end.distanceTo(actual.position)<1e-10)
  assert(points.length>35&&points.length<=42)
- assert.equal(blastRadius,11)
- assert(grenadeBlast([])(new Vector3(0,.15,0),new Vector3(10,.15,0))>0)
+ assert.equal(blastRadius,6)
+ assert(grenadeBlast([])(new Vector3(0,.15,0),new Vector3(5,.15,0))>0)
  assert.equal(grenadeBlast([])(new Vector3(0,.15,0),new Vector3(blastRadius,.15,0)),0)
 })
