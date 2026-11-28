@@ -44,7 +44,7 @@ with ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=str(d
                 localStorage.setItem('harborline.episode.v1', JSON.stringify({json.dumps(story)}));
             """)
             page.goto(f"http://127.0.0.1:{server.server_port}/", wait_until="domcontentloaded")
-            page.locator("#intro-skip").dispatch_event("click")
+            page.locator("#cinematic-intro").dispatch_event("click")
             page.evaluate("""() => {
                 const banner = document.querySelector('#mission-event');
                 const toast = document.querySelector('#toast');

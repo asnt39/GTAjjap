@@ -46,7 +46,7 @@ function boot({stored=false,discarded=false,hidden=true,preview=false}={}){
 test('the video ends before gameplay starts, and boot runs once',async()=>{
  const app=boot({hidden:false})
  assert.equal(app.playing(),1)
- assert.equal(app.intro.listeners.click,undefined)
+ assert.equal(typeof app.intro.listeners.click,'function')
  app.end(app.intro)
  app.end(app.intro)
  await setImmediate()
@@ -109,14 +109,14 @@ test('new pages play the video even with the old seen flag or a browser discard'
 })
 
 
-test('only the explicit skip control can end the intro before the video ends',async()=>{
+test('clicking the intro hands off to the game',async()=>{
  const app=boot({stored:true,hidden:false})
  app.ready()
  await setImmediate()
  assert.equal(app.playing(),1)
  assert.equal(app.started(),0)
- assert.equal(app.intro.listeners.click,undefined)
- app.intro.querySelector('#intro-skip').listeners.click()
+ assert.equal(typeof app.intro.listeners.click,'function')
+ app.intro.listeners.click()
  await setImmediate()
  assert.equal(app.started(),1)
  assert.equal(app.game.inert,false)

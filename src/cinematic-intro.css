@@ -55,18 +55,23 @@
 
 #intro-retry:disabled { opacity: .7; cursor: wait; }
 
-#intro-audio, #intro-skip {
-  position: absolute;
-  bottom: max(12px, env(safe-area-inset-bottom));
-  padding: 0 13px;
-  border: 1px solid #f5f2e95c;
-  background: #101922e8;
-  color: #f5f2e9;
-  font-size: .875rem;
+#intro-wordmark {
+  position:absolute;
+  right:max(4vw,env(safe-area-inset-right));
+  bottom:max(5vh,env(safe-area-inset-bottom));
+  font:800 clamp(26px,min(8vw,17vh),100px)/1.13 var(--game-font),sans-serif;
+  letter-spacing:-.045em;
+  color:#fff3df;
+  text-shadow:0 2px 14px #000;
+  pointer-events:none;
 }
 
-#intro-audio { left: max(16px, env(safe-area-inset-left)); }
-
-#intro-skip { right: max(16px, env(safe-area-inset-right)); }
-
-#intro-recovery, #intro-audio, #intro-skip { z-index: 1; }
+#rotate-device {display:none}
+@media (any-pointer:coarse) and (orientation:portrait) {
+  #rotate-device {
+    position:fixed;inset:0;z-index:40;display:grid;place-items:center;
+    padding:24px;background:#122129;color:#fff3df;
+    font:700 1.125rem var(--game-font),sans-serif;text-align:center;
+  }
+  #game,#cinematic-intro {visibility:hidden}
+}

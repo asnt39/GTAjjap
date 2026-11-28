@@ -38,7 +38,6 @@ function mountIntro(intro,{replay=false}={}){
   const video = intro.querySelector('video')
   const prompt = intro.querySelector('#intro-recovery')
   const play = intro.querySelector('#intro-retry')
-  const audio = intro.querySelector('#intro-audio')
   const message = intro.querySelector('#intro-message')
   const mediaEvents = new AbortController()
   const inputEvents = new AbortController()
@@ -62,7 +61,6 @@ function mountIntro(intro,{replay=false}={}){
     clearTimeout(playbackTimeout)
     video.pause()
     intro.classList.remove('playing')
-    audio.hidden = true
     prompt.hidden = false
     play.disabled = false
     play.textContent = label
@@ -72,7 +70,7 @@ function mountIntro(intro,{replay=false}={}){
 
   function failPlayback() {
     if (isPlayingOrStarting()) {
-      showPrompt('다시 시도', '영상을 재생할 수 없어. 잠시 후 게임을 시작해.', true)
+      showPrompt('다시 시도', '영상 재생 실패. 잠시 후 게임 시작.', true)
       failureHandoff = setTimeout(finish, 4000)
     }
   }
@@ -133,7 +131,7 @@ function mountIntro(intro,{replay=false}={}){
   }
 
   window.addEventListener('keydown', event => {
-    if((event.key==='Tab'||event.target instanceof HTMLButtonElement&&['Enter',' '].includes(event.key)) && (!intro.isConnected || intro.contains(event.target) || status.contains(event.target)))return
+    if((event.target===intro&&['Enter',' '].includes(event.key)||event.key==='Tab'||event.target instanceof HTMLButtonElement&&['Enter',' '].includes(event.key)) && (!intro.isConnected || intro.contains(event.target) || status.contains(event.target)))return
     event.stopImmediatePropagation()
   }, {capture: true, signal: inputEvents.signal})
 
@@ -141,11 +139,19 @@ function mountIntro(intro,{replay=false}={}){
   play.addEventListener('click', () => {
     if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : video.muted)
   }, media)
-  audio.addEventListener('click', () => {
-    video.muted=false
-    audio.hidden=true
-    if(video.paused)startPlayback(false)
-  }, media)
+  function enableSound(){
+    if(video.muted)video.muted=false
+  }
+  intro.addEventListener('pointerdown',enableSound,media)
+  intro.addEventListener('keydown',event=>{
+    enableSound()
+    if(event.target===play||!['Enter',' '].includes(event.key))return
+    event.preventDefault()
+    void finish()
+  },media)
+  intro.addEventListener('click',event=>{
+    if(event?.target!==play)void finish()
+  },media)
   video.addEventListener('playing', () => {
     if (!isPlayingOrStarting()) return
     clearTimeout(playbackTimeout)
@@ -153,19 +159,10 @@ function mountIntro(intro,{replay=false}={}){
     if (prompt.contains(document.activeElement)) intro.focus({preventScroll: true})
     prompt.hidden = true
     intro.classList.add('playing')
-    audio.hidden = !video.muted
   }, media)
   video.addEventListener('waiting', () => {
     if (isPlayingOrStarting()) watchForPlayback()
   }, media)
-  const frame=intro.querySelector('#intro-frame')
-  function positionLogo(){frame.classList.toggle('corner',video.currentTime>=7.45)}
-  video.addEventListener('timeupdate',positionLogo,media)
-  if(video.requestVideoFrameCallback){
-   const follow=()=>{positionLogo();if(phase!=='exiting')video.requestVideoFrameCallback(follow)}
-   video.requestVideoFrameCallback(follow)
-  }
-  intro.querySelector('#intro-skip').addEventListener('click', finish, media)
   video.addEventListener('ended', finish, media)
   video.addEventListener('error', failPlayback, media)
   document.addEventListener('visibilitychange', () => {

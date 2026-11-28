@@ -33,7 +33,7 @@ sample={
 }
 graphics="localStorage.setItem('harborline.graphicsQuality.v1','low')"
 def open_game(page):
- page.locator('#intro-skip').dispatch_event('click')
+ page.locator('#cinematic-intro').dispatch_event('click')
  page.wait_for_function("!document.querySelector('#game').inert",timeout=95000)
 def seed(page,state,pose=sample):
  page.add_init_script(f'''if(!sessionStorage.fixture){{{graphics};
