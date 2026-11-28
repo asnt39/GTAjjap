@@ -15,6 +15,8 @@ import {cityFixtures} from './city-fixtures.js'
 import {cityAction,nearbyActions} from './city-actions.js'
 import {within,loadingCourt,pocketGarden} from './street-plan.js'
 import {worldColliders} from './world-colliders.js'
+import {buildBank} from './bank.js'
+import {bank,bankDoors,insideBank} from './bank-plan.js'
 import {createTerraceDoors} from './terrace-doors.js'
 import {insideTerrace,terraceRoomAt,terraceFloorAt,terraceCeilingAt} from './terrace-plan.js'
 import {streamTerraceRooms} from './terrace-interior.js'
@@ -167,6 +169,7 @@ export async function start(onContextLost){
  updateRow(pos,0)
  const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  buildTransferYard(scene,addCollider,surfaceMaps)
+ buildBank(scene,addCollider,surfaceMaps)
  const updateClub=buildNewBloodClub(scene,addCollider,surfaceMaps)
  const chapterBuildings=buildChapterBuildings(scene,addCollider,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
@@ -194,7 +197,7 @@ export async function start(onContextLost){
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z),effects.characterImpact,
   p=>ui.sound(footSurface(p),p,.28))
- const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite,worksDoor,...clubDoors]),updateFittings=streamTerraceRooms(scene)
+ const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite,worksDoor,...clubDoors,...bankDoors]),updateFittings=streamTerraceRooms(scene)
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={},crashes=crashEvents()
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
  const dockCapacity=6
@@ -1149,7 +1152,7 @@ export async function start(onContextLost){
   shoulder=damp(shoulder,aiming&&!driving()?1:0,12,dt)
   const below=belowGround(),localRoom=rowRoomAt(pos.x,pos.z)
   showBunker(below)
-  const roomDistance=localRoom||below||insideClub(pos.x,pos.z)?Math.min(distance,2.65):distance
+  const roomDistance=localRoom||below||insideBank(pos.x,pos.z)||insideClub(pos.x,pos.z)?Math.min(distance,2.65):distance
   const viewDistance=THREE.MathUtils.lerp(roomDistance,Math.min(roomDistance,2.45),shoulder)*(1-.13*falling)
   wetView=damp(wetView,inWater()?swimming.wet:0,5,dt)
   const arm=viewDistance+cameraBlend*car.setup.camera+(boating()?2.1:0)-wetView
@@ -1255,6 +1258,7 @@ export async function start(onContextLost){
  function ceilingHeight(x,z,feet){
   if(inBunker(x,z,feet))return bunker.floor+bunker.headroom
   if(insideClub(x,z))return clubCeilingAt(x,z)
+  if(insideBank(x,z))return bank.ceiling
   const room=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   return room?rowCeiling(room,x,feet):x<archive.front&&archiveAccess(x,z,0)?archive.ceiling:
    terrace?terraceCeilingAt(terrace,x,z,feet):atStation(x,z)?station.ceiling:atGarage(x,z)?garage.ceiling:insideWorks(x,z)?

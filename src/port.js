@@ -227,7 +227,7 @@ export async function buildPort(scene, addCollider) {
     b(-2,13.5,0,4.2,2.40,2.93,'#c76446');
     b(-2,14.86,0,4.45,.23,3.13,'#e89a6a');
     for(const u of [-3.33,-2.8,-2.27,-1.74,-1.21])b(u,13.61,1.49,.31,.66,.05,'#4b5858');
-    const plaque = placard('HARBORLINE', 'TERMINAL  /  CRANE  '+String(index).padStart(2,'0'), '#a34b38','#fff0c9');
+    const plaque = placard('Harborline', 'TERMINAL  /  CRANE  '+String(index).padStart(2,'0'), '#a34b38','#fff0c9');
     b(3.38,11.45,2.57,4.93,.85,.08,'#ffffff',plaque);
     b(-2.0,13.48,-1.49,3.8,.67,.06,'#ffffff',plaque);
     const hoist=15.35;

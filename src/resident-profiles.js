@@ -59,6 +59,12 @@ people.push(
 
 people.push(...districtCitizens)
 
+people.push(
+ {id:'bank-teller',name:'Irene',role:'은행 직원',model:'crew',variant:2,x:-191.65,z:196.78,pace:.9,temper:'avoid',lines:['계좌 상담은 로비 오른쪽 상담실에서 진행합니다.']},
+ {id:'bank-customer',name:'Owen',role:'은행 고객',variant:4,x:-185.2,z:192.63,pace:.87,temper:'avoid',lines:['하역장 쪽 지점이 문을 닫아서 여기로 왔어요.']},
+ {id:'bank-guard',name:'Hector',role:'은행 경비',variant:23,x:-189.03,z:191.5,pace:1,temper:'defend',lines:['통로를 비워 주십시오. 창구는 로비 왼쪽에 있습니다.']}
+)
+
 const givenNames=new Map(people.map(({id,name})=>[id,name.split(' ',1)[0]]))
 givenNames.set('wrong-deal-theo',givenNames.get('west-courier'))
 givenNames.set('new-blood-jack',givenNames.get('courier'))
