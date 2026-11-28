@@ -5,22 +5,9 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #000;
+  background: radial-gradient(ellipse at 90% 94%, #304448 0%, #121f27 43%, #080e13 72%);
   color: #f5f2e9;
   outline: none;
-}
-
-#intro-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: scale-down;
-  opacity: 0;
-}
-
-#cinematic-intro.playing #intro-video {
-  opacity: 1;
 }
 
 #intro-recovery {
@@ -64,7 +51,11 @@
   color:#fff3df;
   text-shadow:0 2px 14px #000;
   pointer-events:none;
+  animation:intro-wordmark-in .8s ease-out both;
 }
+@keyframes intro-wordmark-in{from{opacity:.1;transform:translateY(6px)}}
+@media(prefers-reduced-motion:reduce){#intro-wordmark{animation:none}}
+.loading-wordmark{font:800 16px var(--game-font),sans-serif;color:#efc68b}
 
 #rotate-device {display:none}
 @media (any-pointer:coarse) and (orientation:portrait) {

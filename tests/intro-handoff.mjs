@@ -37,13 +37,13 @@ function boot({stored=false,discarded=false,hidden=true,preview=false}={}){
   AbortController,mainModule,requestAnimationFrame(){},
   setTimeout:()=>0,clearTimeout(){},console
  })
- const end=node=>node.querySelector('video').listeners.ended()
+ const end=node=>node.querySelector('audio').listeners.ended()
  return {ready,game,intro:get('#cinematic-intro'),status:get('#status'),started:()=>started,playing:()=>playing,
   inits:()=>initializations,replay:()=>globalEvents.get('harborline:replay-intro')(),end,updateLifecycle,
   visible(value){doc.hidden=!value;for(const {fn,signal} of visibility)if(!signal.aborted)fn()}}
 }
 
-test('the video ends before gameplay starts, and boot runs once',async()=>{
+test('the audio ends before gameplay starts, and boot runs once',async()=>{
  const app=boot({hidden:false})
  assert.equal(app.playing(),1)
  assert.equal(typeof app.intro.listeners.click,'function')
@@ -69,7 +69,7 @@ test('asset previews use the same intro handoff without starting release monitor
  await setImmediate()
  assert.deepEqual(app.updateLifecycle,['enter','game'])
 })
-test('backgrounding pauses the video and replay does not reset the game',async()=>{
+test('backgrounding pauses the audio and replay does not reset the game',async()=>{
  const app=boot({hidden:false})
  app.visible(false)
  app.ready()
@@ -95,7 +95,7 @@ test('backgrounding pauses the video and replay does not reset the game',async()
  assert.equal(app.started(),1)
  assert.equal(app.inits(),1)
 })
-test('new pages play the video even with the old seen flag or a browser discard',async()=>{
+test('new pages play the audio even with the old seen flag or a browser discard',async()=>{
  for(const options of [{stored:true},{discarded:true}]){
   const app=boot({...options,hidden:false})
   app.ready()

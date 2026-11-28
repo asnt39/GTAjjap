@@ -22,11 +22,11 @@ function showGameFailure(text) {
 
 function prepareGame() {
   launch ??= import('./main.js')
-    .then(({start}) => start(() => showGameFailure('그래픽 연결이 중단됐어. 낮은 품질로 다시 시도해.')))
+    .then(({start}) => start(() => showGameFailure('그래픽 연결 중단. 낮은 품질로 다시 시도하십시오.')))
     .then(enable => { enableGame = enable })
     .catch(error => {
       console.error(error)
-      showGameFailure('게임을 열 수 없어. WebGL 2를 지원하는 브라우저에서 새로고침해.')
+      showGameFailure('게임 로드 실패. WebGL 2를 지원하는 브라우저에서 새로고침하십시오.')
     })
   return launch
 }
@@ -35,14 +35,14 @@ function mountIntro(intro,{replay=false}={}){
   active=true
   const previousFocus=document.activeElement
   game.inert=true
-  const video = intro.querySelector('video')
+  const audio = intro.querySelector('audio')
   const prompt = intro.querySelector('#intro-recovery')
   const play = intro.querySelector('#intro-retry')
   const message = intro.querySelector('#intro-message')
   const mediaEvents = new AbortController()
   const inputEvents = new AbortController()
-  const previewSource = window.harborPreviewAssets?.[video.getAttribute('src')]
-  if (previewSource) video.src = previewSource
+  const previewSource = window.harborPreviewAssets?.[audio.getAttribute('src')]
+  if (previewSource) audio.src = previewSource
 
   let phase = 'prompt'
   let playbackAttempt = 0
@@ -59,7 +59,7 @@ function mountIntro(intro,{replay=false}={}){
     phase = 'prompt'
     retry = restart
     clearTimeout(playbackTimeout)
-    video.pause()
+    audio.pause()
     intro.classList.remove('playing')
     prompt.hidden = false
     play.disabled = false
@@ -70,7 +70,7 @@ function mountIntro(intro,{replay=false}={}){
 
   function failPlayback() {
     if (isPlayingOrStarting()) {
-      showPrompt('다시 시도', '영상 재생 실패. 잠시 후 게임 시작.', true)
+      showPrompt('다시 시도', '오프닝 재생 실패. 잠시 후 게임 시작.', true)
       failureHandoff = setTimeout(finish, 4000)
     }
   }
@@ -84,13 +84,13 @@ function mountIntro(intro,{replay=false}={}){
     clearTimeout(failureHandoff)
     phase = 'starting'
     const attempt = ++playbackAttempt
-    if (retry || video.error) video.load()
+    if (retry || audio.error) audio.load()
     retry = false
     play.disabled = true
-    message.textContent = '영상을 준비하는 중'
+    message.textContent = '오프닝 준비 중'
     watchForPlayback()
-    video.muted = muted
-    video.play().catch(error => {
+    audio.muted = muted
+    audio.play().catch(error => {
       if (attempt !== playbackAttempt || phase !== 'starting') return
       if (allowMutedFallback && error.name === 'NotAllowedError') startPlayback(true)
       else failPlayback()
@@ -103,12 +103,12 @@ function mountIntro(intro,{replay=false}={}){
     clearTimeout(playbackTimeout)
     clearTimeout(failureHandoff)
     mediaEvents.abort()
-    video.pause()
-    video.removeAttribute('src')
+    audio.pause()
+    audio.removeAttribute('src')
     if (!replay) status.hidden = Boolean(enableGame && !gameFailed)
     status.removeAttribute('aria-hidden')
     intro.remove()
-    video.load()
+    audio.load()
     if (replay) {
       game.inert = gameFailed
       inputEvents.abort()
@@ -137,10 +137,12 @@ function mountIntro(intro,{replay=false}={}){
 
   const media = {signal: mediaEvents.signal}
   play.addEventListener('click', () => {
-    if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : video.muted)
+    if (phase === 'prompt' && !document.hidden) startPlayback(retry ? false : audio.muted)
   }, media)
   function enableSound(){
-    if(video.muted)video.muted=false
+    if(!audio.muted)return
+    audio.muted=false
+    if(audio.paused&&phase!=='exiting')startPlayback(false)
   }
   intro.addEventListener('pointerdown',enableSound,media)
   intro.addEventListener('keydown',event=>{
@@ -152,7 +154,7 @@ function mountIntro(intro,{replay=false}={}){
   intro.addEventListener('click',event=>{
     if(event?.target!==play)void finish()
   },media)
-  video.addEventListener('playing', () => {
+  audio.addEventListener('playing', () => {
     if (!isPlayingOrStarting()) return
     clearTimeout(playbackTimeout)
     phase = 'playing'
@@ -160,11 +162,11 @@ function mountIntro(intro,{replay=false}={}){
     prompt.hidden = true
     intro.classList.add('playing')
   }, media)
-  video.addEventListener('waiting', () => {
+  audio.addEventListener('waiting', () => {
     if (isPlayingOrStarting()) watchForPlayback()
   }, media)
-  video.addEventListener('ended', finish, media)
-  video.addEventListener('error', failPlayback, media)
+  audio.addEventListener('ended', finish, media)
+  audio.addEventListener('error', failPlayback, media)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && isPlayingOrStarting()) {
       showPrompt('인트로 계속', '', false)

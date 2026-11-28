@@ -17,7 +17,7 @@ const scene=new Scene(),camera=new PerspectiveCamera(65,1,.1,200)
 camera.position.set(-7,2,30);camera.lookAt(-7,1,21);camera.updateMatrixWorld()
 const car={x:4.92,z:12,width:2.02,length:4.15,heading:0,speed:0}
 const rig=await createCharacter(),crowd=await createResidents(scene,[],car)
-assert.equal(new Set(requests).size,4);assert.equal(requests.length,4);assert.equal(crowd.all.filter(n=>!n.officer).length,32);assert.equal(crowd.officers.length,9)
+assert.equal(new Set(requests).size,4);assert.equal(requests.length,4);assert.equal(crowd.all.filter(n=>!n.officer).length,35);assert.equal(crowd.officers.length,9)
 assert.equal(crowd.officers.filter(n=>n.model==='patrol').length,3)
 for(const npc of crowd.all){
  const hand=new Vector3()
@@ -29,7 +29,7 @@ for(const npc of crowd.all){
   assert(bounds.min.y>-.15&&bounds.max.y>1.48&&bounds.max.y<2.15,npc.name)
  }
 }
-assert.equal(new Set(crowd.all.map(n=>n.name)).size,41)
+assert.equal(new Set(crowd.all.map(n=>n.name)).size,44)
 assert(crowd.all.every(n=>/^[A-Za-z]+( [A-Za-z]+)*$/.test(n.name)))
 scene.add(rig.root)
 const player={pos:rig.root.position,f:fighter(100),height:1.8,available:true}
@@ -55,7 +55,7 @@ for(let i=0;i<4;i++){advance(foreman.f,.55);foreman.f.immune=0;crowd.receive(for
 assert.equal(foreman.f.action,'down');assert(!swing(foreman.f))
 camera.position.set(20,2,20);camera.lookAt(25,2,25);camera.updateMatrixWorld();player.pos.set(18,0,20);tick(1200)
 assert(foreman.f.hp>0);assert.notEqual(foreman.f.action,'down')
-console.log('Forty-one resident rigs, four shared assets, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')
+console.log('Forty-four resident rigs, four shared assets, dialogue, hand reach, immunity, counter, escape and offscreen recovery passed.')
 
 // All eight officers use compatible Rocketbox rigs and have independent health.
 const officer=crowd.officers[0]
@@ -119,3 +119,11 @@ const oldOfficer=stationaryFight(84),newOfficer=stationaryFight(132)
 assert.deepEqual([oldCivilian.landed,newCivilian.landed,oldOfficer.landed,newOfficer.landed],[3,5,4,6])
 assert(newCivilian.seconds<4&&newOfficer.seconds<5)
 console.log('Stationary combat at 60 Hz:',{oldCivilian,newCivilian,oldOfficer,newOfficer})
+
+const underFire=fighter(100)
+assert(swing(underFire))
+assert(injure(underFire,25,1,'body',{weaponHit:true,stagger:false}))
+assert.equal(underFire.hp,75)
+assert.equal(underFire.action,'punch')
+assert(injure(underFire,90,1,'body',{weaponHit:true,stagger:false}))
+assert.equal(underFire.action,'down')
