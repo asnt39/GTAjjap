@@ -394,7 +394,6 @@ export async function start(onContextLost){
    effects.emit('smoke',point.x,point.y+.26,point.z,10)
    effects.emit('sparks',point.x,point.y+.1,point.z,13)
    shake=Math.max(shake,Math.max(0,1-Math.hypot(point.x-pos.x,point.z-pos.z)/(blastRadius*1.5)))
-   const wantedBefore=crowd.wanted.level
    for(const n of crowd.all){
     if(n.f.hp<=0||n.policeOrder?.aboard)continue
     const strength=grenadeStrength(point,blastTarget.copy(n.pos).addScaledVector(THREE.Object3D.DEFAULT_UP,.90))
@@ -404,7 +403,7 @@ export async function start(onContextLost){
     const strength=grenadeStrength(point,blastTarget.set(vehicle.x,.53+(vehicle.lift??0),vehicle.z))
     kickVehicle(vehicle,point,strength,boxes,traffic,room.phase==='offline')
    }
-   crowd.hearShot(point,crowd.wanted.level!==wantedBefore)
+   crowd.hearShot(point)
    renderer.shadowMap.needsUpdate=true
   }
  }

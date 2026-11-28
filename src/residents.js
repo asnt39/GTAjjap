@@ -154,15 +154,13 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
  function beginTalk(n){
   endTalk();life.cancelGreeting(n);talking=n;n.state='talk';n.talk=Infinity;n.path=[];lastTalk=n.lines[n.line++%n.lines.length]
  }
- function hearShot(source,reported=false){
+ function hearShot(source){
   // React once per game sound. Reuse the normal flee and patrol states.
   for(const n of all){
    if(n.missionRole||!n.f.hp||distance(n.pos,source)>16)continue
    if(!n.officer){n.state='flee';n.alert=Math.max(n.alert,4);n.replan=0}
   }
-  if(!reported&&officers.some(n=>n.f.hp>0&&distance(n.pos,source)<22)){
-   wanted.report(source,1);dispatch(source);sensing=0
-  }
+
  }
  function markImpact(n,impact){
   const surface=n.rig.markImpact(impact)
@@ -181,8 +179,8 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
   }
   life.cancelGreeting(n);endTalk()
   if(n.officer&&!n.f.hp){firearms.escalate();wanted.report(source,3)}
-  if(n.officer||n.f.hp>0||all.some(w=>w!==n&&w.f.hp>0&&distance(w.pos,source)<12&&lineClear(w.pos,source))){
-   wanted.report(source,n.officer||!n.f.hp?2:1)
+  if(n.officer)wanted.report(source,2)
+  if(n.officer||(!n.f.hp&&wanted.civilianDeath(n,source))){
    dispatch(source);sensing=0
   }
   impulse(n.f,kind,-Math.sin(angle),-Math.cos(angle),damage??24,{vx:Math.sin(n.face)*n.speed,vz:Math.cos(n.face)*n.speed,face:n.face})
