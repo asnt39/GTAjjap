@@ -1,14 +1,11 @@
+import {gameTime} from './hud-controls.js'
 import {interactionSelection} from './interaction-list.js'
 import './interactions.css'
-import {insideBasin} from './south-basin-plan.js'
-import {inCoast,offBeach,inPier} from './coast-plan.js'
 import {cityAudio} from './city-audio.js'
 import {dartPower,dartScore} from './darts-round.js'
 import {insideWeaponShop} from './weapon-shop-plan.js'
 import {gear} from './equipment.js'
 import './equipment.css'
-import {inWestBank} from './west-bank-plan.js'
-import {inOldTown} from './old-town-plan.js'
 import {episodeUI} from './episode-ui.js'
 import {dialogueVoice} from './dialogue-voice.js'
 import {drawMap} from './cartography.js'
@@ -20,6 +17,7 @@ const nearbySight=p=>sights.filter(s=>(s.tag!=='ARM'||insideWeaponShop(p.x,p.z))
 const speaker=(on)=>'<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/>'+ (on?'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>':'<path d="m16 9 5 6m0-6-5 6"/>')+'</svg>'
 export function createUI(game){
  const overlay=$('#overlay'),head=$('#panel-title'),body=$('#panel-body'),interact=$('#interact')
+ const clock=$('#game-clock'),clockStart=performance.now(),attackButton=$('#punch')
  const selection=interactionSelection(),entries=new Map(),options=$('#interaction-options')
  const missionEvent=$('#mission-event'),toastElement=$('#toast')
  const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
@@ -105,11 +103,9 @@ export function createUI(game){
   $('#close').focus({preventScroll:true})
  }
  let roomForm,code=''
- const playMode=$('#play-mode')
  function updateRoom(){
   const root=$('#room-controls'),room=game.room
   const phase=room.phase
-  playMode.textContent=phase==='connected'?'온라인 플레이':phase==='reconnecting'?'온라인 · 재접속 중':'싱글플레이'
   if(!root){roomForm=null;return}
   if(!defaultRoomEndpoint){
    root.textContent='온라인 서버 준비 중. 지금은 싱글플레이를 이용할 수 있어.'
@@ -177,7 +173,7 @@ export function createUI(game){
   else game.useCity(site)
  }
  $('#vehicle-tools').onclick=e=>{const action=e.target.closest('button')?.dataset.vehicle;if(action)game.vehicleAction(action)}
- $('#pause').onclick=()=>show('pause');$('#controls').onclick=()=>show('controls');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
+ $('#pause').onclick=()=>show('pause');$('#mini-button').onclick=()=>show('map');$('#close').onclick=close
  overlay.onclick=e=>{if(e.target===overlay)close();const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
   if(panel==='equipment'&&action.startsWith('equip-')){
    const id=action.slice(6)
@@ -380,15 +376,16 @@ export function createUI(game){
   $('#gear-status').hidden=equipped.selected==='fists'
   $('#gear-status').classList.toggle('grenade',throwable)
   $('#gear-status').textContent=equipped.def.name+(gun?' · '+(equipped.reloading?'재장전 중':equipped.item.mag+' / '+equipped.item.reserve):throwable?' · '+equipped.item.reserve+'개':'')
-  $('#punch').textContent=throwable&&!game.inCell()?'투척':'공격'
-  $('#punch').setAttribute('aria-label',game.inCell()?'주먹 공격':gun?'발사':throwable?'수류탄 투척':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
+  const inCell=game.inCell()
+  attackButton.dataset.attack=!inCell&&(gun||throwable)?'ranged':'melee'
+  attackButton.setAttribute('aria-label',inCell?'주먹 공격':gun?'발사':throwable?'수류탄 투척':equipped.selected==='bat'?'방망이 공격':'주먹 공격')
   const jump=$('#jump')
   jump.disabled=!swim&&!game.canJump()
   jump.textContent=swim?(swim.diving?'수면으로':'잠수'):'점프'
   jump.setAttribute('aria-label',jump.textContent)
   const dive=$('#dive-toggle');dive.hidden=!swim||!!panel
   if(!dive.hidden)dive.querySelector('span').textContent=jump.textContent
-  $('#punch').disabled=!game.canAttack()
+  attackButton.disabled=!game.canAttack()
   const dialogue=game.crowd.dialogue,box=conversation
   const opened=!!dialogue&&!panel&&(box.hidden||box.inert)
   if(dialogue&&!panel){
@@ -413,9 +410,6 @@ export function createUI(game){
    opponent.textContent=target?target.name+' · '+(target.f.hp?target.f.hp+' / '+target.f.maxHealth:'다운'):''
   }
   if(!panel)renderInteractions(currentInteractions())
-  $('#loc-name').textContent=insideBasin(p.x,p.z)?'South Basin':inCoast(p.x,p.z)&&p.x>30?
-   (inPier(p.x,p.z)?'Meridian Pier':offBeach(p.x,p.z)?'Meridian Bay':'Meridian Beach'):
-   inWestBank(p.x,p.z)?'West Bank':inOldTown(p.x,p.z)?'Old Town':p.x<-36?'Tide Market':p.x>11?'West Quay':Math.abs(p.z+37)<7?'Market Crossing':'Breakwater Ave.'
   drawMap($('#mini'),p,y,false,game.cars,goal,game.storyMarkers())
   const compass=$('.compass').clientWidth,base=Math.round(degrees/7.5)
   bearingElements.forEach((el,i)=>{const step=base+i-10,normalized=(step%48+48)%48,card=normalized%6===0;el.className=card?'':'tick';el.textContent=card?['N','NE','E','SE','S','SW','W','NW'][normalized/6]:'';el.style.left=(compass/2+(step*7.5-degrees)*2.2)+'px'})
@@ -429,6 +423,8 @@ export function createUI(game){
   drawRound()
   if(now-lastAudio<100)return
   lastAudio=now
+  const time=gameTime(now-clockStart)
+  if(clock.dateTime!==time){clock.dateTime=time;clock.textContent=time}
   if(audio.active)audio.update(state())
   if(audio.active!==($('#sound').getAttribute('aria-pressed')==='true'))reflectSound()
  }

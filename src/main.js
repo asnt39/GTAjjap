@@ -1,3 +1,4 @@
+import {stickVector} from './hud-controls.js'
 import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
 import {buildSouthBasin} from './south-basin.js'
 import {beachGround,coastFloor,inCoast,inPier,seaLevel,swimLadder} from './coast-plan.js'
@@ -917,13 +918,30 @@ export async function start(onContextLost){
  canvas.onlostpointercapture=e=>{if(drag?.id===e.pointerId)drag=null};canvas.onpointerup=e=>{if(drag?.id===e.pointerId)drag=null};canvas.oncontextmenu=e=>e.preventDefault()
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.006,2.3,7.4)},{passive:false})
  const stick=document.querySelector('#stick'),knob=stick.firstElementChild,jumpButton=document.querySelector('#jump')
- const adjust=e=>{const b=stick.getBoundingClientRect();joystick.set((e.clientX-b.left-b.width/2)/30,(e.clientY-b.top-b.height/2)/30).clampLength(0,1);knob.style.transform='translate('+joystick.x*24+'px,'+joystick.y*24+'px)'}
+ const adjust=e=>{
+  const bounds=stick.getBoundingClientRect()
+  const thumbTravel=Math.max(1,(bounds.width-knob.offsetWidth)*.5-5)
+  const {x,y}=stickVector(e.clientX-bounds.left-bounds.width*.5,e.clientY-bounds.top-bounds.height*.5,thumbTravel)
+  joystick.set(x,y)
+  knob.style.transform=`translate(${x*thumbTravel}px,${y*thumbTravel}px)`
+ }
  for(const b of document.querySelectorAll('[data-pedal]')){
   const ids=new Set();pedalPointers.set(b,ids);b.onpointerdown=e=>{if(!operating()||isPaused)return;b.setPointerCapture(e.pointerId);ids.add(e.pointerId);pedals.add(b.dataset.pedal);b.classList.add('held')}
   b.onlostpointercapture=e=>{ids.delete(e.pointerId);if(!ids.size){pedals.delete(b.dataset.pedal);b.classList.remove('held')}}
  }
- stick.onpointerdown=e=>{if(stickId!==null||crowd.talking||custody.locked)return;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)};stick.onpointermove=e=>{if(!custody.locked&&!crowd.talking&&stick.hasPointerCapture(e.pointerId))adjust(e)};stick.onlostpointercapture=e=>{if(stickId!==e.pointerId)return;stickId=null;joystick.set(0,0);knob.style.transform=''}
- const punchButton=document.querySelector('#punch');punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
+ stick.onpointerdown=e=>{
+  if(stickId!==null||isPaused||crowd.talking||custody.locked)return
+  stickId=e.pointerId;stick.setPointerCapture(e.pointerId);adjust(e)
+ }
+ stick.onpointermove=e=>{if(e.pointerId===stickId&&!isPaused&&!custody.locked&&!crowd.talking)adjust(e)}
+ function resetStick(e){
+  if(e.pointerId!==stickId)return
+  stickId=null;joystick.set(0,0);knob.style.transform=''
+ }
+ stick.onpointerup=stick.onpointercancel=stick.onlostpointercapture=resetStick
+ const punchButton=document.querySelector('#punch')
+ punchButton.onpointerdown=e=>{e.preventDefault();punchButton.setPointerCapture(e.pointerId);attack()}
+ punchButton.onclick=e=>{if(e.detail===0)attack()}
  document.querySelector('#gear-menu').onclick=()=>{if(!isPaused&&mode==='walk'&&!crowd.talking)ui.show('equipment')}
  document.querySelector('#gear-reload').onclick=reloadEquipment
  document.querySelector('#gear-next').onclick=()=>{

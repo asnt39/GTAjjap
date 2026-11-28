@@ -12,7 +12,7 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hos
  if(!w||!h)return
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
  const c=canvas.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h)
- const scale=overview? Math.min(w/448,h/386):1.78, cx=overview?-12:player.x,cz=overview?84:player.z
+ const scale=overview? Math.min(w/448,h/386):1.78*Math.min(1,w/116), cx=overview?-12:player.x,cz=overview?84:player.z
  c.translate(w*.5,h*.5);c.scale(scale,scale);c.translate(-cx,-cz)
  const rect=(x,z,a,b,fill)=>{c.fillStyle=fill;c.fillRect(x,z,a,b)}
  rect(-400,-400,800,800,'#283534');rect(26,-400,400,800,'#294950')
@@ -64,8 +64,11 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hos
   c.save();c.translate(car.x,car.z);c.rotate(car.heading);c.fillStyle='#dbe2cf';c.fillRect(-1.6,-3.3,3.2,6.6);c.fillStyle='#566963';c.fillRect(-1.2,-1.45,2.4,2.5);c.restore()
  }
  if(goal){
-  const gx=Math.max(cx-w/(2*scale)+8/scale,Math.min(cx+w/(2*scale)-8/scale,goal.x))
-  const gz=Math.max(cz-h/(2*scale)+8/scale,Math.min(cz+h/(2*scale)-8/scale,goal.z))
+  const limitX=(w*.5-9)/scale,limitZ=(h*.5-9)/scale
+  const dx=goal.x-cx,dz=goal.z-cz
+  const radial=Math.min(1,(Math.min(w,h)*.5-10)/(scale*Math.hypot(dx,dz)))
+  const gx=cx+(overview?Math.max(-limitX,Math.min(limitX,dx)):dx*radial)
+  const gz=cz+(overview?Math.max(-limitZ,Math.min(limitZ,dz)):dz*radial)
   c.save();c.translate(gx,gz);c.scale(1/scale,1/scale);c.rotate(Math.PI/4)
   c.fillStyle='#ffcf8d';c.strokeStyle='#2b2520';c.lineWidth=1.4;c.fillRect(-4.5,-4.5,9,9);c.strokeRect(-4.5,-4.5,9,9);c.restore()
  }
