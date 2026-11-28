@@ -1,7 +1,7 @@
 import {Vector3} from 'three'
 import {createCharacter} from './character.js'
 import {createCompanion} from './companion.js'
-import {combatPose,fighter} from './melee.js'
+import {advance,combatPose,fighter,injure} from './melee.js'
 import {cameraFraction,canWalk,movePlayer} from './navigation.js'
 import {missionActorSnapshot,restoreMissionActor,missionVehicleSnapshot,restoreMissionVehicle} from './mission-checkpoint.js'
 import {parking,parkingLevel,workshop} from './chapter-sites.js'
@@ -17,6 +17,7 @@ const mainNames={
  Theo:{model:'mariner',variant:4,role:'항만 배선 담당',line:'조류 표를 봤어. 안쪽 물길이 비는 때를 알려 줄게.'},
  Leon:{model:'patrol',variant:8,role:'현장 지원',line:'뒤는 내가 본다. 사람부터 챙겨.'},
  Adrian:{model:'mariner',variant:5,role:'운송권 책임자',line:'운송 계약은 사라지지 않습니다. 서명하는 사람이 바뀔 뿐이지.'},
+ Elliot:{model:'resident',variant:7,role:'운송업자',line:'여기서는 이름을 묻지 마십시오.'},
  Victor:{model:'resident',variant:3,role:'항만 사업 책임자',line:'일은 끝까지 처리해. 약속한 몫은 내가 책임진다.'}
 }
 
@@ -55,14 +56,19 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat,noti
    const pos=new Vector3(point.x,point.y??.083,point.z)
    const npc={id:spec.id??'chapter-'+name.toLowerCase(),name,role:person.role,lines:[person.line],height:1.77,pos,rig,
     f:fighter(health),missionRole:side,face:0,joined:true,speed:0,stepping:0,stagger:index,
-    path:spec.path??[],routeIndex:0,follow:false,passenger:false,
+    path:spec.path??[],routeIndex:0,follow:!!spec.follow,passenger:false,
+    focus:null,hiding:null,rethink:index*.07,retreat:false,said:false,
     combat:spec.armed?{weapon:'pistol',mag:8,damage:side==='hostile'?9:22,range:23,aim:.42+(index%3)*.19,cadence:1.03+index*.13}:null}
    npc.outline=side==='hostile'?missionEnemyOutline(rig.root):null
    npc.companion=createCompanion({position:pos,waypoints:spec.waypoints??[],stopDistance:1.55,
-    canStand:(x,z)=>canWalk(x,z,boxes,.32,pos.y),
-    canTraverse:(a,b)=>Math.abs((a.y??pos.y)-(b.y??pos.y))<.46&&cameraFraction({x:a.x,y:pos.y+.84,z:a.z},
-     {x:b.x,y:pos.y+.84,z:b.z},boxes)>.96,
-    move:(p,dx,dz)=>movePlayer(p,dx,dz,boxes,undefined,p.y)})
+    canStand:(x,z,point)=>canWalk(x,z,boxes,.32,point?.y??pos.y),
+    canTraverse:(a,b)=>Math.abs((a.y??pos.y)-(b.y??pos.y))<.65&&cameraFraction({x:a.x,y:(a.y??pos.y)+.84,z:a.z},
+     {x:b.x,y:(b.y??pos.y)+.84,z:b.z},boxes)>.96,
+    move:(p,dx,dz)=>{
+     movePlayer(p,dx,dz,boxes,undefined,p.y)
+     p.y=floorAt(p.x,p.z,p.y)
+    }})
+   npc.companion.command('follow')
    rig.root.position.copy(pos);scene.add(rig.root);actors.push(npc);crowd.all.push(npc)
   })
  }
@@ -124,11 +130,23 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat,noti
    {x:pos.x,y:pos.y+1.3,z:pos.z},{x:point.x,y:(point.y??.083)+1.3,z:point.z},boxes)>.92
  }
  function interactions(next,pos){
-  if(!next||next!==stage||!ready||interacted||!stage.action||!near(pos,stage.goal))return []
-  return [{...stage.goal,id:stage.set,label:stage.action,activate(){
-   if(!near(pos,stage.goal)||interacted)return
-   interacted=true;signals[stage.event]=true
-  }}]
+  if(!next||next!==stage||!ready)return []
+  const actions=[]
+  if(!interacted&&stage.action&&near(pos,stage.goal)){
+   actions.push({...stage.goal,id:stage.set,label:stage.action,activate(){
+    if(!near(pos,stage.goal)||interacted)return
+    interacted=true;signals[stage.event]=true
+   }})
+  }
+  if(stage.commands)for(const npc of actors){
+   if(npc.missionRole!=='ally'||!npc.f.hp||npc.passenger||!near(pos,npc.pos))continue
+   actions.push({x:npc.pos.x,z:npc.pos.z,id:'chapter-order-'+npc.id,
+    label:npc.name+(npc.follow?'에게 대기 요청':'에게 동행 요청'),activate(){
+     npc.follow=!npc.follow;npc.companion.command(npc.follow?'follow':'hold')
+     return {message:npc.name+(npc.follow?' · 합류 중':' · 위치 유지')}
+    }})
+  }
+  return actions
  }
  function seat(npc,vehicle){
   const spot=worldPoint(vehicle,vehicle.width*.22,.16)
@@ -180,28 +198,104 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat,noti
    if(secured){target.speed=0;target.storyLocked=false;signals.secured=true}
   }
  }
+ function reaction(shooter,target,from,to,hit,weapon,damage){
+  combat?.(shooter,from,to,target===currentPlayer&&hit,weapon,damage)
+  if(target!==currentPlayer&&hit){
+   const health=target.f.hp
+   if(injure(target.f,damage,1,'body',{weaponHit:true}))crowd.markImpact?.(target,{point:to,source:from,kind:'shot',strength:health-target.f.hp})
+  }
+ }
+ function combatDecision(npc,player,foes,allies){
+  const hostile=npc.missionRole==='hostile'
+  const candidates=hostile?[...allies,player]:foes
+  const visible=candidates.filter(target=>target.f.hp&&range(npc.pos,target.pos)<npc.combat.range+6&&fire.visible(npc,target))
+  npc.focus=visible.reduce((best,target)=>!best||range(npc.pos,target.pos)<range(npc.pos,best.pos)?target:best,null)
+  if(npc.focus)npc.lastContact={...npc.focus.pos}
+  const cover=stage.cover??[]
+  const exposedTo=npc.focus??candidates.find(target=>target.f.hp)
+  const threatPoint=exposedTo?.pos
+  npc.retreat||=hostile&&npc.f.hp<npc.f.maxHealth*.20
+  const seekCover=npc.retreat||fire.reloading(npc)||npc.f.hp<npc.f.maxHealth*.46
+  npc.hiding=seekCover&&threatPoint?cover.filter(p=>Math.abs((p.y??.083)-npc.pos.y)<.6&&
+   canWalk(p.x,p.z,boxes,.32,npc.pos.y)).reduce((best,p)=>{
+    const exposed=cameraFraction({x:threatPoint.x,y:threatPoint.y+1.25,z:threatPoint.z},
+     {x:p.x,y:(p.y??.083)+.95,z:p.z},boxes)>.92
+    const score=range(npc.pos,p)+(exposed?8:0)
+    return !best||score<best.score?{point:p,score}:best
+   },null)?.point:null
+ }
+ function behave(npc,dt,player,onFoot,foes,allies){
+  advance(npc.f,dt)
+  if(npc.passenger){npc.outline?.show(false);return}
+  if(!target)npc.speed=0
+  const canMove=npc.f.hp&&!npc.f.action
+  if(canMove&&npc.routeIndex<npc.path.length&&(npc.missionRole!=='witness'||range(npc.pos,player.pos)<19)){
+   const next=npc.path[npc.routeIndex]
+   const retreat=npc.missionRole==='witness'&&stage.followActor
+   const pace=retreat?(range(npc.pos,player.pos)<3.4?4.6:3.1):2.8
+   npc.speed=move(npc,next,dt,pace)
+   if(range(npc.pos,next)<.18)npc.routeIndex++
+  }else if(stage.armed&&npc.combat){
+   npc.rethink-=dt
+   if(npc.rethink<=0){
+    combatDecision(npc,player,foes,allies);npc.rethink=.21+npc.stagger*.055
+   }
+   const last=npc.lastContact&&range(npc.pos,npc.lastContact)>4?npc.lastContact:null
+   const advanceTo=npc.hiding??(npc.missionRole==='hostile'&&!npc.focus?last:null)
+   const follow=onFoot&&npc.follow&&!npc.focus&&range(npc.pos,player.pos)<32?player.pos:null
+   if(canMove&&(advanceTo||follow)){
+    npc.speed=npc.companion.update(dt,{target:advanceTo??follow}).speed
+   }
+  }else if(canMove&&npc.follow&&onFoot&&range(npc.pos,player.pos)<26){
+   npc.speed=npc.companion.update(dt,{target:player.pos}).speed
+  }
+  if(npc.speed<.12){
+   const faceTarget=npc.focus?.pos??player.pos
+   const angle=Math.atan2(faceTarget.x-npc.pos.x,faceTarget.z-npc.pos.z)
+   npc.face+=Math.atan2(Math.sin(angle-npc.face),Math.cos(angle-npc.face))*(1-Math.exp(-11*dt))
+  }
+  npc.rig.root.position.copy(npc.pos);npc.rig.root.rotation.y=npc.face
+  npc.rig.update(dt,npc.speed,combatPose(npc.f))
+  if(stage.armed&&npc.combat){
+   const aiming=!!(npc.focus&&npc.speed<1.3&&!npc.retreat&&range(npc.pos,npc.focus.pos)<npc.combat.range&&fire.visible(npc,npc.focus))
+   fire.tick(npc,npc.focus,dt,aiming,!!npc.f.hp&&!npc.retreat,reaction)
+  }
+  npc.outline?.show(npc.f.hp>0&&!npc.retreat&&range(npc.pos,player.pos)<24)
+ }
  function step(next,dt,player,onFoot,roadDriving,boat){
   prepare(next)
   currentPlayer=player
   if(!stage||!ready)return {status:stage?'합류 준비 중':''}
   elapsed+=dt
   vehicleObjective(dt,player,roadDriving?player.inVehicle:null)
-  for(const npc of actors){
-   if(npc.passenger)continue
-   if(npc.speed<.01)npc.face=Math.atan2(player.pos.x-npc.pos.x,player.pos.z-npc.pos.z)
-   npc.rig.root.position.copy(npc.pos);npc.rig.root.rotation.y=npc.face
-   npc.rig.update(dt,npc.speed,combatPose(npc.f))
-  }
+  const foes=actors.filter(npc=>npc.missionRole==='hostile'&&npc.f.hp&&!npc.retreat)
+  const allies=actors.filter(npc=>npc.missionRole!=='hostile'&&npc.f.hp)
   fire.update(dt)
+  for(const npc of actors)behave(npc,dt,player,onFoot,foes,allies)
+  const witness=actors.find(npc=>npc.missionRole==='witness')
+  if(witness){
+   const atExit=witness.routeIndex>=witness.path.length
+   if(stage.set==='chapter-witness-run'&&atExit)signals.outside=true
+   if(stage.set==='chapter-witness-protect'){
+    if(!witness.f.hp)signals.failed='골목에서 Elliot을 보호하지 못했습니다.'
+    else if(atExit&&!foes.length&&range(player.pos,witness.pos)<12)signals.protected=true
+   }
+  }
   return {...signals,moving:!!target||actors.some(npc=>npc.speed>.05),
-   status:stage.set==='chapter-chase'&&pressure>0?'압박 '+Math.min(100,Math.floor(pressure/3.4*100))+'%':elapsed>25?stage.hint??'지도 표식과 목표 설명을 확인하십시오.':''}
+   status:stage.set==='chapter-chase'&&pressure>0?'압박 '+Math.min(100,Math.floor(pressure/3.4*100))+'%':
+    stage.set==='chapter-witness-protect'?'Elliot 체력 '+witness.f.hp+'/'+witness.f.maxHealth:
+    elapsed>25?stage.hint??'지도 표식과 목표 설명을 확인하십시오.':''}
  }
  return {
   enter,prepare,step,interactions,clean:clear,
-  focus(){return stage?.set==='chapter-chase'&&target?{x:target.x,z:target.z,y:target.lift,label:'도주 차량'}:null},
+  focus(){
+   if(stage?.set==='chapter-chase'&&target)return {x:target.x,z:target.z,y:target.lift,label:'도주 차량'}
+   const npc=actors.find(actor=>actor.name===stage?.followActor)
+   return npc?{x:npc.pos.x,z:npc.pos.z,y:npc.pos.y,label:npc.name}:null
+  },
   snapshot(){
    if(!ready)return null
-   return {generation,stage:stage?.set,elapsed,interacted,signals,actors:actors.map(missionActorSnapshot),
+   return {generation,stage:stage?.set,elapsed,interacted,signals,actors:actors.map(npc=>({...missionActorSnapshot(npc),routeIndex:npc.routeIndex,follow:npc.follow,retreat:npc.retreat})),
     fire:fire.snapshot(actors),target:target?missionVehicleSnapshot(target):null,recoveryCar:recoveryCar?missionVehicleSnapshot(recoveryCar):null,chaseDistance,pressure,chaseWait,secured}
   },
   planRestore(snapshot){
@@ -209,7 +303,13 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat,noti
     snapshot.actors.length!==actors.length||!!target!==!!snapshot.target||!!recoveryCar!==!!snapshot.recoveryCar)return null
    return ()=>{
     ({elapsed,interacted,signals,chaseDistance,pressure,chaseWait,secured}=snapshot)
-    actors.forEach((npc,index)=>{npc.passenger=false;restoreMissionActor(npc,snapshot.actors[index],scene,crowd.all,combatPose)})
+    actors.forEach((npc,index)=>{
+     const saved=snapshot.actors[index]
+     Object.assign(npc,{passenger:false,routeIndex:saved.routeIndex,follow:saved.follow,retreat:saved.retreat,
+      focus:null,lastContact:null,hiding:null,rethink:0})
+     npc.companion.restart(npc.follow?'follow':'hold')
+     restoreMissionActor(npc,saved,scene,crowd.all,combatPose)
+    })
     fire.restore(actors,snapshot.fire)
     if(recoveryCar)restoreMissionVehicle(recoveryCar,snapshot.recoveryCar)
     if(target){restoreMissionVehicle(target,snapshot.target);target.storyLocked=stage.set!=='chapter-delivery'&&!secured}

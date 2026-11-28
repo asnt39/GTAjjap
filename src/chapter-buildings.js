@@ -1,6 +1,6 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
-import {parking,parkingFloors,parkingRamps,rampHeight,workshop} from './chapter-sites.js'
+import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel} from './chapter-sites.js'
 
 export function buildChapterBuildings(scene,addCollider,maps){
  const group=new T.Group(),batches=new Map()
@@ -94,12 +94,75 @@ export function buildChapterBuildings(scene,addCollider,maps){
   batch(tire,rubber)
  }
  sign('KEEL MOTOR WORKS',-105.5,4.61,149.98,7.4).rotation.y=Math.PI
+ flush()
+ buildHotel()
+ flush()
+ function buildHotel(){
+  const [w,e,n,s]=hotel.bounds,base=.083,top=hotel.floor,roof=6.38
+  const plaster=material(0xbdb39a,maps.architecture[1])
+  const window=new T.MeshStandardMaterial({color:0x566f77,metalness:.28,roughness:.27})
+  const rug=material(0x756358),brass=material(0xad8e56),linen=material(0xd9d0b7)
+  slab(w,e,n,s,base)
+  for(const [left,right] of [[w,-139.7],[-136.3,-122.5],[-119.1,e]])slab(left,right,n,s,top)
+  for(const stair of hotel.stairs){
+   const [a,b,c,d]=stair.bounds
+   slab(a,b,n,c,top);slab(a,b,d,s,top)
+   for(let i=0;i<17;i++)box((a+b)/2,base+(i+.5)*3/17*.5,c+(i+.5)*(d-c)/17,b-a,3*(i+.5)/17,(d-c)/17,wood)
+   box(a+.08,top+.12,(c+d)/2,.12,.055,d-c,brass)
+  }
+  slab(w,e,n,s,roof)
+  wall(w,w+.24,n,s,base,roof,brick)
+  wall(w,e,s-.24,s,base,roof,brick)
+  for(const [a,b] of [[w,-132.2],[-128.7,e]])wall(a,b,n,n+.24,base,roof,brick)
+  wall(-132.2,-128.7,n,n+.24,2.56,roof,brick)
+  wall(e-.23,e,n,190.15,base,roof,brick)
+  wall(e-.23,e,191.86,s,base,roof,brick)
+  wall(e-.23,e,190.15,191.86,2.52,roof,brick)
+  for(const x of [-137.7,-134.1,-126.3,-122])for(const y of [1.58,4.65]){
+   box(x,y,n-.03,2.42,1.62,.11,steel);box(x,y,n-.095,2.15,1.36,.07,window)
+   box(x,y,n-.15,.055,1.4,.05,brass);box(x,y-.88,n-.10,2.59,.12,.45,plaster)
+   box(x,y,s+.05,2.26,1.65,.11,window)
+  }
+  for(const y of [2.92,6.05])box((w+e)/2,y,n-.18,e-w+.33,.18,.44,plaster)
+  box(-130.5,2.39,187.12,4.55,.19,1.74,brass)
+  sign('BRINE HOTEL',-130.5,3.25,187.72,4.75).rotation.y=Math.PI
+  sign('RECEPTION',-132.3,2.1,192.34,1.6).rotation.y=Math.PI
+  const counter=[-135.52,-132.55,191.95,192.63]
+  wall(...counter,base,1.09,wood)
+  box(-134.035,1.13,192.29,3.04,.09,.75,brass)
+  box(-130.5,.103,191.2,2.5,.04,4.4,rug)
+  wall(-134.2,-132.3,198.1,198.74,base,.85,rug)
+  wall(-130.8,-129.9,195.6,196.36,base,.73,wood)
+  for(const z of [195.35,203.2]){
+   wall(-136.3,-131.1,z,z+.20,top,roof-.21,plaster)
+   wall(-129.6,-128.6,z,z+.20,top,roof-.21,plaster)
+   wall(-127.05,-122.5,z,z+.20,top,roof-.21,plaster)
+   for(const x of [-130.2,-127.82])box(x,top+2.12,z+.1,1.5,.12,.25,wood)
+  }
+  for(const x of [-132.65,-125.05]){
+   wall(x-.10,x+.10,n,195.4,top,roof-.21,plaster)
+   for(const z of [190.25,204.78]){
+    wall(x-1,x+1,z-.58,z+.58,top,top+.50,wood)
+    box(x,top+.55,z,2.05,.18,1.3,linen)
+    box(x-.63,top+.69,z, .38,.12,.8,white)
+    box(x+.34,top+.65,z,.67,.12,1.27,rug)
+   }
+  }
+  box(-127.73,top+2.22,195.57,.56,.18,.11,brass)
+  sign('205',-127.73,top+2.23,195.64,.49)
+  for(const x of [-137.7,-133.7,-129.5,-125.4,-120.7]){
+   box(x,5.96,199.9,.82,.08,.43,lamp)
+  }
+  wall(-116.9,-116.05,195.3,196.6,base,1.12,steel)
+  wall(-114.1,-113.13,197.45,198.2,base,.96,brick)
+  wall(-112.0,-110.95,202.0,203.45,base,1.07,steel)
+ }
  function flush(){
   for(const [mat,parts] of batches){
    const mesh=new T.Mesh(mergeGeometries(parts),mat)
    mesh.receiveShadow=true;group.add(mesh);parts.forEach(g=>g.dispose())
   }
+  batches.clear()
  }
- flush()
  return group
 }

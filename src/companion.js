@@ -3,7 +3,7 @@ const valid=point=>!!point&&Number.isFinite(point.x)&&Number.isFinite(point.z)
 const routeInterval=.38
 
 function findRoute(from,target,waypoints,canStand,canTraverse){
- const usable=waypoints.filter(point=>valid(point)&&canStand(point.x,point.z))
+ const usable=waypoints.filter(point=>valid(point)&&canStand(point.x,point.z,point))
  const points=[from,...usable,target],goal=points.length-1
  const costs=points.map(()=>Infinity),previous=points.map(()=>-1),visited=new Set()
  costs[0]=0

@@ -1,2 +1,3 @@
 import {chapterFive} from './chapter-five.js'
-export const chapterMissions=[chapterFive]
+import {chapterSix} from './chapter-six.js'
+export const chapterMissions=[chapterFive,chapterSix]

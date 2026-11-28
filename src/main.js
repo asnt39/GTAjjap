@@ -53,7 +53,7 @@ import {createEpisode} from './episode.js'
 import {chapterMissions} from './chapter-missions.js'
 import {chapterWorld as continuationWorld} from './chapter-world.js'
 import {buildChapterBuildings} from './chapter-buildings.js'
-import {parkingLevel,workshop} from './chapter-sites.js'
+import {facilityFloor,parkingLevel,workshop} from './chapter-sites.js'
 import {buildTransferYard} from './transfer-yard.js'
 import {buildNewBloodClub} from './new-blood-club.js'
 import {clubPlan,clubDoors,insideClub,clubFloorAt,clubCeilingAt} from './new-blood-club-plan.js'
@@ -789,8 +789,8 @@ export async function start(onContextLost){
   if(prior.npc)finishDriverDeparture(prior.npc,car)
   car.door=0;transition=vehiclePose=null;clearControls()
   mode=joining?'walk':'drive'
-  if(joining){face=prior.face;plantFeet(prior.from.x,prior.from.z)}
-  else pos.set(car.x,0,car.z)
+  if(joining){face=prior.face;plantFeet(prior.from.x,prior.from.z,prior.from.y)}
+  else pos.set(car.x,parkingLevel(car.x,car.z,car.lift)??0,car.z)
   actor.visible=joining
   if(joining)releaseSeat()
   renderer.shadowMap.needsUpdate=true
@@ -824,7 +824,7 @@ export async function start(onContextLost){
   ui.sound('doorClose',pos)
   if(joining){
    ui.sound(car.setup.bike?'bikeStart':'engineStart',pos)
-   mode='drive';pos.set(car.x,0,car.z);actor.visible=!!car.setup.bike
+   mode='drive';pos.set(car.x,deck,car.z);actor.visible=!!car.setup.bike
    if(!offline&&car===cars.touring)mission.board()
    if(room.phase==='offline')playerParked.add(car)
   }else{
@@ -1184,7 +1184,10 @@ export async function start(onContextLost){
  if(storyCheckpoint){
   const {x,z}=storyCheckpoint
   const y=storyCheckpoint.y??groundHeight(x,z)
-  if(canWalk(x,z,boxes,.32,y)&&!occupied(x,z,y))plantFeet(x,z,y)
+  if(canWalk(x,z,boxes,.32,y)&&!occupied(x,z,y)){
+   if(Number.isFinite(storyCheckpoint.yaw)){yaw=storyCheckpoint.yaw;face=Math.PI-yaw}
+   plantFeet(x,z,y)
+  }
  }
  updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
  trackedX=pos.x;trackedZ=pos.z
@@ -1227,8 +1230,8 @@ export async function start(onContextLost){
  }
  function floorAt(x,z,feet,airborne=false){
   if(inBunker(x,z,feet))return bunker.floor
-  const parkingFloor=parkingLevel(x,z,feet,airborne?0:.24)
-  if(parkingFloor!==null)return parkingFloor
+  const chapterFloor=facilityFloor(x,z,feet,airborne?0:.24)
+  if(chapterFloor!==null)return chapterFloor
   const localRoom=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):
    terrace?.loft?terraceFloorAt(terrace,x,z,feet,airborne):insideWorks(x,z)?worksUpper(x,z,feet,airborne):groundHeight(x,z)
@@ -1250,7 +1253,8 @@ export async function start(onContextLost){
   const y=point&&(point.y??groundHeight(point.x,point.z))
   if(point&&canWalk(point.x,point.z,boxes,.32,y)&&!occupied(point.x,point.z,y)){
    releaseSeat();restorePlayerHealth()
-   resetWalk(point.x,point.z,face,y)
+   if(Number.isFinite(point.yaw))yaw=point.yaw
+   resetWalk(point.x,point.z,Number.isFinite(point.yaw)?Math.PI-yaw:face,y)
   }else if(!point&&fallback&&room.phase==='offline'){
    const safe=resolveCheckpoint(fallback,[],floorAt,(x,z,y)=>canRestore(x,z,y)&&!canStartSwimming(x,z))
    if(!safe)return
