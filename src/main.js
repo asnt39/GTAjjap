@@ -79,7 +79,7 @@ import {soloRoadTuning,vehicles} from './vehicles.js'
 import {createResidents} from './residents.js'
 import {fighter,swing,advance,contact,injure,revive,combatPose} from './melee.js'
 import {createDeathScreen} from './death-screen.js'
-import {createFootwork} from './footwork.js'
+import {createFootwork,sprintSpeed} from './footwork.js'
 import {firstDrive} from './first-drive.js'
 import {createCharacter} from './character.js'
 import {buildStreet} from './street.js'
@@ -1546,7 +1546,7 @@ export async function start(onContextLost){
    const ax=pressed('KeyD')-pressed('KeyA')+joystick.x,az=pressed('KeyW')+pressed('ArrowUp')-pressed('KeyS')-pressed('ArrowDown')-joystick.y
    const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
    const basePace=foot.rate(pressed('ShiftLeft')||pressed('ShiftRight'),joystick.length(),stickId!==null)
-   const pace=(freeMode?1.85+(basePace-1.85)*(freeSpeed-1.85)/(6.8-1.85):basePace)*(player.f.action==='punch'?.36:player.f.action?0:1)
+   const pace=(freeMode?1.85+(basePace-1.85)*(freeSpeed-1.85)/(sprintSpeed-1.85):basePace)*(player.f.action==='punch'?.36:player.f.action?0:1)
    if(activity.current&&(Math.abs(joystick.x)>.5||Math.abs(joystick.y)>.5))activity.leave()
    const rate=activity.current||player.f.action==='hit'||player.f.action==='knockdown'||player.f.action==='down'?0:
     (custody.active?Math.min(pace,1.85):aiming?Math.min(pace,loadout.def.aimSpeed??2.15):pace)*(coffee>0&&pace>1.85?1.15:1)
@@ -1583,7 +1583,7 @@ export async function start(onContextLost){
     actor.position.x+=(action.spot.x-pos.x)*action.weight
    }
    if(action&&speed<.08)renderer.shadowMap.needsUpdate=true
-   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,city:action,
+   char.update(dt,speed,{...combatPose(player.f),jump:foot.phase,land:foot.land,city:action,sprint:true,carrying:armed(),
     step:foot.air?null:()=>{
      const surface=footSurface()
      ui.sound(surface,pos,.49)

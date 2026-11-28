@@ -1,5 +1,6 @@
 // Height is the absolute position of the soles. The caller supplies the floor under them.
 const launch=5.25, gravity=13.8
+export const sprintSpeed=7.6
 export function createFootwork(){
  let preference='toggle'
  try{if(localStorage.getItem('harborline.runMode.v3')==='hold')preference='hold'}catch{}
@@ -30,9 +31,9 @@ export function createFootwork(){
   get phase(){return state.air?Math.min(1,state.flight/(2*launch/gravity)):null},
   rate(held,stick,touch=stick>0){
    const analog=Math.max(0,Math.min(1,(stick-.65)/.32))
-   if(!touch)return (preference==='hold'?!held:state.sprint)?6.8:1.85
+   if(!touch)return (preference==='hold'?!held:state.sprint)?sprintSpeed:1.85
    const blend=analog*analog*(3-2*analog)
-   return 1.85*(1-blend)+6.8*blend
+   return 1.85*(1-blend)+sprintSpeed*blend
   }
  }
  return state

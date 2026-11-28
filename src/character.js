@@ -58,7 +58,8 @@ export async function createCharacter({variant,model='resident'}={}){
   const airborne=phase==null?0:Math.sin(Math.PI*phase)
   const move=MathUtils.smoothstep(stride,.05,.9)*(1-.95*airborne)
   const run=MathUtils.smoothstep(stride,2,4.65)
-  const cadence=Math.min(stride/MathUtils.lerp(1.42,2.55,run),2.68)
+  const sprint=pose.sprint?MathUtils.smoothstep(stride,4.35,7.35):0
+  const cadence=Math.min(stride/MathUtils.lerp(1.42,2.55+.52*sprint,run),pose.sprint?3.1:2.68)
   const nextGait=gait+dt*cadence*(1-.85*airborne)
   if(aimSpeed>.5&&Math.floor(nextGait*2)>Math.floor(gait*2))pose.step?.()
   gait=nextGait%1
@@ -72,7 +73,7 @@ export async function createCharacter({variant,model='resident'}={}){
   const reaction=pose.reaction
   const fall=pose.action==='down'?MathUtils.smootherstep(progress,0,.93):0
   const movingShape=pose.vehicle||pose.motorcycle||pose.action==='punch'||pose.action==='hit'||fall?0:1-airborne
-  lean=MathUtils.damp(lean,movingShape*run*.14,11,dt)
+  lean=MathUtils.damp(lean,movingShape*(run*.14+sprint*.16),11,dt)
   bank=MathUtils.damp(bank,movingShape*run*MathUtils.clamp((pose.turn||0)*.034,-.22,.22),12,dt)
   const fallFront=reaction?.front??-1,fallSide=reaction?.lateral??-side*.18
   posture.rotation.set(1.49*fallFront*fall,0,-1.49*fallSide*fall)
@@ -82,6 +83,14 @@ export async function createCharacter({variant,model='resident'}={}){
    layer.offset('Spine1','z',-bank)
    layer.offset('Neck','x',-lean*.52)
    layer.offset('Neck','z',bank*.46)
+   if(sprint>.01){
+    const swing=Math.sin(gait*Math.PI*2)*sprint*movingShape
+    layer.offset('Spine2','y',swing*.11)
+    if(!pose.carrying){
+     layer.offset('L UpperArm','x',swing*.31);layer.offset('R UpperArm','x',-swing*.31)
+     layer.offset('L Forearm','x',-.24*sprint);layer.offset('R Forearm','x',-.24*sprint)
+    }
+   }
   }
   posture.position.set(-fallSide*.49*fall,-.082*landing*landing+.21*fall,-fallFront*.51*fall)
   layer.jump(phase,landing)

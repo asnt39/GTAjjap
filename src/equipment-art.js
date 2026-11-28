@@ -145,8 +145,8 @@ export function createEquipmentArt(character) {
    const sway=Math.sin(stride)
    x+=(long?.018:.043)*sway*sprint
    y-=sprint*(long?.052:.112)
-   z+=sprint*(long?.115:.046)+Math.cos(stride)*(long?.012:.028)*sprint
-   yaw+=(long?-.34:.19)*sprint+sway*.06*sprint
+   z+=sprint*(weapon==='sniper'?.04:long?.09:.046)+Math.cos(stride)*(long?.012:.028)*sprint
+   yaw+=(weapon==='sniper'?-.51:long?-.34:.19)*sprint+sway*.06*sprint
    tilt+=(long?-.12:.54)*sprint
    roll+=sprint*(long?-.09:.21)
   }

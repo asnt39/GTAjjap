@@ -4,7 +4,7 @@ import {createFootwork} from '../src/footwork.js'
 import {movePlayer,supportHeight} from '../src/navigation.js'
 test('keyboard starts running and walking survives a feet reset',()=>{
  const f=createFootwork()
- assert.equal(f.rate(false,0),6.8)
+ assert.equal(f.rate(false,0),7.6)
  f.shift()
  assert.equal(f.rate(false,0),1.85)
  f.reset(.083)
@@ -12,9 +12,9 @@ test('keyboard starts running and walking survives a feet reset',()=>{
  f.shift()
  assert.equal(f.rate(false,.3),1.85)
  assert(f.rate(false,.8)>1.85)
- assert.equal(f.rate(false,1),6.8)
+ assert.equal(f.rate(false,1),7.6)
  f.changePreference()
- assert.equal(f.rate(false,0),6.8)
+ assert.equal(f.rate(false,0),7.6)
  assert.equal(f.rate(true,0),1.85)
 })
 for(const fps of [20,60,120]){
