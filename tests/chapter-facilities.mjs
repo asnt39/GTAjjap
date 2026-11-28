@@ -48,6 +48,9 @@ test('the first and second garage ramps can be walked without crossing solid flo
  follow(walker,[[-134.5,152.5],[-114.55,152.5],[-114.55,171.7],[-121,171.7]])
  assert.ok(walker.y>6.3)
  assert.ok(canWalk(workshop.desk.x,workshop.desk.z,boxes,.32,workshop.desk.y))
+ const stairs=new Vector3(-140.06,.083,171.8)
+ follow(stairs,[[-140.06,151.7],[-134.2,151.7],[-134.2,152.36]])
+ assert.ok(stairs.y>3.2)
 })
 
 test('both hotel floors connect through real stairs and a separate service exit',()=>{

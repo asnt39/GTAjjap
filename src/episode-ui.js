@@ -8,11 +8,16 @@ function nearbyDirections(pos){
 // Choices live in the existing conversation. Leaving its range closes the shop too.
 export function episodeUI(game,voice,sound=()=>{}) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
+ const subtitle=document.querySelector('#story-subtitle')
  const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
  let previous='', shopping=false, speaker=null, reply='',announcement=null
  function announce(message){
   const split=message?.indexOf(' · ')??-1
-  if(split>0&&split<18)announcement={speaker:message.slice(0,split),text:message.slice(split+3),until:performance.now()+6500}
+  if(split<1||split>17)return false
+  const speaker=message.slice(0,split),text=message.slice(split+3)
+  announcement={speaker,text,until:performance.now()+Math.max(4300,Math.min(8800,text.length*84))}
+  if(subtitle){subtitle.textContent=message;subtitle.hidden=false}
+  return true
  }
  function option(id,label,action,description='') {
   const button=document.createElement('button')
@@ -34,21 +39,22 @@ export function episodeUI(game,voice,sound=()=>{}) {
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
   if(!npc){
    if(announcement&&performance.now()<announcement.until)voice.say(announcement.speaker,announcement.text)
-   else{announcement=null;voice.stop()}
+   else{announcement=null;if(subtitle)subtitle.hidden=true;voice.stop()}
    return
   }
+  if(subtitle)subtitle.hidden=true
   announcement=null
   const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact(),comment=episode.storyComment(npc)
   let text=defaultLine
   if(reply)text=reply
-  else if(offer?.residentId===npc.id&&offer.brief)text=offer.brief
+  else if(offer?.residentId===npc.id&&offer.brief)text=offer.briefSpeaker&&offer.briefSpeaker!==npc.name?offer.briefSpeaker+' · '+offer.brief:offer.brief
   else if(comment)text=comment
   else if(npc.opening&&state.missionId==='delivery'&&state.stage===1&&state.status==='available')text=npc.opening
   else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
   if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
   if(line.textContent!==text)line.textContent=text
-  if(shopping)voice.stop();else voice.say(npc.id,text)
+  if(shopping)voice.stop();else voice.say(offer?.residentId===npc.id&&!reply?offer.briefSpeaker??npc.id:npc.id,text)
   if(key===previous)return
   const focused=choices.contains(document.activeElement)?document.activeElement.dataset.choice:null
   previous=key;choices.replaceChildren()

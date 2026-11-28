@@ -24,15 +24,19 @@ export function createChapterArc({saved,missions,available,commit}){
  const fail=reason=>current()?write({...state,status:'failed',reason},reason):null
  const lineText=line=>line&&line.join(' · ')
  function journal(){
-  if(!mission())return []
-  return [mission().brief,...mission().stages.slice(0,state.step+1).map(beat=>beat.line)].filter(Boolean)
+  const completed=missions.slice(0,state.mission).flatMap(job=>[job.brief,...job.stages.map(beat=>beat.line),job.finish])
+  const job=mission()
+  if(!job)return completed.filter(Boolean)
+  const beats=state.status==='complete'?job.stages:job.stages.slice(0,state.step+1)
+  const current=[job.brief,...beats.map(beat=>beat.line),state.status==='complete'?job.finish:null]
+  return [...completed,...current].filter(Boolean)
  }
  return {
   get active(){return current()},
   get stage(){return current()?stage():null},
   get checkpoint(){return current()?stage().checkpoint:null},
   get complete(){return state.status==='complete'},
-  offer(){return pending()?{...mission().contact,brief:mission().brief[1],jobTitle:mission().title}:null},
+  offer(){return pending()?{...mission().contact,brief:mission().brief[1],briefSpeaker:mission().brief[0],jobTitle:mission().title}:null},
   choices(resident){
    return pending()&&resident?.id===mission().contact.residentId?[{id:'chapter-accept',label:mission().title+' 수락'}]:[]
   },
@@ -59,7 +63,11 @@ export function createChapterArc({saved,missions,available,commit}){
    if(!current()||!available()||!events[stage().event])return null
    const lead=stage().event==='adrianLead'&&['intercepted','escaped'].includes(events.adrianLead)?events.adrianLead:state.lead
    const next=mission().stages[state.step+1]
-   if(next)return write({...state,step:state.step+1,lead},lineText(next.line)??next.objective)
+   if(next){
+    const report=stage().event==='adrianLead'?
+     (lead==='intercepted'?'Jack · 운행장부 확보. 안전하게 돌아가자.':'Jack · 마지막 합류 좌표를 표시했어. Victor에게 알려.') : null
+    return write({...state,step:state.step+1,lead},report??lineText(next.line)??next.objective)
+   }
    const job=mission(),complete=state.mission===chapterIds.length-1
    return write({mission:state.mission+(complete?0:1),status:complete?'complete':'available',step:0,reason:'',lead},
     lineText(job.finish)+' · 보상 ₩'+job.reward.toLocaleString('ko-KR'),job.reward)

@@ -1,6 +1,6 @@
 const point=(x,z,label,y=.083,yaw)=>({x,z,y,label,yaw})
 export const chapterLand=[[-195,-99,136,209]]
-export const chapterRoads=[[-191,-94.5,140,149],[-191,-94.5,176,185],[-191,-184,144,181]]
+export const chapterRoads=[[-191,-94.5,141,149],[-191,-94.5,176,185],[-191,-184,144,181]]
 export const parking={
  bounds:[-138,-111,149.5,174],entry:point(-134,174.6,'Spire Parking 남쪽 진입로'),
  lookout:point(-121,171.8,'Spire Parking · 옥상',6.483),recovery:point(-130,174.8,'주차타워 입구',.083,-.72),
@@ -34,7 +34,16 @@ export function parkingLevel(x,z,feet,up=.24){
  if(ramp.bottom>0&&feet<parkingFloors[ramp.bottom]-.22)return parkingFloors[0]
  return rise<=feet+up?rise:parkingFloors[0]
 }
-export const parkingInterior=(x,z)=>inBounds(parking.bounds,x,z)
+export const parkingStair={bounds:[-141.4,-137.65,152.65,171],bottom:0,northHigh:true}
+export const parkingLanding=[-141.4,-137.6,150.7,152.65]
+function parkingWalkLevel(x,z,feet,up){
+ if(inBounds(parkingStair.bounds,x,z)){
+  const rise=rampHeight(parkingStair,z)
+  return rise<=feet+up?rise:.083
+ }
+ if(inBounds(parkingLanding,x,z))return feet+up>=parkingFloors[1]?parkingFloors[1]:.083
+ return parkingLevel(x,z,feet,up)
+}
 
 const upper=3.083
 export const hotel={
@@ -77,7 +86,7 @@ export function buildingLevel(site,x,z,feet,up=.24){
  const y=stair?stairRise(stair,z,height):onDeck?site.floor:.083
  return y<=feet+up+.001?y:.083
 }
-export const facilityFloor=(x,z,feet,up=.24)=>parkingLevel(x,z,feet,up)??buildingLevel(hotel,x,z,feet,up)??buildingLevel(factory,x,z,feet,up)
+export const facilityFloor=(x,z,feet,up=.24)=>parkingWalkLevel(x,z,feet,up)??buildingLevel(hotel,x,z,feet,up)??buildingLevel(factory,x,z,feet,up)
 
 export const marina={
  meetup:point(100.1,146.5,'Meridian Marina 대합 부두',.12,Math.PI/2),

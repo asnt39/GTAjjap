@@ -69,7 +69,7 @@ import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
 import {recoveryPosition,clearStuckMotion} from './play-recovery.js'
-import {parkedPoses,restoreParkedPoses,restoreTrafficVehicle} from './vehicle-checkpoint.js'
+import {parkedPoses,restoreParkedPoses,restoreTrafficVehicle,vehicleCheckpointPose} from './vehicle-checkpoint.js'
 import {createCheckpoint,resolveCheckpoint} from './play-checkpoint.js'
 import {createSaveData} from './save-data.js'
 import {createMissionCheckpoint,missionVehicleSnapshot,restoreMissionVehicle} from './mission-checkpoint.js'
@@ -269,7 +269,7 @@ export async function start(onContextLost){
  const chapterHomeUnlocked=()=>room.phase==='offline'&&episode.chapter?.complete===true
  const chapterCurrent=()=>episode.chapter?.stage??(chapterHomeUnlocked()?freeCrew:null)
  const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,boats,floorAt,combat:storyShot,
-  notify(message,failed){if(failed)episode.fail(message);ui.toast(message);ui.announceStory(message)},
+  notify(message,failed){if(failed)episode.fail(message);if(!ui.announceStory(message))ui.toast(message)},
   registerVehicle(vehicle,rig){
    fleet.push(vehicle);traffic.push(vehicle)
    cars[vehicle.id]=vehicle;rigs[vehicle.id]=rig;soloTunings.set(vehicle.id,soloRoadTuning(vehicle.setup))
@@ -616,6 +616,8 @@ export async function start(onContextLost){
   if(lift)add('bunker-'+lift,lift==='enter'?'승강기로 지하 벙커 들어가기':'승강기로 지상 돌아가기',()=>useBunkerLift(lift),pos,4)
   if(belowGround())return list
   if(operating()){
+   if(driving()&&arcWorld.canAssignDriver(car))
+    add('chapter-maya-drive',arcWorld.autoDriver?'운전대 되찾기':'Maya에게 운전 맡기기',()=>arcWorld.changeDriver(car),pos,3)
    add('exit',boating()?'보트에서 내리기':Math.abs(car.speed)<=.45?'하차':room.phase==='offline'?'주행 중 하차':'정차 후 하차',interactCar,pos,2)
   }else{
    for(const boarding of boatsNearby())add('boat-'+boarding.id,boarding.name+' 탑승',()=>waterInteraction(boarding),boarding,2)
@@ -1332,7 +1334,7 @@ export async function start(onContextLost){
   rememberCheckpoint()
   if(checkpointEnabled&&room.phase==='offline'&&!offline){
    const poses=parkedPoses(fleet.filter(vehicle=>!vehicle.storyVehicle&&!trafficDriver(vehicle)),parkedSpawns)
-   for(const {id,x,z,heading,storyVehicle} of playerParked)if(!storyVehicle)poses[id]={x,z,heading:wrapAngle(heading)}
+   for(const vehicle of playerParked)if(!vehicle.storyVehicle)poses[vehicle.id]=vehicleCheckpointPose(vehicle)
    checkpoint.sampleVehicles(poses,true)
   }
   return checkpoint.flush()
@@ -1490,7 +1492,7 @@ export async function start(onContextLost){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     const solo=room.phase==='offline'
-    stepDrive(car,input,boxes,dt,traffic,solo,undefined,solo?soloTunings.get(car.id):null)
+    stepDrive(car,solo?arcWorld.driveInput(car,input):input,boxes,dt,traffic,solo,undefined,solo?soloTunings.get(car.id):null)
     handleCrash(car,crashes(car,elapsed))
     const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
      if(!crowd.vehicleHit(resident,car,damage,impact))return false
@@ -1500,7 +1502,7 @@ export async function start(onContextLost){
     })
     if(strikes)car.speed*=Math.pow(.85,strikes)
     speed=Math.abs(car.speed)
-    if(driving()){pos.x=car.x;pos.z=car.z;actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)}
+    if(driving()){pos.set(car.x,parkingLevel(car.x,car.z,car.lift)??0,car.z);actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)}
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
    }else{
@@ -1626,8 +1628,7 @@ export async function start(onContextLost){
      const update=chapterUpdate||(beats.failed?prologue?.fail('Theo를 구출하지 못했습니다.'):
       prologue?.update({x:pos.x,z:pos.z,speed,onFoot:player.available,driving:roadDriving,...beats}))
      if(update?.message){
-      if(chapterUpdate&&isArcStage(chapterStage))ui.announceStory(update.message)
-      else ui.toast(update.message)
+      if(!chapterUpdate||!isArcStage(chapterStage)||!ui.announceStory(update.message))ui.toast(update.message)
      }
     }
    }

@@ -41,7 +41,7 @@ export const chapterEight={
    objective:'공장 남쪽 도로에서 도주 차량 추격 · 정차시키거나 이동 경로 확인',
    line:['Jack','남쪽 차가 움직였어. 붙으면 운행장부를 잡을 수 있어. 차를 놓치면 마지막 합류 지점을 기억해.'],
    hint:'남쪽 하역장에 Leon의 차량이 있습니다. 도주 차량의 바깥쪽에서 접근하십시오.',
-   actors:[npc('Leon',southYard)]},
+   actors:[npc('Leon',southYard),npc('Adrian',factory.getaway[0],{side:'witness'})]},
   {set:'chapter-factory-report',event:'reported',goal:hideout.meeting,checkpoint:hideout.entry,action:'Victor에게 공장과 도주 경로 보고',
    objective:'Breakwater Yard에서 Victor에게 보고하고 작업실 인수',
    actors:[npc('Victor',hideout.meeting),npc('Jack',hideout.desk)],

@@ -71,3 +71,16 @@ test('old records restore the player before any vehicle history exists',()=>{
  assert.deepEqual(local.current,old)
  assert.deepEqual(local.vehicles,{})
 })
+
+test('a parked car retains its Spire Parking deck and rejects impossible floor data',()=>{
+ const car=fresh('touring',vehicles.touring),spawns=origins([car])
+ Object.assign(car,{x:-124,z:158,heading:0,lift:6.483})
+ const saved=parkedPoses([car],spawns)
+ assert.equal(saved.touring.lift,6.483)
+ const restored=fresh('touring',vehicles.touring)
+ restoreParkedPoses([restored],saved,[])
+ assert.equal(restored.x,car.x)
+ assert.ok(Math.abs(restored.lift-car.lift)<1e-8)
+ restoreParkedPoses([restored],{touring:{x:1,z:29,heading:0,lift:6.483}},[])
+ assert.equal(restored.x,car.x)
+})

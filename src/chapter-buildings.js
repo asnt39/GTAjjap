@@ -1,7 +1,7 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {cargoLadder} from './coast-plan.js'
-import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel,cargoPier,cargoPlatform,factory,hideout} from './chapter-sites.js'
+import {parking,parkingFloors,parkingRamps,parkingStair,parkingLanding,rampHeight,workshop,hotel,cargoPier,cargoPlatform,factory,hideout} from './chapter-sites.js'
 
 export function buildChapterBuildings(scene,addCollider,maps){
  const group=new T.Group(),batches=new Map()
@@ -27,7 +27,7 @@ export function buildChapterBuildings(scene,addCollider,maps){
   addCollider(w,e,n,s,high,false,low)
  }
  function slab(w,e,n,s,y){
-  box((w+e)/2,y-.12,(n+s)/2,e-w,.24,s-n)
+  box((w+e)/2,y-.12+(y<.2?.004:0),(n+s)/2,e-w,.24,s-n)
   if(y>.2)addCollider(w,e,n,s,y,true,y-.24)
  }
  function sign(label,x,y,z,width){
@@ -73,6 +73,24 @@ export function buildChapterBuildings(scene,addCollider,maps){
  sign('SPIRE PARKING',-124,7.32,174.08,8.3)
  sign('P1  /  RAMP',-126,2.30,174.07,3.7)
  sign('ROOF  /  P3',-124,7.1,171.4,3.4)
+ const [sw,se,sn,ss]=parkingStair.bounds
+ slab(...parkingLanding,parkingFloors[1])
+ for(let i=0;i<19;i++){
+  const z=sn+(i+.5)*(ss-sn)/19,y=rampHeight(parkingStair,z)
+  box((sw+se)/2,y-.102,z,se-sw,.204,(ss-sn)/19,steel)
+  wall(sw-.10,sw+.10,z-.492,z+.492,y-.17,y+.93,steel)
+ }
+ for(const x of [-141.1,-139.05,-137.9])wall(x-.075,x+.075,171.16,171.34,.083,.82,stripe)
+ sign('STAIR  /  P2',-139.6,1.95,171.4,2.58)
+ for(const [x,y,z,color] of [[-125.6,.083,163.4,0x566b7c],[-122.9,3.283,164.62,0x6e503e],
+  [-125.6,6.483,163.4,0x54716c]]){
+  const paint=material(color)
+  wall(x-.91,x+.91,z-2.06,z+2.06,y+.10,y+.85,paint)
+  box(x,y+1.02,z+.18,1.61,.51,2.04,steel)
+  box(x,y+1.29,z+.26,1.64,.095,1.64,paint)
+  for(const d of [-1,1])for(const axle of [-1.19,1.24])
+   batch(new T.CylinderGeometry(.33,.33,.17,12).rotateZ(Math.PI/2).translate(x+d*.855,y+.36,z+axle),rubber)
+ }
 
  const [a,b,n,s]=workshop.bounds
  wall(a,a+.28,n,s,.083,5.25,brick);wall(b-.28,b,n,s,.083,5.25,brick)
@@ -323,7 +341,8 @@ export function buildChapterBuildings(scene,addCollider,maps){
  function flush(){
   for(const [mat,parts] of batches){
    const mesh=new T.Mesh(mergeGeometries(parts),mat)
-   mesh.receiveShadow=true;group.add(mesh);parts.forEach(g=>g.dispose())
+   mesh.receiveShadow=true;mesh.castShadow=mat===concrete||mat===brick||mat===steel
+   group.add(mesh);parts.forEach(g=>g.dispose())
   }
   batches.clear()
  }
