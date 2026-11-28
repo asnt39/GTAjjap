@@ -158,7 +158,7 @@ test('recorded footsteps and explosions follow game events and fall back when un
  const requests=[]
  const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio,fetch:async path=>{
   requests.push(path)
-  return {ok:!path.endsWith('/stone01.wav'),arrayBuffer:async()=>new TextEncoder().encode(path).buffer}
+  return {ok:!path.includes('/step-boots-'),arrayBuffer:async()=>new TextEncoder().encode(path).buffer}
  }})
  assert(await mixer.toggle())
  await new Promise(resolve=>setImmediate(resolve))
@@ -167,7 +167,7 @@ test('recorded footsteps and explosions follow game events and fall back when un
  ctx.currentTime=3;mixer.update(frame)
  const count=ctx.startedBuffers.length
  mixer.sound('wood',{x:1,z:0})
- assert.match(ctx.startedBuffers.at(-1),/field-audio\/wood0[123]\.wav$/)
+ assert.match(ctx.startedBuffers.at(-1),/field-audio\/step-wood-[123]\.wav$/)
  mixer.sound('blast',{x:2,z:0})
  assert.match(ctx.startedBuffers.at(-1),/field-audio\/blast\.wav$/)
  const after=ctx.startedBuffers.length
@@ -175,8 +175,15 @@ test('recorded footsteps and explosions follow game events and fall back when un
  assert.equal(ctx.startedBuffers.length,after)
  mixer.sound('concrete',{x:0,z:0})
  assert.equal(ctx.startedBuffers.length,after+1)
+ const walkerA={x:1,z:0},walkerB={x:2,z:0}
+ mixer.sound('wood',walkerA)
+ mixer.sound('wood',walkerB)
+ assert.match(ctx.startedBuffers.at(-1),/step-wood-/)
+ const afterWalkers=ctx.startedBuffers.length
+ mixer.sound('wood',walkerA)
+ assert.equal(ctx.startedBuffers.length,afterWalkers)
  assert(ctx.startedBuffers.length>count)
- assert.equal(requests.filter(path=>path.endsWith('/stone01.wav')).length,1)
+ assert.equal(requests.filter(path=>path.endsWith('/step-boots-1.wav')).length,1)
 })
 
 test('death plays one cue and holds the current score until recovery',async()=>{

@@ -18,7 +18,7 @@ function turn(n,angle,dt){
  n.face+=clamp(d*(1-Math.exp(-8*dt)),-4.8*dt,4.8*dt)
 }
 function ground(p){return Math.abs(p.x)>6.1&&Math.abs(p.x)<10.9&&Math.abs(p.z+37)>6?.087:.008}
-export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=ground,onCharacterImpact){
+export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=ground,onCharacterImpact,onFootstep){
  const carAt=(x,z,r)=>fleet.find(vehicle=>nearBody(vehicle,x,z,r))
  const all=await Promise.all(people.map(async(profile,i)=>{
   const rig=await createCharacter({variant:profile.variant??i,model:profile.model}),pos=new Vector3(profile.x,0,profile.z)
@@ -373,7 +373,8 @@ export async function createResidents(scene,boxes,car,fleet=[car],surfaceHeight=
    p.y=surfaceHeight(p)+lift;n.rig.root.position.copy(p);n.rig.root.rotation.y=n.face
    if(visible||d<5||aiming){
     n.rig.update(tick,n.stepping,{...combatPose(n.f,n.state==='guard'||n.state==='watch'),
-     guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick,nod})
+     guard:n.state==='guard'||n.state==='watch',turn:(n.face-priorFace)/tick,nod,
+     step:d<16&&n.f.hp>0&&!n.policeOrder?.aboard?()=>onFootstep?.(p):null})
     if(n.f.action==='punch'&&player.available){
      playerList[0]=player
      contact(n.f,n.rig,p,playerList,lineClear,(_,zone,point)=>hitPlayer(n,zone,point))

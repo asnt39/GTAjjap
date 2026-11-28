@@ -8,9 +8,10 @@ const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.4
 const firearmReports={pistol:{level:.68,interval:.043},shotgun:{level:.82,interval:.07},sniper:{level:.76,interval:.07}}
 const drivingReports={engineStart:{clip:'ignition',level:.74},brake:{clip:'brake',level:.42}}
 const fieldReports={
- asphalt:['stone01'],concrete:['stone01'],wood:['wood01','wood02','wood03'],
- stairs:['wood01','wood02','wood03'],grass:['leaves01','leaves02','mud02'],
- sand:['gravel','mud02'],blast:['blast']
+ asphalt:['step-boots-1','step-boots-2','step-boots-3'],concrete:['step-boots-1','step-boots-2','step-boots-3'],
+ wood:['step-wood-1','step-wood-2','step-wood-3'],stairs:['step-wood-1','step-wood-2','step-wood-3'],
+ metal:['step-metal-1','step-metal-2','step-metal-3'],grass:['step-grass-1','step-grass-2','step-grass-3'],
+ sand:['step-gravel-1','step-gravel-2','step-gravel-3'],crash:['collision'],wallHit:['collision'],blast:['blast']
 }
 const shiftSpeeds={bike:[4.5,9.5,15.5,23,31],sport:[6.5,13,20,27,34],car:[5,10.5,16.5,22,27]}
 const unit=value=>Math.min(1,Math.max(0,value))
@@ -43,10 +44,10 @@ export function cityAudio(browser=globalThis){
  let storage
  try{storage=browser.localStorage}catch{}
  const settings=readMixer(storage)
- let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
+ let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,sirenPan,noise,spatialWind
  let active=false,paused=false,hidden=false,dead=false,deathTitlePlayed=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
  let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0,brakeActive=false
- const shots=new Map(),roadClips=new Map(),firearmClips=new Map(),fieldClips=new Map()
+ const shots=new Map(),sourceSteps=new WeakMap(),sourceReports=new WeakMap(),roadClips=new Map(),firearmClips=new Map(),fieldClips=new Map()
  let roadMedia=null,loadingRoad=false,firearmsRequested=false,fieldRequested=false
  function store(){try{storage?.setItem(settingsKey,JSON.stringify(settings))}catch{}}
  function fade(param,value,seconds=.10){param.setTargetAtTime(value,ctx.currentTime,seconds)}
@@ -88,7 +89,11 @@ export function cityAudio(browser=globalThis){
   motorGain.connect(buses.effects);motor.start()
   roadGain=noiseLoop('highpass',680,buses.effects);traction=noiseLoop('bandpass',1680,buses.effects)
   siren=ctx.createOscillator();siren.type='triangle';sirenGain=gain(0)
-  siren.connect(sirenGain).connect(buses.ambient);siren.start()
+  sirenPan=ctx.createStereoPanner?.()
+  siren.connect(sirenGain)
+  if(sirenPan)sirenGain.connect(sirenPan).connect(buses.ambient)
+  else sirenGain.connect(buses.ambient)
+  siren.start()
  }
  function musicVolume(){
   return settings.music*(dead?.08:paused?.35:listener.dialogue?.24:1)
@@ -253,12 +258,16 @@ export function cityAudio(browser=globalThis){
  function sound(name,p,amount=1,menu=false,ambient=false){
   if(!active||(paused&&!menu)||hidden||!(ambient?settings.ambient:settings.effects)||!sounds[name]||ctx.state!=='running')return
   const [freq,cut,length,level]=sounds[name],now=ctx.currentTime
-  if((shots.get(name)??0)>now||shots.size>28)return
-  const dx=p?p.x-listener.x:0,dz=p?p.z-listener.z:0,d=Math.hypot(dx,dz)
+  const footstep=!!p&&['asphalt','concrete','wood','stairs','metal','grass','sand'].includes(name)
   const report=firearmReports[name]
+  const sourceReport=!!p&&!!report
+  if((footstep?(sourceSteps.get(p)??0):sourceReport?(sourceReports.get(p)??0):(shots.get(name)??0))>now||shots.size>28)return
+  const dx=p?p.x-listener.x:0,dz=p?p.z-listener.z:0,d=Math.hypot(dx,dz)
   const radius=name==='blast'?86:report?72:29
   if(d>=radius)return
-  shots.set(name,now+(report?.interval??Math.min(.22,length*.65)))
+  if(footstep)sourceSteps.set(p,now+.09)
+  else if(sourceReport)sourceReports.set(p,now+report.interval)
+  else shots.set(name,now+(report?.interval??Math.min(.22,length*.65)))
   const target=menu?master:ambient?buses.ambient:buses.effects
   const near=1-d/radius
   const attenuation=Math.max(report?0:.05,near*near)*(menu?settings.effects:1)*amount
@@ -336,6 +345,10 @@ export function cityAudio(browser=globalThis){
    }
    fade(siren.frequency,710+230*Math.sin(t*4.4),.13)
    fade(sirenGain.gain,wanted&&frame.policeDistance<72?.05*(1-frame.policeDistance/72):0,.28)
+   if(sirenPan&&frame.policePosition){
+    const dx=frame.policePosition.x-frame.x,dz=frame.policePosition.z-frame.z
+    fade(sirenPan.pan,Math.max(-.8,Math.min(.8,(dx*Math.cos(frame.yaw)+dz*Math.sin(frame.yaw))/Math.max(2,frame.policeDistance))),.16)
+   }
    const speed=Math.abs(car.speed),bike=car.setup.bike,sport=car.setup.top>=20
    const driveLevel=driving&&!paused&&!dead?1:0
    const throttle=unit(Math.abs(car.throttle??0))

@@ -192,7 +192,8 @@ export async function start(onContextLost){
  const swimming=swimmer(),boats=createBoats([cargoLaunch,quaySkiff]),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
  let boat=null,seaTransition=null,wetView=0,splashAt=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
- const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z),effects.characterImpact)
+ const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z),effects.characterImpact,
+  p=>ui.sound(footSurface(p),p,.28))
  const doors=createTerraceDoors(scene,boxes,(kind,point)=>ui.sound(kind,point),[shopSite,worksDoor,...clubDoors]),updateFittings=streamTerraceRooms(scene)
  const pedestrianImpacts=createPedestrianImpacts(),previousCar={},crashes=crashEvents()
  const squads=policeChase(scene,boxes,traffic,fleet.length,crowd,groundHeight)
@@ -1212,8 +1213,8 @@ export async function start(onContextLost){
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
  positionCamera(0,true)
- function footSurface(){
-  const {x,z,y}=pos
+ function footSurface(point=pos){
+  const {x,z,y}=point
   if(inBunker(x,z,y))return 'concrete'
   if(coastFloor(x,z)&&!inOldTown(x,z))return inPier(x,z)?'wood':y<seaLevel+.10?'splash':'sand'
   if(insideBasin(x,z)&&basinGreen.some(g=>within(g.bounds,x,z)))return 'grass'
@@ -1716,9 +1717,10 @@ export async function start(onContextLost){
    const harbor=x>10&&z<43||x<-200&&z>96||insideBasin(x,z)&&x>20||coastal
    const park=inFoundryGarden(x,z)||insideBasin(x,z)&&z>187&&x>7
    const indoor=belowGround()||insideTerrace(x,z)||rowRoomAt(x,z)||insidePremises(x,z)||insideWeaponShop(x,z)||atGarage(x,z)||atStation(x,z)||insideWorks(x,z)||insideClub(x,z)
-   let policeDistance=Infinity,passing=null,passingDistance=32
+   let policeDistance=Infinity,policePosition=null,passing=null,passingDistance=32
    for(const unit of squads.units)if(['approach','chase','stopping'].includes(unit.stage)){
-    policeDistance=Math.min(policeDistance,Math.hypot(unit.car.x-x,unit.car.z-z))
+    const distance=Math.hypot(unit.car.x-x,unit.car.z-z)
+    if(distance<policeDistance){policeDistance=distance;policePosition=unit.car}
    }
    for(let i=fleet.length;i<traffic.length;i++){
     const v=traffic[i],distance=Math.hypot(v.x-x,v.z-z)
@@ -1726,7 +1728,7 @@ export async function start(onContextLost){
    }
    const chase=room.phase==='offline'&&driving()&&(squads.units.some(unit=>unit.stage==='chase')||
     episode.prologue?.stage?.set==='pursuit'||['chapter-chase','chapter-adrian-chase'].includes(episode.chapter?.stage?.set))
-   return {x,z,t:elapsed,yaw,car,boat:boating()?boat:null,underwater:inWater()&&swimming.wet>.55,coastal,radio,harbor,park,indoor,policeDistance,passing,passingDistance,driving:driving(),
+   return {x,z,t:elapsed,yaw,car,boat:boating()?boat:null,underwater:inWater()&&swimming.wet>.55,coastal,radio,harbor,park,indoor,policeDistance,policePosition,passing,passingDistance,driving:driving(),
     chase,
     dialogue:!!crowd.talking,combat:feedbackTime>2.4,wanted:crowd.wanted.level,
     story:episode.openingActive,night:x<-82||elapsed>120}
