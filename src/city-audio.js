@@ -7,6 +7,11 @@ const scores={
 const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.45,radio:.68,chase:.54}
 const firearmReports={pistol:{level:.68,interval:.043},shotgun:{level:.82,interval:.07},sniper:{level:.76,interval:.07}}
 const drivingReports={engineStart:{clip:'ignition',level:.74},brake:{clip:'brake',level:.42}}
+const fieldReports={
+ asphalt:['stone01'],concrete:['stone01'],wood:['wood01','wood02','wood03'],
+ stairs:['wood01','wood02','wood03'],grass:['leaves01','leaves02','mud02'],
+ sand:['gravel','mud02'],blast:['blast']
+}
 const shiftSpeeds={bike:[4.5,9.5,15.5,23,31],sport:[6.5,13,20,27,34],car:[5,10.5,16.5,22,27]}
 const unit=value=>Math.min(1,Math.max(0,value))
 const sounds={
@@ -41,8 +46,8 @@ export function cityAudio(browser=globalThis){
  let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
  let active=false,paused=false,hidden=false,dead=false,deathTitlePlayed=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
  let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0,brakeActive=false
- const shots=new Map(),roadClips=new Map(),firearmClips=new Map()
- let roadMedia=null,loadingRoad=false,firearmsRequested=false
+ const shots=new Map(),roadClips=new Map(),firearmClips=new Map(),fieldClips=new Map()
+ let roadMedia=null,loadingRoad=false,firearmsRequested=false,fieldRequested=false
  function store(){try{storage?.setItem(settingsKey,JSON.stringify(settings))}catch{}}
  function fade(param,value,seconds=.10){param.setTargetAtTime(value,ctx.currentTime,seconds)}
  function filtered(source,type,freq,target){
@@ -156,7 +161,7 @@ export function cityAudio(browser=globalThis){
    if(!ctx)return false
    await ctx.resume()
    if(ctx.state!=='running')return false
-   active=true;settings.enabled=true;store();volumes();prepareFirearms();return true
+   active=true;settings.enabled=true;store();volumes();prepareFirearms();prepareField();return true
   }catch{return false}
  }
  function startTrack(next){
@@ -193,6 +198,15 @@ export function cityAudio(browser=globalThis){
   for(const name of Object.keys(firearmReports)){
    loadClip('/assets/city-audio/'+name+'.wav').then(clip=>{
     if(clip)firearmClips.set(name,clip)
+   }).catch(()=>{})
+  }
+ }
+ function prepareField(){
+  if(fieldRequested||!browser.fetch)return
+  fieldRequested=true
+  for(const name of new Set(Object.values(fieldReports).flat())){
+   loadClip('/assets/field-audio/'+name+'.wav').then(clip=>{
+    if(clip)fieldClips.set(name,clip)
    }).catch(()=>{})
   }
  }
@@ -250,9 +264,11 @@ export function cityAudio(browser=globalThis){
   const attenuation=Math.max(report?0:.05,near*near)*(menu?settings.effects:1)*amount
   const pan=position(dx,dz,d)
   const drivingReport=drivingReports[name]
-  const clip=report?firearmClips.get(name):roadClips.get(drivingReport?.clip)
+  const variants=fieldReports[name]?.map(id=>fieldClips.get(id)).filter(Boolean)
+  const fieldClip=variants?.length?variants[Math.floor(Math.random()*variants.length)]:null
+  const clip=report?firearmClips.get(name):fieldClip??roadClips.get(drivingReport?.clip)
   if(clip){
-   playClip(clip,attenuation*(report??drivingReport).level,pan,target,.97+Math.random()*.06,
+   playClip(clip,attenuation*(report?.level??drivingReport?.level??level),pan,target,.97+Math.random()*.06,
     report?650+near*near*14000:null,!!report&&!menu&&!ambient)
    return
   }

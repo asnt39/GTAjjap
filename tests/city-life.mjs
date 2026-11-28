@@ -154,6 +154,31 @@ test('mixer loads only after enabling and releases tracks on backgrounding',asyn
  assert.equal(musicCue({wanted:2,radio:true,driving:true}), 'radio')
 })
 
+test('recorded footsteps and explosions follow game events and fall back when unavailable',async()=>{
+ const requests=[]
+ const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio,fetch:async path=>{
+  requests.push(path)
+  return {ok:!path.endsWith('/stone01.wav'),arrayBuffer:async()=>new TextEncoder().encode(path).buffer}
+ }})
+ assert(await mixer.toggle())
+ await new Promise(resolve=>setImmediate(resolve))
+ const ctx=FakeAudioContext.latest
+ const frame={x:0,z:0,yaw:0,t:0,car:{speed:0,setup:{}}}
+ ctx.currentTime=3;mixer.update(frame)
+ const count=ctx.startedBuffers.length
+ mixer.sound('wood',{x:1,z:0})
+ assert.match(ctx.startedBuffers.at(-1),/field-audio\/wood0[123]\.wav$/)
+ mixer.sound('blast',{x:2,z:0})
+ assert.match(ctx.startedBuffers.at(-1),/field-audio\/blast\.wav$/)
+ const after=ctx.startedBuffers.length
+ mixer.sound('blast',{x:2,z:0})
+ assert.equal(ctx.startedBuffers.length,after)
+ mixer.sound('concrete',{x:0,z:0})
+ assert.equal(ctx.startedBuffers.length,after+1)
+ assert(ctx.startedBuffers.length>count)
+ assert.equal(requests.filter(path=>path.endsWith('/stone01.wav')).length,1)
+})
+
 test('death plays one cue and holds the current score until recovery',async()=>{
  FakeAudio.files=[]
  const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio})
