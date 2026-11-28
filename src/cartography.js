@@ -6,6 +6,7 @@ import {terraceRooms,terracePoint} from './terrace-plan.js'
 import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
 import {premises} from './market-plan.js'
 import {sights} from './navigation.js'
+import {clubPlan} from './new-blood-club-plan.js'
 import {beachGate,coastalBoats,coastalRocks,dock,shoreNorth,shoreSouth,shoreX,shoal} from './coast-plan.js'
 export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hostiles=[]){
  const d=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth,h=canvas.clientHeight
@@ -34,6 +35,8 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hos
  c.setLineDash([2.5,4]);c.lineWidth=.5;c.strokeStyle='#abb19a';c.beginPath();c.moveTo(0,-101);c.lineTo(0,63);c.stroke();c.setLineDash([])
  for(const [a,b,n,s] of townPavement)rect(a,n,b-a,s-n,'#6c6352')
  for(const [a,b,n,s] of townRoadSurface)rect(a,n,b-a,s-n,'#57534b')
+ const club=clubPlan.bounds
+ rect(club.west,club.north,club.east-club.west,club.south-club.north,'#795c6b')
  for(const [bounds,color] of [[loadingCourt,'#45575a'],[pocketGarden,'#475943']]){
   const [a,b,n,s]=bounds;rect(a,n,b-a,s-n,color)
  }

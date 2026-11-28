@@ -59,4 +59,13 @@ people.push(
 
 people.push(...districtCitizens)
 
+const givenNames=new Map(people.map(({id,name})=>[id,name.split(' ',1)[0]]))
+givenNames.set('wrong-deal-theo',givenNames.get('west-courier'))
+givenNames.set('new-blood-jack',givenNames.get('courier'))
+givenNames.set('new-blood-victor','Victor')
+
+export function residentDisplayName({id,name}){
+ return givenNames.get(id)??name
+}
+
 export const residentHealth = { civilian:108, officer:132, guard:144 }
