@@ -1,10 +1,10 @@
 import {Vector3} from 'three'
 import {createCharacter} from './character.js'
 import {createCompanion} from './companion.js'
-import {advance,combatPose,fighter,injure} from './melee.js'
+import {advance,combatPose,fighter,injure,revive} from './melee.js'
 import {cameraFraction,canWalk,movePlayer} from './navigation.js'
 import {missionActorSnapshot,restoreMissionActor,missionVehicleSnapshot,restoreMissionVehicle} from './mission-checkpoint.js'
-import {marina,parking,parkingLevel,workshop} from './chapter-sites.js'
+import {factory,marina,parking,workshop} from './chapter-sites.js'
 import {cargoRoute,pursueCargoBoat} from './chapter-sea.js'
 import {swellAt} from './coast-plan.js'
 import {chapterRoadRoute} from './chapter-route.js'
@@ -25,13 +25,13 @@ const mainNames={
 
 export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,combat,notify,registerVehicle,unregisterVehicle}){
  const actors=[],fire=clubFire(boxes,traffic,crowd.all)
- const getaway=chapterRoadRoute(parking.getaway)
+ const getaway=chapterRoadRoute(parking.getaway),adrianRoute=chapterRoadRoute(factory.getaway)
  const cargoBoat=boats.find(boat=>boat.id==='chapter-cargo-launch'),quayBoat=boats.find(boat=>boat.id==='chapter-quay-skiff')
  const seaFields=['x','z','heading','speed','rudder','slip','hit','damage','travel','stepTime','bob','heel','disabled']
  const boatState=boat=>Object.fromEntries(seaFields.map(key=>[key,boat[key]]))
  let seaIndex=0,sailed=false
  let stage=null,generation=0,ready=true,elapsed=0,interacted=false,signals={},currentPlayer=null
- let target=null,targetRig=null,recoveryCar=null,recoveryRig=null,chaseDistance=0,pressure=0,chaseWait=0,secured=false
+ let target=null,targetRig=null,recoveryCar=null,recoveryRig=null,chaseDistance=0,pressure=0,chaseWait=0,secured=false,reinforced=false
 
  function removeVehicle(){
   if(!target)return
@@ -63,7 +63,7 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
    const npc={id:spec.id??'chapter-'+name.toLowerCase(),name,role:person.role,lines:[person.line],height:1.77,pos,rig,
     f:fighter(health),missionRole:side,face:0,joined:true,speed:0,stepping:0,stagger:index,
     path:spec.path??[],routeIndex:0,follow:!!spec.follow,passenger:false,
-    focus:null,hiding:null,rethink:index*.07,retreat:false,said:false,
+    focus:null,hiding:null,rethink:index*.07,retreat:false,said:false,assisted:false,
     combat:spec.armed?{weapon:'pistol',mag:8,damage:side==='hostile'?9:22,range:23,aim:.42+(index%3)*.19,cadence:1.03+index*.13}:null}
    npc.outline=side==='hostile'?missionEnemyOutline(rig.root):null
    npc.companion=createCompanion({position:pos,waypoints:spec.waypoints??[],stopDistance:1.55,
@@ -88,18 +88,19 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
    if(token===generation)notify('임무 인물을 불러오지 못했습니다. 다시 시작하십시오.',true)
   })
  }
+ function roadRoute(){return stage?.set==='chapter-adrian-chase'?adrianRoute:getaway}
  function spawnTarget(stolen,layout='roof'){
   if(target)return
   targetRig=rigs.civilianRig(stolen?2:0)
-  const pose=layout==='roof'?getaway.sample(0):{x:-105.4,z:146.6,heading:Math.PI,lift:0}
+  const pose=layout==='roof'?roadRoute().sample(0):{x:-105.4,z:146.6,heading:Math.PI,lift:0}
   const setup={...targetRig.setup,top:15,power:6.2}
-  target={...newDrive(targetRig,setup),...pose,id:'chapter-recovery-car',localOnly:true,storyLocked:stolen,storyVehicle:true,setup}
+  target={...newDrive(targetRig,setup),...pose,id:stage.set==='chapter-adrian-chase'?'chapter-adrian-car':'chapter-recovery-car',localOnly:true,storyLocked:stolen,storyVehicle:true,setup}
   resetVehicleGround(target)
   scene.add(targetRig.root);registerVehicle(target,targetRig);targetRig.updatePose(target)
  }
- function deployRecoveryCar(){
+ function deployRecoveryCar(point={x:-128.3,z:178.8,heading:-Math.PI/2}){
   recoveryRig=rigs.civilianRig(3)
-  recoveryCar={...newDrive(recoveryRig,recoveryRig.setup),x:-128.3,z:178.8,heading:-Math.PI/2,
+  recoveryCar={...newDrive(recoveryRig,recoveryRig.setup),...point,
    id:'chapter-maya-car',localOnly:true,storyVehicle:true}
   resetVehicleGround(recoveryCar);scene.add(recoveryRig.root);registerVehicle(recoveryCar,recoveryRig);recoveryRig.updatePose(recoveryCar)
  }
@@ -113,8 +114,8 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
   const was=stage,carSuccess=was?.set==='chapter-chase'&&next?.set==='chapter-delivery'
   releaseActors()
   if(!carSuccess)removeVehicle()
-  if(!['chapter-scan','chapter-chase','chapter-delivery','chapter-invoice'].includes(next?.set))releaseRecoveryCar()
-  stage=next??null;elapsed=0;interacted=false;signals={};chaseDistance=pressure=chaseWait=0;secured=false
+  if(!['chapter-scan','chapter-chase','chapter-delivery','chapter-invoice','chapter-adrian-chase','chapter-factory-report'].includes(next?.set))releaseRecoveryCar()
+  stage=next??null;elapsed=0;interacted=false;signals={};chaseDistance=pressure=chaseWait=0;secured=reinforced=false
   if(!stage){resetBoat(cargoBoat,true);resetBoat(quayBoat,true);return}
   if(stage.set==='chapter-sea-track'||stage.set==='chapter-sea-pursuit'){
    if(was?.set!=='chapter-sea-track'){resetBoat(cargoBoat,false);seaIndex=0;sailed=false}
@@ -137,6 +138,10 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
     target.storyLocked=false
     setupActors([{name:'Maya',point:{x:target.x-2.5,y:target.lift,z:target.z}}]);break
    case 'chapter-invoice':setupActors(first);break
+   case 'chapter-adrian-chase':
+    spawnTarget(true);deployRecoveryCar({x:-161.5,z:181.8,heading:Math.PI/2})
+    setupActors(stage.actors??[])
+    break
    default:setupActors(stage.actors??[])
   }
  }
@@ -148,14 +153,32 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
  function interactions(next,pos){
   if(!next||next!==stage||!ready)return []
   const actions=[]
-  if(!interacted&&stage.action&&near(pos,stage.goal)&&(!stage.commands||!actors.some(npc=>npc.missionRole==='hostile'&&npc.f.hp&&!npc.retreat))){
+  if(!interacted&&stage.action&&near(pos,stage.goal)&&(!stage.secureFirst||!actors.some(npc=>npc.missionRole==='hostile'&&npc.f.hp&&!npc.retreat))){
    actions.push({...stage.goal,id:stage.set,label:stage.action,activate(){
     if(!near(pos,stage.goal)||interacted)return
     interacted=true;signals[stage.event]=true
    }})
   }
+  const ally=actors.find(npc=>npc.name==='Leon')
+  if(stage.set==='chapter-factory-upper'&&ally&&!ally.assisted&&near(pos,ally.pos,1.85)){
+   actions.push({x:ally.pos.x,z:ally.pos.z,id:'chapter-assist-leon',label:'Leon을 엄폐물로 지원',activate(){
+    ally.assisted=true;ally.follow=true;ally.companion.command('follow')
+    if(!ally.f.hp)revive(ally.f)
+    ally.f.hp=Math.min(ally.f.maxHealth,ally.f.hp+40)
+    notify('Leon · 됐어. 다음은 내가 엄폐할게.')
+   }})
+  }
   if(stage.commands)for(const npc of actors){
    if(npc.missionRole!=='ally'||!npc.f.hp||npc.passenger||!near(pos,npc.pos))continue
+   if(stage.set==='chapter-free'){
+    actions.push({x:npc.pos.x,z:npc.pos.z,id:'chapter-talk-'+npc.id,label:npc.name+'와 대화',activate(){
+     notify(npc.name+' · '+npc.lines[0])
+    }})
+    if(npc.follow)actions.push({x:npc.pos.x,z:npc.pos.z,id:'chapter-dismiss-'+npc.id,label:npc.name+'의 동행 종료',activate(){
+     npc.follow=false;npc.companion.command('hold');npc.dispatched=false
+     notify(npc.name+' · 여기서 대기하겠습니다.')
+    }})
+   }
    actions.push({x:npc.pos.x,z:npc.pos.z,id:'chapter-order-'+npc.id,
     label:npc.name+(npc.follow?'에게 대기 요청':'에게 동행 요청'),activate(){
      npc.follow=!npc.follow;npc.companion.command(npc.follow?'follow':'hold')
@@ -186,7 +209,7 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
   if(!target)return
   const maya=actors.find(npc=>npc.name==='Maya'),gap=range(player.pos,target)
   if(maya){
-   if(car&&Math.abs(car.lift-maya.pos.y)<1.7&&(maya.passenger||range(car,maya.pos)<5)){
+   if(car&&(maya.passenger||Math.abs(car.lift-maya.pos.y)<1.7&&range(car,maya.pos)<5)){
     maya.passenger=true;seat(maya,car)
    }else if(!car){
     maya.passenger=false
@@ -195,6 +218,20 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
   }
   if(stage.set==='chapter-delivery'){
    if(car===target&&range(target,workshop.bay)<2.1&&Math.abs(target.speed)<.65)signals.delivered=true
+   return
+  }
+  if(stage.set==='chapter-adrian-chase'){
+   if(!player.inVehicle&&!reinforced&&elapsed<14)return
+   reinforced=true
+   const launch=adrianRoute
+   const speed=gap<18?11.5:gap>38?6.5:9.5
+   const next=launch.drive(target,chaseDistance,speed*dt,boxes,traffic)
+   target.speed=(next-chaseDistance)/Math.max(dt,.001);chaseDistance=next
+   if(car&&gap<12&&next>8)pressure+=dt
+   else pressure=Math.max(0,pressure-dt*.18)
+   if(pressure>3.25||car&&gap<8&&next>8&&Math.abs(target.speed)<.3){
+    target.speed=0;signals.adrianLead='intercepted'
+   }else if(chaseDistance>launch.length-.10||elapsed>105)signals.adrianLead='escaped'
    return
   }
   if(stage.set!=='chapter-chase')return
@@ -212,6 +249,27 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
    else chaseWait=0
    secured=pressure>3.4||chaseWait>1.1||chaseDistance>=getaway.length-.05
    if(secured){target.speed=0;target.storyLocked=false;signals.secured=true}
+  }
+ }
+ function freeVehicle(player,car,boat,dt,time){
+  const driver=car??boat
+  for(const npc of actors){
+   if(!npc.follow&&!npc.passenger)continue
+   if(driver&&(npc.passenger||range(npc.pos,driver)<3.5)){
+    const occupant=actors.find(ally=>ally!==npc&&ally.passenger)
+    if(occupant&&!npc.passenger)continue
+    npc.passenger=true
+    if(car)seat(npc,car)
+    else{
+     const spot=worldPoint(boat,boat.width*.21,.58)
+     npc.pos.set(spot.x,swellAt(spot.x,spot.z,time)-.40,spot.z)
+     npc.face=Math.PI-boat.heading;npc.rig.root.position.copy(npc.pos)
+     npc.rig.root.rotation.y=npc.face;npc.rig.update(dt,0,{marineSeat:1})
+    }
+   }else if(npc.passenger){
+    npc.passenger=false
+    npc.pos.set(player.pos.x+.8,player.pos.y,player.pos.z+.55)
+   }
   }
  }
  function seaObjective(dt,player,onFoot,boat,time){
@@ -312,6 +370,8 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
   elapsed+=dt
   vehicleObjective(dt,player,roadDriving?player.inVehicle:null)
   if(cargoBoat)seaObjective(dt,player,onFoot,boat,time)
+  if(stage.set==='chapter-free')freeVehicle(player,roadDriving?player.inVehicle:null,boat,dt,time)
+  if(stage.entries&&onFoot&&stage.entries.some(point=>near(player.pos,point,1.75)))signals[stage.event]=true
   const foes=actors.filter(npc=>npc.missionRole==='hostile'&&npc.f.hp&&!npc.retreat)
   const allies=actors.filter(npc=>npc.missionRole!=='hostile'&&npc.f.hp)
   fire.update(dt)
@@ -335,23 +395,23 @@ export function chapterWorld({scene,boxes,crowd,traffic,rigs,boats=[],floorAt,co
   focus(){
    if(cargoBoat&&!cargoBoat.disabled&&(stage?.set==='chapter-sea-track'||stage?.set==='chapter-sea-pursuit'&&seaIndex<cargoRoute.length))
     return {x:cargoBoat.x,z:cargoBoat.z,y:-.5,label:'화물 운반선'}
-   if(stage?.set==='chapter-chase'&&target)return {x:target.x,z:target.z,y:target.lift,label:'도주 차량'}
+   if(['chapter-chase','chapter-adrian-chase'].includes(stage?.set)&&target&&(stage.set!=='chapter-adrian-chase'||reinforced))return {x:target.x,z:target.z,y:target.lift,label:'도주 차량'}
    const npc=actors.find(actor=>actor.name===stage?.followActor)
    return npc?{x:npc.pos.x,z:npc.pos.z,y:npc.pos.y,label:npc.name}:null
   },
   snapshot(){
    if(!ready)return null
-   return {generation,stage:stage?.set,elapsed,interacted,signals,actors:actors.map(npc=>({...missionActorSnapshot(npc),routeIndex:npc.routeIndex,follow:npc.follow,retreat:npc.retreat})),
-    fire:fire.snapshot(actors),seaIndex,sailed,boats:boats.map(boatState),target:target?missionVehicleSnapshot(target):null,recoveryCar:recoveryCar?missionVehicleSnapshot(recoveryCar):null,chaseDistance,pressure,chaseWait,secured}
+   return {generation,stage:stage?.set,elapsed,interacted,signals,actors:actors.map(npc=>({...missionActorSnapshot(npc),routeIndex:npc.routeIndex,follow:npc.follow,retreat:npc.retreat,assisted:npc.assisted})),
+    fire:fire.snapshot(actors),seaIndex,sailed,boats:boats.map(boatState),target:target?missionVehicleSnapshot(target):null,recoveryCar:recoveryCar?missionVehicleSnapshot(recoveryCar):null,chaseDistance,pressure,chaseWait,secured,reinforced}
   },
   planRestore(snapshot){
    if(!snapshot||snapshot.generation!==generation||snapshot.stage!==stage?.set||!ready||
     snapshot.actors.length!==actors.length||!!target!==!!snapshot.target||!!recoveryCar!==!!snapshot.recoveryCar)return null
    return ()=>{
-    ({elapsed,interacted,signals,chaseDistance,pressure,chaseWait,secured,seaIndex,sailed}=snapshot)
+    ({elapsed,interacted,signals,chaseDistance,pressure,chaseWait,secured,reinforced,seaIndex,sailed}=snapshot)
     actors.forEach((npc,index)=>{
      const saved=snapshot.actors[index]
-     Object.assign(npc,{passenger:false,routeIndex:saved.routeIndex,follow:saved.follow,retreat:saved.retreat,
+     Object.assign(npc,{passenger:false,routeIndex:saved.routeIndex,follow:saved.follow,retreat:saved.retreat,assisted:saved.assisted,
       focus:null,lastContact:null,hiding:null,rethink:0})
      npc.companion.restart(npc.follow?'follow':'hold')
      restoreMissionActor(npc,saved,scene,crowd.all,combatPose)

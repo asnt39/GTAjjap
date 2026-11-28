@@ -3,7 +3,7 @@ import {test} from 'node:test'
 import {Scene,Vector3} from 'three'
 import {buildChapterBuildings} from '../src/chapter-buildings.js'
 import {chapterRoadRoute} from '../src/chapter-route.js'
-import {facilityFloor,hotel,marina,parking,workshop} from '../src/chapter-sites.js'
+import {facilityFloor,factory,hideout,hotel,marina,parking,workshop} from '../src/chapter-sites.js'
 import {cargoLaunch,cargoRoute,pursueCargoBoat,quaySkiff} from '../src/chapter-sea.js'
 import {boatExit,boatPoseClear,boardableBoats,createBoats} from '../src/coastal-motion.js'
 import {cargoLadder,inPier} from '../src/coast-plan.js'
@@ -82,4 +82,33 @@ test('the platform connects to cargo storage and provides a backup skiff and swi
  assert.equal(boardableBoats({x:backup.x,z:192.3},boats,false)[0],backup)
  assert.equal(boatExit(backup,inPier,boats)?.dry,true)
  assert.ok(inPier(cargoLadder.x,cargoLadder.deckZ,.32))
+})
+
+test('the foundry has three playable entrances, a second-floor office, and a drivable getaway',()=>{
+ for(const [start,entry,next] of [
+  [[-169.4,148.75],factory.front,[-169.4,155.1]],
+  [[-186,163.2],factory.flank,[-179.8,163.2]],
+  [[-155.75,177.3],factory.rear,[-155.75,169.6]]
+ ]){
+  const walker=new Vector3(start[0],.083,start[1])
+  follow(walker,[[entry.x,entry.z],next])
+ }
+ const upstairs=new Vector3(-161.4,.083,159.65)
+ follow(upstairs,[[-161.4,172.7],[-155.05,172.7],[-154.1,156.44],[-154.75,154.38],[-153.25,154.32]])
+ assert.ok(upstairs.y>3.2)
+ const route=chapterRoadRoute(factory.getaway),car={...cruiser,...route.sample(0)}
+ let at=0
+ for(let i=0;i<Math.ceil(route.length/.15);i++){
+  const next=route.drive(car,at,.15,boxes,[car])
+  assert.ok(next>at,'blocked at '+Object.values(car).slice(0,7).join(', '))
+  at=next
+ }
+ assert.equal(at,route.length)
+})
+test('Breakwater Yard parking and mission interactions are physically reachable',()=>{
+ const walker=new Vector3(hideout.entry.x,.083,hideout.entry.z)
+ follow(walker,[[-166.5,191],[-169.3,195],[-169.0,194.7],[-170.5,194.0],[-172.3,193.75],
+  [hideout.rest.x,hideout.rest.z]])
+ for(const point of [hideout.meeting,hideout.armory,hideout.desk])assert.ok(canWalk(point.x,point.z,boxes,.32,point.y),point.label)
+ assert.ok(clearPose({...cruiser,x:hideout.parking.x,z:hideout.parking.z,lift:0,heading:Math.PI},boxes,true,true))
 })

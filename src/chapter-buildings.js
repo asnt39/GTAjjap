@@ -1,7 +1,7 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {cargoLadder} from './coast-plan.js'
-import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel,cargoPier,cargoPlatform} from './chapter-sites.js'
+import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel,cargoPier,cargoPlatform,factory,hideout} from './chapter-sites.js'
 
 export function buildChapterBuildings(scene,addCollider,maps){
  const group=new T.Group(),batches=new Map()
@@ -99,6 +99,10 @@ export function buildChapterBuildings(scene,addCollider,maps){
  buildHotel()
  flush()
  buildCargoQuay()
+ flush()
+ buildFoundry()
+ flush()
+ buildHideout()
  flush()
  function buildHotel(){
   const [w,e,n,s]=hotel.bounds,base=.083,top=hotel.floor,roof=6.38
@@ -202,6 +206,119 @@ export function buildChapterBuildings(scene,addCollider,maps){
   for(const x of [91,93.19,99.12,101.28])box(x,1.38,145,.10,2.61,.11,steel)
   sign('MERIDIAN MARINA',100.2,2.85,148.04,3.5)
   wall(97.7,99.15,145.16,145.66,.12,.91,wood)
+ }
+ function buildFoundry(){
+  const [w,e,n,s]=factory.bounds,base=.083,deck=factory.floor,beam=7.4
+  const iron=material(0x657572,maps.architecture[3]),dark=material(0x3e494c),safety=material(0xa98048)
+  const skylight=material(0x76979c),glass=new T.MeshStandardMaterial({color:0x66797a,metalness:.49,roughness:.32})
+  slab(w,e,n,s,base)
+  for(const [a,b,c,d] of factory.decks)slab(a,b,c,d,deck)
+  const [[a,b,c,d]]=factory.stairs.map(stair=>stair.bounds)
+  for(let i=0;i<19;i++)box((a+b)/2,base+(i+.5)*3.2/38,c+(i+.5)*(d-c)/19,b-a,3.2*(i+.5)/19,(d-c)/19,steel)
+  const openings=[
+   [n,[[-173.2,-165.7,4.28]]],[s,[[-159.2,-152.3,4.10]]]
+  ]
+  for(const [z,doors] of openings){
+   const [[left,right,high]]=doors,north=z===n?n:s-.24,south=north+.24
+   wall(w,left,north,south,base,beam,brick);wall(right,e,north,south,base,beam,brick)
+   wall(left,right,north,south,high,beam,brick)
+   for(const x of [left-.075,right+.075])box(x,high/2,z,.20,high,.24,iron)
+   box((left+right)/2,high+.13,z,right-left,.25,.25,steel)
+  }
+  wall(w,w+.24,n,161.48,base,beam,brick);wall(w,w+.24,164.9,s,base,beam,brick)
+  wall(w,w+.24,161.48,164.9,2.79,beam,brick)
+  wall(e-.24,e,n,s,base,beam,brick)
+  const roofWidth=(e-w)/2
+  for(const side of [-1,1]){
+   const roof=new T.BoxGeometry(Math.hypot(roofWidth,2.05)+.55,.20,s-n+.41)
+    .rotateZ(-side*Math.atan2(2.05,roofWidth)).translate((w+e)/2+side*roofWidth/2,beam+1.0,(n+s)/2)
+   batch(roof,iron)
+   for(const z of [155.25,162.85,170.25]){
+    batch(new T.BoxGeometry(4.65,.08,1.45).rotateZ(-side*Math.atan2(2.05,roofWidth))
+     .translate((w+e)/2+side*roofWidth*.41,beam+1.29,z),skylight)
+   }
+  }
+  for(const z of [153.3,160.1,166.9,173.5]){
+   for(const x of [w+.62,e-.72])wall(x-.15,x+.15,z-.16,z+.16,base,beam+.22,dark)
+   box((w+e)/2,6.78,z,e-w-1,.24,.24,dark)
+   box((w+e)/2,7.29,z,e-w-1,.17,.145,steel)
+   for(let x=w+2.8;x<e-1.9;x+=2.8){
+    const angle=(Math.round(x)%2?.35:-.35)
+    batch(new T.BoxGeometry(.11,1.28,.12).rotateZ(angle).translate(x,7.03,z),dark)
+   }
+   box(-171.3,6.52,z,1.75,.11,.26,lamp);box(-158.2,6.52,z,1.6,.11,.26,lamp)
+  }
+  for(const y of [3.3,5.84])box((w+e)/2,y,n-.07,e-w+.25,.12,.41,iron)
+  for(const x of [-181,-176.6,-161.2,-156.1])for(const z of [n-.04,s+.04]){
+   box(x,5.05,z,3.42,1.50,.105,dark);box(x,5.05,z+(z<n?-.059:.059),3.18,1.28,.09,glass)
+   for(const offset of [-.9,0,.9])box(x+offset,5.05,z+(z<n?-.115:.115),.09,1.31,.04,dark)
+  }
+  sign('RIVET FOUNDRY',-169.1,5.41,n-.12,5.95).rotation.y=Math.PI
+  const scrap=[[-179.9,-176.4,156.35,157.85],[-175.8,-174.4,164.8,167.65],
+   [-170,-168.55,160.5,163.3],[-168.05,-167.36,166.35,167.45],[-166.4,-165,169.7,172.1],
+   [-181,-177.7,169.9,172.75]]
+  for(const [i,[l,r,f,k]] of scrap.entries()){
+   const height=i===3?1.18:1.35
+   wall(l,r,f,k,base,height,i%2?iron:wood)
+   for(const z of [f+.13,k-.13])box((l+r)/2,height+.07,z,r-l,.10,.092,safety)
+   box((l+r)/2,(height+base)*.5,k+.025,r-l,.15,.05,steel)
+  }
+  for(const x of [-177.1,-170.5,-165.4]){
+   batch(new T.CylinderGeometry(.15,.15,15.2,10).rotateX(Math.PI/2).translate(x,5.1,163.45),iron)
+   for(const z of [156.6,161.1,165.6,170.2])batch(new T.TorusGeometry(.15,.035,8,12).translate(x,5.1,z),steel)
+  }
+  for(const [l,r,f,k] of [[-159.4,-159.25,152.2,170.7],[-163.4,-159.4,174.36,174.48]]){
+   wall(l,r,f,k,deck,deck+.96,steel)
+   box((l+r)/2,deck+.93,(f+k)/2,r-l+.10,.09,k-f+.10,safety)
+  }
+  wall(-159.42,-155.6,155.01,155.22,deck,6.12,iron)
+  wall(-153.86,-150.25,155.01,155.22,deck,6.12,iron)
+  wall(-155.6,-153.86,155.01,155.22,5.66,6.12,iron)
+  wall(-153.9,-151.4,152.24,152.42,deck,6.12,steel)
+  wall(-153.12,-151.23,153.67,153.79,deck,deck+1.03,iron)
+  const pane=new T.Mesh(new T.BoxGeometry(1.89,1.13,.075),new T.MeshStandardMaterial({
+   color:0x789398,roughness:.25,metalness:.08,transparent:true,opacity:.31}))
+  pane.position.set(-152.175,deck+1.58,153.733);group.add(pane)
+  addCollider(-153.12,-151.23,153.67,153.79,deck+2.16,false,deck+1.03)
+  for(const x of [-153.06,-152.56,-152.09,-151.59,-151.28])box(x,deck+1.58,153.735,.035,1.18,.055,steel)
+  wall(-156.5,-154.4,153.10,153.91,deck,deck+.84,wood)
+  wall(-158.72,-157.9,162.10,163.8,deck,deck+1.0,iron)
+  box(-153.25,deck+1.15,153.74,.18,.24,.12,safety)
+  sign('DISPATCH',-153.8,deck+2.12,155.24,1.65)
+  for(const [x,z] of [[-178.8,149.42],[-160,178.62],[-181.2,165.98]]){
+   wall(x-.51,x+.51,z-.69,z+.69,base,.94,wood)
+   box(x,.96,z,1.17,.088,1.51,steel)
+  }
+ }
+ function buildHideout(){
+  const [w,e,n,s]=hideout.bounds,base=.083,roof=4.78
+  const painted=material(0x829177,maps.architecture[2]),fabric=material(0x60796e),ceramic=material(0xad9c72)
+  slab(w,e,n,s,base);slab(w,e,n,s,roof)
+  wall(w,w+.26,n,s,base,roof,brick);wall(e-.26,e,n,s,base,roof,brick)
+  wall(w,e,s-.26,s,base,roof,brick)
+  for(const [a,b] of [[w,-168.1],[-165.1,-163],[-157.4,e]])wall(a,b,n,n+.26,base,roof,brick)
+  wall(-168.1,-165.1,n,n+.26,2.55,roof,brick)
+  wall(-163,-157.4,n,n+.26,3.48,roof,brick)
+  wall(-171.7,-171.47,194.3,197.45,base,roof-.2,painted)
+  wall(-171.7,-171.47,200.2,s,base,roof-.2,painted)
+  wall(-163.7,-163.47,188.45,193.32,base,roof-.2,painted)
+  wall(-163.7,-163.47,196.75,s,base,roof-.2,painted)
+  wall(-169.75,-167.2,196.92,198.10,base,.87,wood)
+  box(-168.48,.92,197.51,2.66,.105,1.35,ceramic)
+  wall(-178.4,-176.57,198.63,200.25,base,.61,fabric)
+  wall(-178.4,-177.96,198.63,200.25,.61,1.31,fabric)
+  wall(-171,-169.1,201.25,203.68,base,.82,wood)
+  for(const x of [-168.1,-166.9,-165.7]){
+   wall(x-.46,x+.46,202.0,202.46,base,2.21,painted)
+   box(x,1.53,201.96,.24,.099,.07,stripe)
+  }
+  for(const z of [189.2,193.8])for(const x of [-161.5,-158.9])box(x,.101,z,.081,.032,2.7,stripe)
+  for(const [x,z] of [[-175.5,198.9],[-167.1,195.7],[-160.5,191.5],[-167.2,201.7]]){
+   box(x,4.5,z,1.45,.112,.24,lamp)
+  }
+  for(const x of [-175.7,-172.6,-155.4])box(x,3.12,n-.057,1.87,1.01,.12,painted)
+  box(-166.6,2.67,186.5,3.75,.18,1.71,steel)
+  sign('BREAKWATER YARD',-165.9,3.95,186.84,5.4).rotation.y=Math.PI
  }
  function flush(){
   for(const [mat,parts] of batches){

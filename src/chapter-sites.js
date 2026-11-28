@@ -1,6 +1,6 @@
 const point=(x,z,label,y=.083,yaw)=>({x,z,y,label,yaw})
-export const chapterLand=[[-146,-99,136,209]]
-export const chapterRoads=[[-143,-94.5,140,149],[-143,-94.5,176,185]]
+export const chapterLand=[[-195,-99,136,209]]
+export const chapterRoads=[[-191,-94.5,140,149],[-191,-94.5,176,185],[-191,-184,144,181]]
 export const parking={
  bounds:[-138,-111,149.5,174],entry:point(-134,174.6,'Spire Parking 남쪽 진입로'),
  lookout:point(-121,171.8,'Spire Parking · 옥상',6.483),recovery:point(-130,174.8,'주차타워 입구',.083,-.72),
@@ -73,10 +73,11 @@ export function buildingLevel(site,x,z,feet,up=.24){
  if(!inBounds(site.bounds,x,z))return null
  const stair=site.stairs.find(s=>inBounds(s.bounds,x,z))
  const height=site.floor-.083
- const y=stair?stairRise(stair,z,height):site.floor
+ const onDeck=!site.decks||site.decks.some(bounds=>inBounds(bounds,x,z))
+ const y=stair?stairRise(stair,z,height):onDeck?site.floor:.083
  return y<=feet+up+.001?y:.083
 }
-export const facilityFloor=(x,z,feet,up=.24)=>parkingLevel(x,z,feet,up)??buildingLevel(hotel,x,z,feet,up)
+export const facilityFloor=(x,z,feet,up=.24)=>parkingLevel(x,z,feet,up)??buildingLevel(hotel,x,z,feet,up)??buildingLevel(factory,x,z,feet,up)
 
 export const marina={
  meetup:point(100.1,146.5,'Meridian Marina 대합 부두',.12,Math.PI/2),
@@ -86,3 +87,48 @@ export const marina={
 }
 export const cargoPier=[114,124,189,192.6]
 export const cargoPlatform=[123.5,138.9,187.9,199.6]
+
+export const factory={
+ bounds:[-184,-150,151,175.3],
+ floor:3.283,
+ stairs:[{bounds:[-163.4,-159.4,160.8,171.8],northHigh:false}],
+ decks:[[-159.4,-150.05,152.2,173.8],[-163.4,-159.4,171.8,174.5]],
+ rally:point(-170.1,149.12,'Rivet Foundry 북측 하역장',.083,Math.PI),
+ front:point(-169.4,152.4,'북측 하역문'),
+ flank:point(-182.9,163.2,'서쪽 자재 반입구'),
+ rear:point(-155.75,174.18,'남쪽 하역문'),
+ panel:point(-167.7,165.65,'작업장 배전반'),
+ upper:point(-154.1,156.44,'상층 사무실',3.283),
+ dispatch:point(-153.25,154.32,'배차실 유선 통신기',3.283),
+ getaway:[point(-155.2,179.3,'남쪽 하역장'),point(-140.5,179.3,'Basin Crossing'),
+  point(-110,179.3,'Garden Crossing'),point(-96.2,179.4,'Spire Street'),
+  point(-90.6,175.5,'Spire Street'),point(-90.6,149.4,'Basin Crossing'),point(-95.2,145.6,'항만 간선도로'),point(-151.2,145.6,'항만 합류로')]
+}
+const stair=factory.stairs[0]
+factory.nav=[factory.rally,factory.front,factory.flank,factory.rear,factory.panel,factory.upper,factory.dispatch,
+ point(-178.6,163.0,'자재 반입 통로'),point(-173.5,156.1,'생산실 북쪽'),
+ point(-171,166.3,'생산실 중앙'),point(-161.2,158.7,'계단 지상 입구'),
+ ...Array.from({length:8},(_,i)=>{
+  const z=stair.bounds[2]+(stair.bounds[3]-stair.bounds[2])*i/7
+  return point(-161.4,z,'상층 통로 계단',stairRise(stair,z,3.2))
+ }),
+ point(-161.4,172.7,'상층 계단 입구',3.283),point(-154.4,172.7,'상층 남쪽',3.283),
+ point(-154.4,165.4,'상층 동쪽',3.283)
+]
+
+export const hideout={
+ bounds:[-179,-154,187,205],entry:point(-166.5,185.6,'Breakwater Yard 입구',.083,Math.PI),
+ parking:point(-160.2,191.25,'실내 차량 보관 구역'),desk:point(-168.7,194.85,'작전 수첩 및 대화'),
+ rest:point(-175.2,199.55,'휴게실 체력 회복'),armory:point(-165.85,201.2,'장비 관리대'),
+ meeting:point(-167.6,196.4,'작전 회의실'),maya:point(-161.8,196,'정비 구역'),leon:point(-173.35,195.75,'휴게실 앞')
+}
+
+export const chapterSights=[
+ {...parking.entry,tag:'PK',title:'Spire Parking',name:'주차타워 안내',body:'서쪽 차로로 2층에 올라간 뒤 북쪽 통로를 건너면 옥상 차로가 이어집니다.'},
+ {...workshop.entry,tag:'MW',title:'Keel Motor Works',name:'정비소 안내',body:'정비 구역의 노란 표시 안에 차량을 정차하면 수리할 수 있습니다.'},
+ {...hotel.entry,tag:'BH',title:'Brine Hotel',name:'호텔 안내',body:'정문은 접수대와 서쪽 계단, 직원 출입구는 동쪽 골목과 연결됩니다.'},
+ {...marina.meetup,tag:'MM',title:'Meridian Marina',name:'마리나 안내',body:'보트는 대합 부두 양쪽에 있습니다. 입수한 경우 노란 사다리를 이용하십시오.'},
+ {...marina.berth,tag:'SQ',title:'Salt Quay',name:'하역 부두 안내',body:'북쪽 사다리와 서쪽 하역 부두를 통해 보관소에 진입할 수 있습니다.'},
+ {...factory.rally,tag:'RF',title:'Rivet Foundry',name:'공장 안내',body:'북측 하역문 외에 서쪽 자재문과 남쪽 차량 출입구가 있습니다.'},
+ {...hideout.entry,tag:'BY',title:'Breakwater Yard',name:'작업실 안내',body:'공장 임무를 완료하면 휴게실, 차량 보관 구역과 장비 관리대를 이용할 수 있습니다.'}
+]

@@ -19,7 +19,7 @@ export const chapterSeven={
    objective:'운반선을 따라 Salt Quay로 이동하고 하역 부두에 하선',
    line:['Maya','우릴 봤어. 바로 뒤로 붙진 마. 반대편으로 돌면 암초를 피할 수 있어.'],
    actors:[maya(marina.meetup)],hint:'보관소 서쪽 부두가 선착장입니다. 가까이에서 정차한 뒤 하선하십시오.'},
-  {set:'chapter-sea-cargo',event:'tookCargo',goal:marina.storage,checkpoint:marina.berth,armed:true,commands:true,
+  {set:'chapter-sea-cargo',event:'tookCargo',goal:marina.storage,checkpoint:marina.berth,armed:true,commands:true,secureFirst:true,
    objective:'Salt Quay 보관소에서 위협을 저지하고 표시된 봉인 상자 회수',action:'표시된 화물 상자 회수',
    line:['Maya','상자 옆 깃발이 Theo가 말한 표식이야. 내가 부두 쪽을 막을게.'],
    cover:[{x:125.5,z:191.5,y:.12},{x:127,z:196.9,y:.12},{x:134.7,z:192,y:.12}],

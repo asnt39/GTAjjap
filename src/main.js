@@ -51,10 +51,11 @@ import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
 import {chapterMissions} from './chapter-missions.js'
+import {freeCrew} from './chapter-eight.js'
 import {cargoLaunch,quaySkiff} from './chapter-sea.js'
 import {chapterWorld as continuationWorld} from './chapter-world.js'
 import {buildChapterBuildings} from './chapter-buildings.js'
-import {facilityFloor,parkingLevel,workshop} from './chapter-sites.js'
+import {facilityFloor,hideout,parkingLevel,workshop} from './chapter-sites.js'
 import {buildTransferYard} from './transfer-yard.js'
 import {buildNewBloodClub} from './new-blood-club.js'
 import {clubPlan,clubDoors,insideClub,clubFloorAt,clubCeilingAt} from './new-blood-club-plan.js'
@@ -265,8 +266,10 @@ export async function start(onContextLost){
   combat:storyShot})
  const clubWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)}})
+ const chapterHomeUnlocked=()=>room.phase==='offline'&&episode.chapter?.complete===true
+ const chapterCurrent=()=>episode.chapter?.stage??(chapterHomeUnlocked()?freeCrew:null)
  const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,boats,floorAt,combat:storyShot,
-  notify(message,failed){if(failed)episode.fail(message);ui.toast(message)},
+  notify(message,failed){if(failed)episode.fail(message);ui.toast(message);ui.announceStory(message)},
   registerVehicle(vehicle,rig){
    fleet.push(vehicle);traffic.push(vehicle)
    cars[vehicle.id]=vehicle;rigs[vehicle.id]=rig;soloTunings.set(vehicle.id,soloRoadTuning(vehicle.setup))
@@ -631,10 +634,19 @@ export async function start(onContextLost){
      const result=storyAction.activate()
      if(result?.message)ui.toast(result.message)
     },storyAction,4)
-    for(const action of chapterWorld.interactions(episode.chapter?.stage,pos))add(action.id,action.label,()=>{
+    for(const action of chapterWorld.interactions(chapterCurrent(),pos))add(action.id,action.label,()=>{
      const result=action.activate()
      if(result?.message)ui.toast(result.message)
     },action,4)
+    if(chapterHomeUnlocked()){
+     if(Math.hypot(pos.x-hideout.armory.x,pos.z-hideout.armory.z)<1.7)
+      add('chapter-armory','장비 관리대 열기',()=>ui.show('equipment'),hideout.armory,3)
+     if(Math.hypot(pos.x-hideout.desk.x,pos.z-hideout.desk.z)<1.7)
+      add('chapter-briefing-table','배차 기록과 다음 단서 확인',()=>{
+       const lead=episode.snapshot().lead
+       ui.toast(lead==='intercepted'?'Rivet 운행장부 확보 · Adrian의 임시 배차 명단': '마지막 합류 좌표 확보 · 다음 항만 배차 기록 대기')
+      },hideout.desk,3)
+    }
     for(const dest of doorCandidates())add('car-'+dest.car.id,dest.car.setup.name+(dest.occupied?' · 운전자에게서 차량 가져오기':' 탑승'),()=>interactCar(dest),dest.door,2)
     for(const d of doors.candidates(pos))add('door-'+d.first,d.r.title+' · '+(d.target?'문 닫기':'문 열기'),()=>doors.toggle(pos,d),d.at,2)
     for(const n of crowd.candidates(pos))add('resident-'+n.id,residentDisplayName(n)+' · 대화',()=>converse(n),n.pos,1)
@@ -649,9 +661,9 @@ export async function start(onContextLost){
  function cityCandidates(){
   if(!canAct()&&!driving())return []
   if(driving()&&(room.phase!=='offline'||Math.abs(car.speed)>.45||!car.dents))return []
-  return nearbyActions(driving()?repairSpots:walkSpots,pos,yaw,spot=>
+  return nearbyActions(driving()?repairSpots:walkSpots,pos,yaw,spot=>(!spot.chapterHome||chapterHomeUnlocked())&&(
    driving()||(spot.type!=='discovery'||room.phase==='offline'&&!episode.discovered(spot.id))&&
-   cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84)
+   cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84))
  }
  function useCity(spot){
   if(spot.type==='discovery'){
@@ -661,9 +673,9 @@ export async function start(onContextLost){
    return
   }
   if(spot.type==='repair'){
-   const result=episode.spend(spot.price)
+   const result=spot.price?episode.spend(spot.price):{ok:true}
    if(result.ok){car.dents=undefined;car.collision=null;ui.sound('repair',pos)}
-   ui.toast(result.ok?'정비 완료 · ₩'+spot.price:result.message);return
+   ui.toast(result.ok?(spot.price?'정비 완료 · ₩'+spot.price:'정비 완료'):result.message);return
   }
   if(spot.type==='light'){
    ui.toast(fixtures.toggleLamp()?'조명을 켰어':'조명을 껐어');ui.sound('click',pos);return
@@ -689,8 +701,10 @@ export async function start(onContextLost){
    })
   }
  }
- const repairSpots=[...citySpots.filter(s=>s.type==='repair'),{id:'keel-works',type:'repair',...workshop.bay,price:350,title:'Keel Motor Works',label:'차량 수리',range:2.5}],walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
-  {id:'lantern-room-water',...clubPlan.bar,title:'Lantern Room',label:'바에서 생수 주문',price:120,heal:8,pose:'drink',range:1.35}]
+ const repairSpots=[...citySpots.filter(s=>s.type==='repair'),{id:'keel-works',type:'repair',...workshop.bay,price:350,title:'Keel Motor Works',label:'차량 수리',range:2.5},
+  {id:'yard-repair',type:'repair',...hideout.parking,title:'Breakwater Yard',label:'보관 차량 무료 정비',price:0,range:2.6,chapterHome:true}],walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
+  {id:'lantern-room-water',...clubPlan.bar,title:'Lantern Room',label:'바에서 생수 주문',price:120,heal:8,pose:'drink',range:1.35},
+  {id:'yard-rest',...hideout.rest,title:'Breakwater Yard',label:'휴게실에서 체력 회복',heal:100,pose:'rest',range:1.65,chapterHome:true}]
  const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&Math.abs((vehicle.lift??0)-(other.lift??0))<1.5&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function doorCandidates(qualifies){
@@ -1595,7 +1609,7 @@ export async function start(onContextLost){
    player.exposed=!below&&!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    if(!deathScreen.active){
     const prologue=room.phase==='offline'?episode.prologue:null,stage=prologue?.stage
-    const chapter=room.phase==='offline'?episode.chapter:null,chapterStage=chapter?.stage
+    const chapter=room.phase==='offline'?episode.chapter:null,chapterStage=chapter?chapterCurrent():null
     const missionWeapon=chapterStage?.armed===true||!!(stage?.set||stage?.carry)&&stage?.set!=='pursuit'
     if(loadout.missionLoan(missionWeapon)){cancelAim();equipment.interrupt()}
     storyWorld.prepare(stage);chapterWorld.prepare(chapterStage)
