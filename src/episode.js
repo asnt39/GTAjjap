@@ -3,7 +3,7 @@ import {basinPlate} from './south-basin-plan.js'
 import {createPrologue,readPrologue} from './prologue.js'
 import {createNewBlood,readNewBlood} from './new-blood.js'
 
-const saveKey = 'harborline.episode.v1'
+export const EPISODE_SAVE_KEY = 'harborline.episode.v1'
 const driveSeconds = 65
 const emptyRun=()=>({step:0,status:'available',reason:''})
 const initial = () => ({
@@ -14,6 +14,7 @@ const initial = () => ({
 })
 const storyRun=(state,contract)=>contract===firstWork?state.firstJob:state.followups[contract.id]
 const natural = n => Number.isSafeInteger(n) && n >= 0
+export const isEpisodeRecord = saved => saved?.version===1 && natural(saved.index) && !!missions[saved.index]
 const result = (ok,message,effect) => effect ? {ok,message,effect} : {ok,message}
 const wrong = message => result(false,message)
 const matchesResident = (goal, resident) => {
@@ -26,7 +27,7 @@ const matchesResident = (goal, resident) => {
 function read(raw) {
   try {
     const saved=JSON.parse(raw ?? 'null')
-    if (!saved || saved.version!==1 || !natural(saved.index) || !missions[saved.index]) return initial()
+    if (!isEpisodeRecord(saved)) return initial()
     const state=initial()
     state.index=saved.index
     if(saved.equipment?.items&&typeof saved.equipment.items==='object')state.equipment=saved.equipment
@@ -68,7 +69,7 @@ export function createEpisode(options={}) {
   let storage=options.storage
   if (storage===undefined) { try { storage=globalThis.localStorage } catch {} }
   let lastSave
-  try { lastSave=storage?.getItem(saveKey) } catch {}
+  try { lastSave=storage?.getItem(EPISODE_SAVE_KEY) } catch {}
   const state=read(lastSave)
   let savedSecond=Math.ceil(state.remaining ?? 0)
   const selectedStory=()=>state.selected?storyContracts.find(contract=>contract.id===state.selected):null
@@ -80,12 +81,14 @@ export function createEpisode(options={}) {
   function write(fields){
     if(!storage)return wrong('저장소를 사용할 수 없어.')
     try {
-      if(storage.getItem(saveKey)!==lastSave)return wrong('다른 탭에서 진행 상황이 바뀌었어. 새로고침해 줘.')
+      if(storage.getItem(EPISODE_SAVE_KEY)!==lastSave)return wrong('다른 탭에서 진행 상황이 바뀌었어. 새로고침해 줘.')
       const next=JSON.stringify({version:1,...state,...fields})
-      storage.setItem(saveKey,next)
+      if(next===lastSave)return result(true,'저장 완료')
+      storage.setItem(EPISODE_SAVE_KEY,next)
       lastSave=next
-      return result(true,'저장 완료')
     } catch { return wrong('저장할 수 없어.') }
+    try { options.onSave?.() } catch {}
+    return result(true,'저장 완료')
   }
   let legacy=false
   const prologue=options.mainStory?createPrologue({
@@ -110,8 +113,9 @@ export function createEpisode(options={}) {
   }):null
   const activeCampaign=()=>usePrologue()?(chapter&&prologue.complete?chapter:prologue):null
   function save() {
-    write()
+    const saved=write()
     savedSecond=Math.ceil(state.remaining ?? 0)
+    return saved
   }
   // Save wallet and equipment in the same write on a purchase. The old
   // equipment record remains readable until the first purchase succeeds.
@@ -349,7 +353,7 @@ export function createEpisode(options={}) {
     if(!next || next===firstWork&&(state.index!==0||state.status!=='available'))return null
     return {...next.contact,jobTitle:next.title}
   }
-  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,discovered,discover,
+  return {snapshot,tracking,openingContact,choices,interact,update,start,retry,abandon,fail,buy,use,spend,transfer,purchaseEquipment,saveEquipment,discovered,discover,save,
     storyComment(resident){return this.chapter?.comment(resident)??null},
     get prologue(){return usePrologue()?prologue:null},
     get chapter(){return chapter&&activeCampaign()===chapter?chapter:null},

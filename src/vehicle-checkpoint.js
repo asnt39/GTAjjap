@@ -13,7 +13,7 @@ export function parkedPoses(fleet,spawnById){
  return moved
 }
 
-function validPose(pose){
+export function isVehicleCheckpointPose(pose){
  return pose&&Number.isFinite(pose.x)&&Number.isFinite(pose.z)&&Number.isFinite(pose.heading)&&
   Math.abs(pose.x)<2048&&Math.abs(pose.z)<2048&&Math.abs(pose.heading)<=Math.PI
 }
@@ -22,7 +22,7 @@ export function restoreParkedPoses(fleet,saved,boxes){
  const placements=new Map()
  for(const car of fleet){
   const pose=Object.hasOwn(saved,car.id)?saved[car.id]:null
-  if(!validPose(pose))continue
+  if(!isVehicleCheckpointPose(pose))continue
   const candidate={...car,x:pose.x,z:pose.z,heading:pose.heading}
   if(clearPose(candidate,boxes,true,true))placements.set(car,candidate)
  }
@@ -48,7 +48,7 @@ export function restoreParkedPoses(fleet,saved,boxes){
 }
 
 export function restoreTrafficVehicle(car,pose,boxes,traffic){
- if(!validPose(pose))return false
+ if(!isVehicleCheckpointPose(pose))return false
  const candidate={...car,x:pose.x,z:pose.z,heading:pose.heading}
  if(!clearPose(candidate,boxes,true,true)||traffic.some(other=>other!==car&&overlapsCar(candidate,other)))return false
  Object.assign(car,{x:pose.x,z:pose.z,heading:pose.heading})

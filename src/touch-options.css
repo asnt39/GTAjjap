@@ -1,0 +1,55 @@
+@media(pointer:coarse){
+ #game[data-touch-custom]{
+  --touch-left:max(18px,env(safe-area-inset-left));
+  --touch-right:max(18px,env(safe-area-inset-right));
+  --touch-bottom:max(20px,env(safe-area-inset-bottom));
+  --touch-top:max(76px,calc(env(safe-area-inset-top) + 58px));
+  --touch-width:calc(100% - var(--touch-left) - var(--touch-right));
+  --touch-stick-size:calc(clamp(108px,21vmin,138px) * var(--touch-scale));
+  --touch-button-size:calc(54px * var(--touch-scale));
+  --touch-action-gap:calc(10px * var(--touch-scale));
+  --touch-action-width:calc(2 * var(--touch-button-size) + var(--touch-action-gap));
+  --touch-action-height:var(--touch-button-size);
+  --touch-action-top:max(var(--touch-top),125px);
+  --touch-action-right:calc(var(--touch-right) + (1 - var(--touch-action-x)) * max(0px,var(--touch-width) - var(--touch-action-width)));
+  --touch-action-bottom:calc(var(--touch-bottom) + (1 - var(--touch-action-y)) * max(0px,100% - var(--touch-action-top) - var(--touch-bottom) - var(--touch-action-height)));
+ }
+ .driving #game[data-touch-custom]{
+  --touch-action-width:calc(175px * var(--touch-scale));
+  --touch-action-height:calc(70px * var(--touch-scale));
+  --touch-action-top:max(var(--touch-top),170px);
+ }
+ #game[data-touch-custom] #stick{
+  left:calc(var(--touch-left) + var(--touch-move-x) * max(0px,var(--touch-width) - var(--touch-stick-size)));
+  bottom:calc(var(--touch-bottom) + (1 - var(--touch-move-y)) * max(0px,100% - var(--touch-top) - var(--touch-bottom) - var(--touch-stick-size)));
+  width:var(--touch-stick-size);
+  opacity:var(--touch-opacity);
+ }
+ #game[data-touch-custom] #touch .foot-action{
+  right:var(--touch-action-right);
+  bottom:var(--touch-action-bottom);
+  width:var(--touch-button-size);
+  height:var(--touch-button-size);
+  opacity:var(--touch-opacity);
+ }
+ #game[data-touch-custom] #touch .foot-action:disabled{opacity:calc(.55 * var(--touch-opacity))}
+ #game[data-touch-custom] #touch #punch{right:calc(var(--touch-action-right) + var(--touch-button-size) + var(--touch-action-gap))}
+ #game[data-touch-custom] #punch svg{width:calc(28px * var(--touch-scale));height:calc(28px * var(--touch-scale))}
+ .driving #game[data-touch-custom] #pedals{
+  right:var(--touch-action-right);
+  bottom:var(--touch-action-bottom);
+  gap:calc(8px * var(--touch-scale));
+ }
+ .driving #game[data-touch-custom] #pedals button{
+  width:calc(53px * var(--touch-scale));
+  min-height:calc(53px * var(--touch-scale));
+  opacity:var(--touch-opacity);
+ }
+ .driving #game[data-touch-custom] #pedals [data-pedal=gas]{height:var(--touch-action-height)}
+ #game[data-touch-custom] :is(#equipment-hud,#vehicle-tools){
+  right:calc(var(--touch-right) + (1 - var(--touch-action-x)) * max(0px,var(--touch-width) - 174px));
+  bottom:calc(var(--touch-action-bottom) + var(--touch-action-height) + 10px);
+  opacity:var(--touch-opacity);
+ }
+ #game[data-touch-custom] #equipment-hud{flex-wrap:wrap;justify-content:flex-end;max-width:174px}
+}

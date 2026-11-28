@@ -1,4 +1,5 @@
 import {writeQuality} from './graphics-quality.js'
+import {appUpdates} from './app-updates.js'
 
 const initialIntro = document.querySelector('#cinematic-intro')
 const game = document.querySelector('#game')
@@ -124,6 +125,7 @@ function mountIntro(intro,{replay=false}={}){
     inputEvents.abort()
     if (!started) {
       started = true
+      appUpdates.enterGame()
       enableGame()
     }
     active = false
@@ -189,3 +191,4 @@ window.addEventListener('harborline:replay-intro',()=>{
 })
 
 mountIntro(initialIntro)
+if (!window.harborPreviewAssets) void appUpdates.start()

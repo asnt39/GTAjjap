@@ -19,9 +19,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
-  // Keep the installed app on the current HTML and its fingerprinted assets.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request, {cache: 'no-cache'}));
+  // Both a version check and the following navigation must see the live deployment.
+  if (event.request.mode === 'navigate' || url.pathname === '/version.json') {
+    event.respondWith(fetch(event.request, {cache: 'no-store'}));
     return;
   }
   if (!ICONS.includes(url.pathname)) return;

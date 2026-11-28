@@ -5,8 +5,9 @@ import {setImmediate} from 'node:timers/promises'
 import {test} from 'node:test'
 
 const source=await readFile(new URL('../src/cinematic-intro.js',import.meta.url),'utf8')
-function boot({stored=false,discarded=false,hidden=true}={}){
+function boot({stored=false,discarded=false,hidden=true,preview=false}={}){
  const elements=new Map(),globalEvents=new Map(),visibility=[]
+ const updateLifecycle=[]
  let playing=0,ready,started=0,initializations=0
  const record=new Map(stored?[['harborline.introSeen.v1','1']]:[])
  function element(querySelector){
@@ -27,16 +28,18 @@ function boot({stored=false,discarded=false,hidden=true}={}){
  game.inert=true;game.before=node=>{game.replay=node}
  const doc={hidden,wasDiscarded:discarded,querySelector:get,
   addEventListener(type,fn,{signal}){if(type==='visibilitychange')visibility.push({fn,signal})}}
- const mainModule=new Promise(resolve=>{ready=()=>resolve({start:()=>{initializations++;return ()=>{started++}}})})
- runInNewContext(source.replace(/^import .*?\n/,'').replace("import('./main.js')",'mainModule'),{
+ const mainModule=new Promise(resolve=>{ready=()=>resolve({start:()=>{initializations++;return ()=>{started++;updateLifecycle.push('game')}}})})
+ runInNewContext(source.replace(/^import .*?\n/gm,'').replace("import('./main.js')",'mainModule'),{
   document:doc,window:{addEventListener:(type,fn)=>globalEvents.set(type,fn),
+   harborPreviewAssets:preview?{}:undefined,
    localStorage:{getItem:key=>record.get(key),setItem:(key,value)=>record.set(key,value)}},
+  appUpdates:{start:()=>updateLifecycle.push('monitor'),enterGame:()=>updateLifecycle.push('enter')},
   AbortController,mainModule,requestAnimationFrame(){},
   setTimeout:()=>0,clearTimeout(){},console
  })
  const end=node=>node.querySelector('video').listeners.ended()
  return {ready,game,intro:get('#cinematic-intro'),status:get('#status'),started:()=>started,playing:()=>playing,
-  inits:()=>initializations,replay:()=>globalEvents.get('harborline:replay-intro')(),end,
+  inits:()=>initializations,replay:()=>globalEvents.get('harborline:replay-intro')(),end,updateLifecycle,
   visible(value){doc.hidden=!value;for(const {fn,signal} of visibility)if(!signal.aborted)fn()}}
 }
 
@@ -56,6 +59,15 @@ test('the video ends before gameplay starts, and boot runs once',async()=>{
  assert.equal(app.game.inert,false)
  assert.equal(app.status.hidden,true)
  assert.equal(app.intro.removed,true)
+ assert.deepEqual(app.updateLifecycle,['monitor','enter','game'])
+})
+
+test('asset previews use the same intro handoff without starting release monitoring',async()=>{
+ const app=boot({hidden:false,preview:true})
+ app.ready()
+ app.end(app.intro)
+ await setImmediate()
+ assert.deepEqual(app.updateLifecycle,['enter','game'])
 })
 test('backgrounding pauses the video and replay does not reset the game',async()=>{
  const app=boot({hidden:false})

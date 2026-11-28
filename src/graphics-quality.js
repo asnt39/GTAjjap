@@ -1,15 +1,15 @@
 const key='harborline.graphicsQuality.v1'
 const next={auto:'high',high:'low',low:'auto'}
 
-export function readQuality(){
+export function readQuality(storage){
  try{
-  const saved=localStorage.getItem(key)
+  const saved=(storage===undefined?globalThis.localStorage:storage)?.getItem(key)
   if(Object.hasOwn(next,saved))return saved
  }catch{}
  return 'high'
 }
-export function writeQuality(quality){
- if(Object.hasOwn(next,quality))try{localStorage.setItem(key,quality)}catch{}
+export function writeQuality(quality,storage){
+ if(Object.hasOwn(next,quality))try{(storage===undefined?globalThis.localStorage:storage)?.setItem(key,quality)}catch{}
 }
 export const nextQuality=quality=>next[quality]
 export function graphicsProfile(quality,dpr,autoDpr){
