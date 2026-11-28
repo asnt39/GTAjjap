@@ -31,7 +31,7 @@ export function createUI(game){
  const audio=cityAudio();let panel='',near=null,place=null,lastUi=-Infinity,priorFocus=null,round=null
  const notice=$('#update-notice'),noticeStatus=$('#update-notice-status')
  const healthHUD=createHealthHUD($('#game'),$('#vitals'))
- let dismissedBuild=null,pendingBackup=null,dataMessage='',releaseMessage='',backupRequest=0
+ let dismissedBuild=null,pendingBackup=null,confirmReset=false,dataMessage='',releaseMessage='',backupRequest=0
  let timer
  const toast=message=>{
   missionEvent.hidden=true
@@ -48,10 +48,12 @@ export function createUI(game){
  const row=(left,right)=>'<div class="control-row"><span>'+escapeText(left)+'</span><span>'+escapeText(right)+'</span></div>'
  const button=(action,label,end='›')=>'<button type="button" class="menubtn" data-action="'+escapeText(action)+'"><span>'+escapeText(label)+'</span><span>'+escapeText(end)+'</span></button>'
  function close(){
+  confirmReset=false
   if(panel==='rooms'&&game.room.phase==='connecting')game.room.leave()
   panel='';round=null;pendingBackup=null;backupRequest++;overlay.hidden=true;game.setPaused(false);audio.pause(false);refreshUpdate();updateHealth();if(priorFocus?.isConnected)priorFocus.focus({preventScroll:true});$('#world').focus({preventScroll:true})
  }
  function show(name){
+  if(name!=='data')confirmReset=false
   if(game.crowd.talking)return
   $('#vehicle-tools').hidden=true
   if(panel==='rooms'&&name!=='rooms'&&game.room.phase==='connecting')game.room.leave()
@@ -66,14 +68,14 @@ export function createUI(game){
   const archive=game.episode.openingActive?'':game.episode.showingLegacy?'메인 스토리 보기':'이전 항만 의뢰 보기'
   const supplies=journal.items.filter(item=>item.count>0)
   const menu={
-   missions:['HARBORLINE','미션 보기',missionMenu(journal,game.episode.tracking(),row,button,archive,game.storyStatus())],
+   missions:['Harborline','미션 보기',missionMenu(journal,game.episode.tracking(),row,button,archive,game.storyStatus())],
    pause:['','게임 설정',settingsMenu(button,appUpdates.state.current)],
-   graphics:['HARBORLINE','그래픽 상세 설정',graphicsMenu(game.options.values,GRAPHICS_CHOICES,button)],
-   controls:['HARBORLINE','조작 설정',controlsMenu(game.options.values,OPTION_RANGES,button)],
-   data:['HARBORLINE','게임 데이터',dataMenu()],
-   updates:['HARBORLINE','업데이트 확인','<div id="update-details"></div>'+button('check-update','업데이트 확인')+button('apply-update','저장 후 업데이트')+'<p id="update-feedback" class="settings-message" role="status"></p>'],
-   runMode:['HARBORLINE','Shift 이동 속도',row('현재 설정',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('switch-run-mode',game.foot.preference==='toggle'?'누르는 동안 걷기 적용':'걷기와 달리기 전환 적용')],
-   audio:['HARBORLINE','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
+   graphics:['Harborline','그래픽 상세 설정',graphicsMenu(game.options.values,GRAPHICS_CHOICES,button)],
+   controls:['Harborline','조작 설정',controlsMenu(game.options.values,OPTION_RANGES,button)],
+   data:['Harborline','게임 데이터',dataMenu()],
+   updates:['Harborline','업데이트 확인','<div id="update-details"></div>'+button('check-update','업데이트 확인')+button('apply-update','저장 후 업데이트')+'<p id="update-feedback" class="settings-message" role="status"></p>'],
+   runMode:['Harborline','Shift 이동 속도',row('현재 설정',game.foot.preference==='toggle'?'걷기와 달리기 전환':'누르는 동안 걷기')+button('switch-run-mode',game.foot.preference==='toggle'?'누르는 동안 걷기 적용':'걷기와 달리기 전환 적용')],
+   audio:['Harborline','오디오 설정',button('master-sound','게임 소리',audio.active?'켜짐':'꺼짐')+
     button('voice','대사 음성',voice.enabled?'켜짐':'꺼짐')+
     [['music','배경음악'],['effects','효과음'],['ambient','환경음'],['voice','대사 음량']].map(([key,label])=>
      '<label class="mixer-row"><span>'+label+'</span><input type="range" data-audio="'+key+'" min="0" max="100" value="'+Math.round(audio.settings[key]*100)+'"><output>'+Math.round(audio.settings[key]*100)+'%</output></label>').join('')],
@@ -83,11 +85,11 @@ export function createUI(game){
    equipment:['PORTSIDE','장비함',Object.entries(gear).map(([id,def])=>button('equip-'+id,def.name,game.loadout.selected===id?'장착 중':game.loadout.items[id]?'장착':'미보유')).join('')+
     (supplies.length?'<h2 class="supply-title">회복 및 보급</h2>'+supplies.map(item=>button('use-'+item.id,item.name+' 사용',item.count+'개')).join(''):'')+
     '<p class="smallnote">장비와 예비탄 구입처 · 차고지 남쪽 Breakwater Arms</p>'],
-   rooms:['HARBORLINE','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방. 주민, 전투 및 스토리는 개별 진행.</p>'],
-   recovery:['HARBORLINE','복구 도구',button('recover-position','캐릭터 위치 재설정')+button('recover-input','조작 및 입력 상태 재설정')+
+   rooms:['Harborline','온라인 플레이','<div id="room-controls"></div><p class="smallnote">캐릭터와 차량을 공유하는 비공개 방. 주민, 전투 및 스토리는 개별 진행.</p>'],
+   recovery:['Harborline','복구 도구',button('recover-position','캐릭터 위치 재설정')+button('recover-input','조작 및 입력 상태 재설정')+
     button('recover-camera','카메라 재설정')+button('recover-ui','UI 및 메뉴 재설정')+button('recover-all','종합 긴급 복구','Shift + R')],
    map:['PORT AUTHORITY','구역 지도','<canvas class="big-map" aria-label="구역 안내도"></canvas><div class="map-list">'+sights.map(s=>'<div><span>◇ '+s.tag+'</span>'+s.title+(visited.has(s.tag)?'　✓':'')+'</div>').join('')+'</div>'],
-   credits:['HARBORLINE','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판 및 항구 환경음은 Harborline을 위해 제작되었습니다.</p><div id="credit-list"></div>']
+   credits:['Harborline','제작 · 라이선스','<p>도시 배치, 항만 시설, 간판 및 항구 환경음은 Harborline을 위해 제작되었습니다.</p><div id="credit-list"></div>']
   }
   if(name==='sight'&&near){const result=game.episode.interact({sight:near.tag});if(result)toast(result.message);menu.sight=['PORT AUTHORITY  /  '+near.tag,near.title,'<p>'+near.body+'</p>'];visited.add(near.tag);try{localStorage.setItem('harborline.visits.v1',JSON.stringify([...visited]))}catch{}}
   if(name==='sight'&&near?.tag==='ARM'){
@@ -131,6 +133,8 @@ export function createUI(game){
   const autoSave=!state.available?'저장소 사용 불가':state.code?'최근 저장 실패':game.room.phase==='offline'?'사용 중':'온라인 플레이 중 일시 중지'
   return row('자동 저장',autoSave)+row('마지막 저장',formatSaveTime(state.savedAt))+
    button('save-data','수동 저장')+button('export-data','백업 내보내기')+button('select-backup','백업 불러오기')+
+   button('ask-reset-progress','게임 진행 데이터 초기화')+
+   (confirmReset?'<div class="restore-confirm"><p>미션, 소지금, 장비, 차량, 위치 및 발견 기록을 삭제합니다. 조작, 그래픽 및 오디오 설정은 유지합니다.</p>'+button('reset-progress','진행 데이터 삭제 확인')+button('cancel-reset-progress','취소')+'</div>':'')+
    '<input id="backup-file" type="file" accept="application/json,.json" hidden>'+confirm+
    '<p class="settings-message" role="status">'+escapeText(dataMessage)+'</p>'
  }
@@ -279,6 +283,20 @@ export function createUI(game){
   if(action==='reset-controls'||action==='reset-graphics'){const group=action.slice(6);game.options.reset(group);show(group);return}
   if(action==='check-update'){releaseMessage='';void appUpdates.check();return}
   if(action==='apply-update'){void applyUpdate();return}
+  if(action==='garage-return'){
+   const result=game.goToGarage()
+   if(result.ok)close()
+   toast(result.message);return
+  }
+  if(action==='ask-reset-progress'||action==='cancel-reset-progress'){
+   confirmReset=action==='ask-reset-progress';show('data');return
+  }
+  if(action==='reset-progress'&&confirmReset){
+   confirmReset=false
+   const result=game.resetProgress()
+   if(result.ok){location.reload();return}
+   dataMessage=result.message;show('data');return
+  }
   if(action==='save-data'){dataMessage=game.saveNow().message;show('data');return}
   if(action==='export-data'){exportBackup();return}
   if(action==='select-backup'){$('#backup-file').click();return}

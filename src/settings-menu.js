@@ -1,7 +1,7 @@
 const groups=[
  ['게임', [['map','구역 지도'],['missions','미션 보기'],['equipment','장비함'],['rooms','온라인 플레이']]],
  ['환경 설정', [['controls','조작 설정'],['graphics','그래픽 상세 설정'],['audio','오디오 설정'],['runMode','Shift 이동 속도']]],
- ['시스템', [['data','게임 데이터'],['recovery','복구 도구'],['updates','업데이트 확인'],['credits','제작 · 라이선스']]]
+ ['시스템', [['data','게임 데이터'],['garage-return','차고지로 돌아가기'],['recovery','복구 도구'],['updates','업데이트 확인'],['credits','제작 · 라이선스']]]
 ]
 
 const entities={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}

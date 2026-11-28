@@ -177,17 +177,23 @@ export function createSaveData(storage,{now=Date.now}={}){
     return parsed.ok?{ok:true,text}:parsed
    }catch{return failure('storage-unavailable')}
   },
+  resetProgress(){return replaceRecords([...progressKeys,savedAtKey],()=>null)},
   restoreBackup(text){
    const parsed=parseSaveBackup(text)
    if(!parsed.ok)return parsed
-   if(!available())return failure('storage-unavailable')
    const {data,savedAt}=parsed.backup
+   return replaceRecords(restoreKeys,key=>key===savedAtKey?savedAt:data[key]??null)
+  }
+ }
+
+ function replaceRecords(affected,nextValue){
+   if(!available())return failure('storage-unavailable')
    const after={},before={}
    try{
     if(read(storage,restoreKey)!==null)return failure('recovery-needed')
-    for(const key of restoreKeys){
+    for(const key of affected){
      const current=read(storage,key)
-     const next=key===savedAtKey?savedAt:data[key]??null
+     const next=nextValue(key)
      if(current!==next){before[key]=current;after[key]=next}
     }
    }catch{return failure('storage-unavailable')}
@@ -204,5 +210,4 @@ export function createSaveData(storage,{now=Date.now}={}){
    writeError=false
    return {ok:true}
   }
- }
 }

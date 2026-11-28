@@ -1015,7 +1015,7 @@ export async function start(onContextLost){
   effects.setLowDetail(settings.lowEffects)
   if(isPaused&&!contextLost){effects.update(0,canvas.height);renderer.render(scene,camera)}
  }
- const ui=createUI({options,data,saveNow,restoreData,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
+ const ui=createUI({options,data,saveNow,restoreData,resetProgress,goToGarage,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||player.f.hp<=0||document.querySelector('#game').inert)return;
   const cabinKey={KeyH:'horn',KeyL:'lights',KeyB:'radio'}[e.code]
@@ -1347,6 +1347,25 @@ export async function start(onContextLost){
   if(!rememberCheckpoint())return {ok:false,message:'안전한 지면에 정지한 뒤 저장하십시오.'}
   if(!episode.save().ok||!saveCheckpoint()||!data.recordSave())return {ok:false,message:'저장 실패. 저장 공간과 다른 실행 창을 확인하십시오.'}
   return {ok:true,message:'저장 완료'}
+ }
+ function resetProgress(){
+  if(room.phase!=='offline')return {ok:false,message:'온라인 방에서 나간 뒤 초기화하십시오.'}
+  const result=data.resetProgress()
+  if(result.ok)savesSuspended=true
+  return result
+ }
+ function goToGarage(){
+  if(room.phase!=='offline'||episode.tracking()||mission.active||custody.active||deathScreen.active||crowd.wanted.level)
+   return {ok:false,message:'온라인 플레이, 임무 또는 경찰 추격이 끝난 뒤 차고지로 복귀하십시오.'}
+  const point=resolveCheckpoint({...garage,y:floorAt(garage.x,garage.z,0)},[],floorAt,(x,z,y)=>atGarage(x,z)&&canRestore(x,z,y))
+  if(!point)return {ok:false,message:'차고지에서 안전한 공간을 찾지 못했습니다.'}
+  if(transition?.npc)finishDriverDeparture(transition.npc,car)
+  if(transition||driving()){car.door=0;car.speed=car.throttle=0}
+  if(boat){boat.speed=boat.throttle=boat.stepTime=0}
+  releaseSeat();activity.stop();equipment.interrupt()
+  resetWalk(point.x,point.z,Math.PI-garage.yaw,point.y)
+  clearStuckMotion(player.f);recover('camera');saveCheckpoint()
+  return {ok:true,message:'차고지 복귀 완료'}
  }
  function restoreData(text){
   if(room.phase!=='offline')return {ok:false,message:'온라인 방에서 나간 뒤 백업을 복원하십시오.'}

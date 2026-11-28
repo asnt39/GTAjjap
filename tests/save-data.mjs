@@ -123,3 +123,12 @@ test('timestamps follow successful writes and stale sessions cannot overwrite a 
  assert(!checkpoint.flush())
  assert.equal(createCheckpoint(storage).current.x,10)
 })
+
+test('progress reset preserves settings and unrelated keys',()=>{
+ const source=memory([[EPISODE_SAVE_KEY,oldStory],[PLAY_CHECKPOINT_KEY,location],[equipmentKey,legacyEquipment],
+  [graphicsKey,'low'],[soundKey,sound],[unrelatedKey,'keep']])
+ const data=createSaveData(source.storage)
+ assert(data.resetProgress().ok)
+ assert.equal(data.status.hasProgress,false)
+ assert.deepEqual([...source.values],[[graphicsKey,'low'],[soundKey,sound],[unrelatedKey,'keep']])
+})
