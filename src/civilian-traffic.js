@@ -124,6 +124,13 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    const pose={...car,x:exit.x+exit.dx*metres,z:exit.z+exit.dz*metres,heading:angle}
    if(outbound.some(v=>overlapsCar(pose,v)))return true
   }
+  const start=unit.path.indexOf(approach),end=unit.path.indexOf(exit)
+  if(start>=0&&end>=start){
+   const turn=unit.path.slice(start,end+1)
+   const occupants=traffic.filter(other=>other!==car&&distance(other,approach)<16)
+   if(occupants.length&&routeProbes({...car,...approach},turn).some(pose=>occupants.some(other=>
+    overlapsCar(pose,other)&&Math.abs(other.speed)<1.6)))return true
+  }
   return false
  }
  function tryAlternateExit(unit,zone){
@@ -154,6 +161,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    if(zone.entered?radius<zone.release+owner.car.length*.5:approach&&permitted&&!blockedExit(owner,approach,zone))return
    reserveZone(zone,null)
   }
+  if(traffic.some(car=>car.responding&&distance(car,point)<zone.inside))return
   const queue=[]
   for(const unit of flow.units.values()){
    if(!unit.active)continue

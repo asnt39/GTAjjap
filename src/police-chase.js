@@ -104,6 +104,7 @@ export function policeChase(scene,boxes,traffic,civilianCount,crowd,height) {
   const vehiclePursuit=target&&law.level>=2
   unit.clock+=dt
   unit.retry=Math.max(0,unit.retry-dt)
+  car.responding=unit.stage==='chase'&&!!vehiclePursuit
   switch(unit.stage){
    case 'approach':
     if(!crew.f.hp||unit.clock>unit.approachLimit||(!vehiclePursuit&&!unit.returning)){

@@ -209,7 +209,19 @@ export function roadDriver(car,{network=nodes,top=11.5}={}){
    const turn=Math.abs(error)
    const bend=node?Math.abs(angleError(Math.atan2(node.dx,-node.dz),car.heading)):0
    const stop=follow?4.8:park?1.6:3
-   const limit=Math.min(turn>.53||bend>.62?3.15:pass?4.5:turn>.27||bend>.28?5.5:top,
+   let clearance=Infinity
+   const nearby=traffic.filter(other=>other!==car&&range(car,other)<14)
+   const dx=Math.sin(car.heading),dz=-Math.cos(car.heading)
+   const leg=range(car,look)
+   const tx=leg>.1?(look.x-car.x)/leg:dx,tz=leg>.1?(look.z-car.z)/leg:dz
+   const arc=Math.min(Math.max(leg,2),7)
+   if(nearby.length)for(let d=.8;d<=7;d+=.8){
+    const blend=Math.min(.85,d/arc*.65)
+    const x=dx+(tx-dx)*blend,z=dz+(tz-dz)*blend
+    const pose={...car,x:car.x+x*d,z:car.z+z*d,heading:Math.atan2(x,-z)}
+    if(nearby.some(other=>overlapsCar(pose,other))){clearance=d;break}
+   }
+   const limit=Math.min(Math.sqrt(6*Math.max(0,clearance-1.25)),turn>.53||bend>.62?3.15:pass?4.5:turn>.27||bend>.28?5.5:top,
     Math.sqrt(2*5.5*Math.max(0,gap-stop)))
    // If the last seen position is beyond a drivable terminus, hold the lane
    // and wait for a fresh destination instead of circling or climbing the curb.
@@ -221,7 +233,7 @@ export function roadDriver(car,{network=nodes,top=11.5}={}){
    if(recover>0)recover-=dt
    const reversing=(!!pass?.retreat||recover>0)&&!near
    const steer=clamp(error*1.9,-1,1)
-   const brake=near||(!reversing&&car.speed>limit+.7)
+   const brake=near||(!reversing&&(limit<.2||car.speed>limit+.7))
    stepDrive(car,{forward:brake||reversing?0:clamp((limit-car.speed)*.42,.09,1),
     back:reversing?.7:0,handbrake:brake,steer:pass?.retreat?0:reversing?-Math.sign(error)*.55:steer},boxes,dt,traffic)
    return near&&Math.abs(car.speed)<.18
