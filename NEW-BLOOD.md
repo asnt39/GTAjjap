@@ -1,6 +1,6 @@
 # Harborline · Chapter 1 새로운 일원
 
-기준이자 복구 지점은 `0495e1dd6824ffe89a309075a07e9d3bd98ddb6c`다. 작업 시작 시 `origin/main`, 직전 작업 브랜치 `feature/harborline-traffic-mission-polish`, Vercel 운영이 이 커밋으로 일치했다. 이번 작업은 `feature/harborline-new-blood`에서 진행한다. [GitHub](https://github.com/asnt39/Harborline) · [운영 사이트](https://harborline-six.vercel.app/)
+기준이자 복구 지점은 `0495e1dd6824ffe89a309075a07e9d3bd98ddb6c`다. 작업 시작 시 `origin/main`, 직전 작업 브랜치 `feature/harborline-traffic-mission-polish`, Vercel 운영이 이 커밋으로 일치했다. 이번 작업은 `feature/harborline-new-blood`에서 진행했다. [GitHub](https://github.com/asnt39/Harborline) · [운영 사이트](https://playharborline.vercel.app/)
 
 ## Mission 04 · 불청객
 

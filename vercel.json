@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "harborline-six\\.vercel\\.app" }],
+      "destination": "https://playharborline.vercel.app/:path*",
+      "permanent": false
+    }
+  ]
+}

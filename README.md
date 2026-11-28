@@ -4,7 +4,7 @@ Player & Living City is a third-person exploration and driving game in a fiction
 
 The [gameplay and physics notes](GAMEPLAY-PHYSICS.md) document collisions, driving measurements, audio sources, and the new shop location. The [city life update](CITY-LIFE.md) documents pedestrian crossings, new destinations, and the score. The [city remaster handoff](CITY-REMASTER.md) has the current building inventory, controls for the new doors, comparison screenshots and performance measurements.
 
-The active game is [Harborline on Vercel](https://harborline-six.vercel.app/). Use [asnt39/Harborline](https://github.com/asnt39/Harborline) and the existing Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls. The [Wrong Deal preview notes](WRONG-DEAL.md) describe the prologue, the refitted port and production hall, and the tested changes.
+The game runs at [playharborline.vercel.app](https://playharborline.vercel.app/). The `main` branch of [asnt39/Harborline](https://github.com/asnt39/Harborline) deploys to the same address through the Vercel project `asnt1/harborline`. The [Meridian Coast handoff](COASTAL-EXPANSION.md) explains the beach route and water controls. The [Wrong Deal preview notes](WRONG-DEAL.md) describe the prologue, the refitted port and production hall, and the tested changes.
 
 [New Blood](NEW-BLOOD.md) documents Mission 04, The Lantern Room, and the remaining Chapter 1 work.
 
@@ -38,8 +38,8 @@ Five residents share the Rocketbox geometry and source clips, each with an indep
 
 1. 기존 WSS 서버가 있는지 먼저 확인한다. 신규 서비스가 필요하면 Render에서 이 브랜치의 `render.yaml`을 사용한다. Blueprint에 정의된 리소스는 단일 Free Web Service다. 자동 배포는 끄고, 단일 인스턴스에서 메모리의 방을 유지한다.
 2. 결제수단이 없는 워크스페이스와 Free 인스턴스를 사용한다. Render는 월 750 무료 인스턴스 시간 및 대역폭·빌드 한도를 적용한다. 결제수단이 없으면 무료 한도를 넘었을 때 과금하는 대신 서비스를 정지하거나 빌드를 중단한다. 계정 연결, 신규 서비스 생성 또는 비용이 생길 수 있는 변경은 승인 후 진행한다.
-3. 호스트는 `0.0.0.0`의 Render `PORT`에 바인딩한다. 운영 프런트엔드 오리진은 `https://harborline-six.vercel.app`이야. 기존 Render의 `HARBORLINE_ORIGINS`를 확인해. 커밋된 Blueprint에는 이전 Sites 배포의 오리진 이력이 있어. 공개 인터페이스에 바인딩할 때 오리진 목록이 비어 있으면 서버가 실행을 중단한다.
-4. 기존 Render 서비스의 HTTPS `/healthz`와 Vercel 오리진을 사용한 WSS `/harborline` 연결을 확인해. Vercel은 `VITE_HARBORLINE_WS`를 읽어. 기능 브랜치의 Vercel 프리뷰를 확인한 뒤 GitHub의 `main`에 반영하면 기존 Vercel 프로젝트가 운영 빌드를 배포해.
+3. 호스트는 `0.0.0.0`의 Render `PORT`에 바인딩한다. 운영 프런트엔드 오리진은 `https://playharborline.vercel.app`이야. Render의 `HARBORLINE_ORIGINS`를 확인해. 커밋된 Blueprint에는 이전 Sites 배포의 오리진 이력이 있어. 공개 인터페이스에 바인딩할 때 오리진 목록이 비어 있으면 서버가 실행을 중단한다.
+4. 기존 Render 서비스의 HTTPS `/healthz`와 운영 오리진을 사용한 WSS `/harborline` 연결을 확인해. Vercel은 `VITE_HARBORLINE_WS`를 읽어. 로컬에서 빌드와 테스트를 실행한 뒤 GitHub의 `main`에 반영하면 기존 Vercel 프로젝트가 같은 운영 주소에 새 빌드를 자동 배포해.
 5. 무료 서비스는 15분간 인바운드 트래픽이 없으면 절전 상태에 들어가며 복구까지 약 1분이 걸린다. 운영에서 별도 상시 깨우기 작업은 사용하지 않는다.
 
 [Render 무료 플랜](https://render.com/docs/free) · [WebSockets](https://render.com/docs/websocket)
