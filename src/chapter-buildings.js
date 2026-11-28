@@ -1,6 +1,7 @@
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
-import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel} from './chapter-sites.js'
+import {cargoLadder} from './coast-plan.js'
+import {parking,parkingFloors,parkingRamps,rampHeight,workshop,hotel,cargoPier,cargoPlatform} from './chapter-sites.js'
 
 export function buildChapterBuildings(scene,addCollider,maps){
  const group=new T.Group(),batches=new Map()
@@ -97,6 +98,8 @@ export function buildChapterBuildings(scene,addCollider,maps){
  flush()
  buildHotel()
  flush()
+ buildCargoQuay()
+ flush()
  function buildHotel(){
   const [w,e,n,s]=hotel.bounds,base=.083,top=hotel.floor,roof=6.38
   const plaster=material(0xbdb39a,maps.architecture[1])
@@ -156,6 +159,49 @@ export function buildChapterBuildings(scene,addCollider,maps){
   wall(-116.9,-116.05,195.3,196.6,base,1.12,steel)
   wall(-114.1,-113.13,197.45,198.2,base,.96,brick)
   wall(-112.0,-110.95,202.0,203.45,base,1.07,steel)
+ }
+ function buildCargoQuay(){
+  const painted=material(0x729087,maps.architecture[3])
+  for(const [w,e,n,s] of [cargoPier,cargoPlatform]){
+   for(let x=w+.16;x<e;x+=.33)box(x,.041,(n+s)/2,Math.min(.319,2*(e-x)),.158,s-n,wood)
+   for(const z of [n+.28,s-.28]){
+    box((w+e)/2,-.092,z,e-w,.26,.24,steel)
+    for(let x=w+.42;x<e;x+=2.92){
+     batch(new T.CylinderGeometry(.125,.145,5.8,8).translate(x,-2.6,z),steel)
+     box(x,.295,z,.23,.30,.23,rubber)
+    }
+   }
+  }
+  for(const dx of [-.29,.29])box(cargoLadder.x+dx,-.81,189.015,.082,2.37,.083,stripe)
+  for(let i=0;i<8;i++)box(cargoLadder.x,.33-i*.27,189.015,.64,.061,.061,stripe)
+  const [w,e,n,s]=[127.9,138.25,189.2,198.84]
+  wall(w,e,n,n+.22,.12,4.44,painted);wall(w,e,s-.22,s,.12,4.1,painted)
+  wall(e-.22,e,n,s,.12,4.30,painted)
+  wall(w,w+.22,n,192.35,.12,4.20,painted)
+  wall(w,w+.22,195.68,s,.12,4.20,painted)
+  wall(w,w+.22,192.35,195.68,2.84,4.20,painted)
+  batch(new T.BoxGeometry(e-w+.55,.24,s-n+.75).rotateX(.036).translate((w+e)/2,4.29,(n+s)/2),steel)
+  for(let z=n+.2;z<s;z+=.54)box(w-.032,3.50,z,.088,1.25,.08,steel)
+  sign('SALT QUAY',127.75,3.49,194.02,3.1).rotation.y=-Math.PI/2
+  for(const z of [190.1,197.4]){
+   wall(131.6,134.1,z-.51,z+.51,.12,1.19,wood)
+   box(132.85,.74,z-.518,2.48,.10,.035,steel)
+   box(132.85,.90,z+.518,2.48,.09,.035,steel)
+   box(134.9,3.80,z,1.45,.07,.20,lamp)
+  }
+  wall(130.65,131.57,194.60,195.53,.12,.94,painted)
+  box(131.11,.96,195.06,.96,.091,.92,wood)
+  box(131.05,1.24,195.16,.054,.44,.053,steel)
+  box(131.23,1.41,195.16,.312,.20,.052,stripe)
+  wall(124.18,125.07,195.3,196.4,.12,1.12,painted)
+  for(const x of [92.1,100.2]){
+   for(const z of [145,147.96])box(x,.48,z,.21,.60,.22,steel)
+   box(x,2.67,146.5,2.30,.17,2.95,painted)
+   box(x,2.55,146.5,.91,.08,.32,lamp)
+  }
+  for(const x of [91,93.19,99.12,101.28])box(x,1.38,145,.10,2.61,.11,steel)
+  sign('MERIDIAN MARINA',100.2,2.85,148.04,3.5)
+  wall(97.7,99.15,145.16,145.66,.12,.91,wood)
  }
  function flush(){
   for(const [mat,parts] of batches){

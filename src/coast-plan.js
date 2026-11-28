@@ -1,3 +1,4 @@
+import {cargoPier,cargoPlatform,inBounds} from './chapter-sites.js'
 // Metres in the existing Portside coordinate system. +X leads out to sea.
 export const seaLevel=-1.18
 export const coastExtent=[26.15,200,-90,269]
@@ -6,6 +7,8 @@ export const beachGate={z:146.5,half:2.35}
 export const shoal={x:154,z:204,rx:15,rz:11}
 export const dock={west:62,east:106,z:146.5,half:1.65,height:.12}
 export const swimLadder={x:96.0,z:dock.z+dock.half+.43,deckZ:dock.z+dock.half-.52}
+export const cargoLadder={x:119.3,z:188.58,deckZ:189.55}
+export const coastLadders=[swimLadder,cargoLadder]
 export const coastalRocks=[
  {x:57,z:112,rx:4.4,rz:4.1,h:3.1},{x:65,z:115,rx:5.2,rz:3.3,h:4.05},{x:73,z:118,rx:3.8,rz:2.7,h:2.1},
  {x:51,z:228,rx:5.1,rz:6.4,h:7.1},{x:58,z:229,rx:4.8,rz:5.2,h:8.1},{x:65,z:231,rx:4.9,rz:5.3,h:6.7},
@@ -48,7 +51,9 @@ export function isGate(x,z,r=0){
  return x>=24+r&&x<=40-r&&Math.abs(z-beachGate.z)<=beachGate.half-r
 }
 export function inPier(x,z,r=0){
- return x>=dock.west+r&&x<=dock.east-r&&Math.abs(z-dock.z)<=dock.half-r
+ return x>=dock.west+r&&x<=dock.east-r&&Math.abs(z-dock.z)<=dock.half-r||
+  [cargoPier,cargoPlatform].some(([w,e,n,s])=>inBounds([w+r,e-r,n+r,s-r],x,z))||
+  x>=cargoPier[0]+r&&x<=cargoPlatform[1]-r&&z>=cargoPier[2]+r&&z<=cargoPier[3]-r
 }
 export function inCoast(x,z,r=0){
  return x>=coastExtent[0]+r&&x<=coastExtent[1]-r&&z>=coastExtent[2]+r&&z<=coastExtent[3]-r

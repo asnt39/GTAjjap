@@ -77,3 +77,12 @@ export function buildingLevel(site,x,z,feet,up=.24){
  return y<=feet+up+.001?y:.083
 }
 export const facilityFloor=(x,z,feet,up=.24)=>parkingLevel(x,z,feet,up)??buildingLevel(hotel,x,z,feet,up)
+
+export const marina={
+ meetup:point(100.1,146.5,'Meridian Marina 대합 부두',.12,Math.PI/2),
+ berth:point(118.3,190.6,'Salt Quay 하역 부두',.12,Math.PI/2),
+ storage:point(131.1,194.05,'Salt Quay 화물 보관소',.12),
+ check:point(98.6,146.7,'마리나 화물 확인대',.12)
+}
+export const cargoPier=[114,124,189,192.6]
+export const cargoPlatform=[123.5,138.9,187.9,199.6]

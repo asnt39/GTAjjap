@@ -3,7 +3,7 @@ import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
 import {buildSouthBasin} from './south-basin.js'
 import {buildBasinSkyline} from './basin-skyline.js'
 import {bunker,bunkerAccess,bunkerWalls,inBunker} from './basin-skyline-plan.js'
-import {beachGround,coastFloor,inCoast,inPier,seaLevel,swimLadder} from './coast-plan.js'
+import {beachGround,coastFloor,inCoast,inPier,seaLevel,coastLadders} from './coast-plan.js'
 import {buildCoast} from './coast-scene.js'
 import {boatArt} from './boat-art.js'
 import {boatExit,canStartSwimming,createBoats,driveBoat,boardableBoats,steerTo,swimmer} from './coastal-motion.js'
@@ -51,6 +51,7 @@ import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
 import {chapterMissions} from './chapter-missions.js'
+import {cargoLaunch,quaySkiff} from './chapter-sea.js'
 import {chapterWorld as continuationWorld} from './chapter-world.js'
 import {buildChapterBuildings} from './chapter-buildings.js'
 import {facilityFloor,parkingLevel,workshop} from './chapter-sites.js'
@@ -187,7 +188,7 @@ export async function start(onContextLost){
  const parkedSpawns=new Map(fleet.map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
- const swimming=swimmer(),boats=createBoats(),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
+ const swimming=swimmer(),boats=createBoats([cargoLaunch,quaySkiff]),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
  let boat=null,seaTransition=null,wetView=0,splashAt=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z),effects.characterImpact)
@@ -264,7 +265,7 @@ export async function start(onContextLost){
   combat:storyShot})
  const clubWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)}})
- const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,floorAt,combat:storyShot,
+ const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,boats,floorAt,combat:storyShot,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)},
   registerVehicle(vehicle,rig){
    fleet.push(vehicle);traffic.push(vehicle)
@@ -279,7 +280,7 @@ export async function start(onContextLost){
     const index=list.indexOf(vehicle)
     if(index>=0)list.splice(index,1)
    }
-   delete cars[vehicle.id];delete rigs[vehicle.id];soloTunings.delete(vehicle.id);unattended.delete(vehicle)
+   delete cars[vehicle.id];delete rigs[vehicle.id];soloTunings.delete(vehicle.id);unattended.delete(vehicle);playerParked.delete(vehicle)
   }})
  const isArcStage=stage=>stage?.set?.startsWith('chapter-')??false
  const worldFor=stage=>isArcStage(stage)?arcWorld:clubWorld
@@ -550,7 +551,7 @@ export async function start(onContextLost){
  const boating=()=>mode==='boat'
  const inWater=()=>mode==='swim'
  const operating=()=>driving()||boating()
- const pierLadder=()=>inWater()&&Math.hypot(pos.x-swimLadder.x,pos.z-swimLadder.z)<1.45&&!swimming.diving
+ const pierLadder=()=>inWater()&&!swimming.diving&&coastLadders.find(ladder=>Math.hypot(pos.x-ladder.x,pos.z-ladder.z)<1.45)
  const boatsNearby=()=>room.phase==='offline'&&(inWater()&&!swimming.diving||canAct())?boardableBoats(pos,boats,inWater()):[]
  function enterWater(){
   mode='swim';swimming.start(pos);foot.reset(pos.y)
@@ -562,7 +563,7 @@ export async function start(onContextLost){
  }
  function waterInteraction(selectedBoat){
   if(seaTransition)return true
-  const next=selectedBoat??boatsNearby()[0]
+  const next=selectedBoat??boatsNearby()[0],ladder=pierLadder()
   if(next){
    saveCheckpoint();boat=next
    seaTransition={to:'boat',time:0,from:actor.position.clone(),turn:face}
@@ -570,8 +571,8 @@ export async function start(onContextLost){
    const exit=boatExit(boat,(x,z)=>inPier(x,z)&&canWalk(x,z,boxes,.32,beachGround(x,z)),boats)
    if(!exit){ui.toast('하선 공간 부족. 다른 위치에 정차하십시오.');return true}
    seaTransition={to:exit.dry?'walk':'swim',time:0,from:actor.position.clone(),exit,turn:face,drift:true,pace:Math.abs(boat.speed)}
-  }else if(pierLadder()){
-   seaTransition={to:'walk',time:0,from:actor.position.clone(),exit:{x:swimLadder.x,z:swimLadder.deckZ},turn:face}
+  }else if(ladder){
+   seaTransition={to:'walk',time:0,from:actor.position.clone(),exit:{x:ladder.x,z:ladder.deckZ},turn:face}
   }else return inWater()
   clearControls();mode='transfer';return true
  }
@@ -615,7 +616,8 @@ export async function start(onContextLost){
    add('exit',boating()?'보트에서 내리기':Math.abs(car.speed)<=.45?'하차':room.phase==='offline'?'주행 중 하차':'정차 후 하차',interactCar,pos,2)
   }else{
    for(const boarding of boatsNearby())add('boat-'+boarding.id,boarding.name+' 탑승',()=>waterInteraction(boarding),boarding,2)
-   if(pierLadder())add('ladder','사다리로 올라가기',()=>waterInteraction(false),swimLadder,3)
+   const ladder=pierLadder()
+   if(ladder)add('ladder','사다리로 올라가기',()=>waterInteraction(false),ladder,3)
    if(canAct()){
     if(episode.prologue?.stage?.kind==='free'&&Math.hypot(pos.x-detention.x,pos.z-detention.z)<detention.radius&&pos.y<1.2&&
      cameraFraction({...pos,y:pos.y+1.22},{...detention,y:1.22},boxes)>.92){
@@ -1316,7 +1318,7 @@ export async function start(onContextLost){
   rememberCheckpoint()
   if(checkpointEnabled&&room.phase==='offline'&&!offline){
    const poses=parkedPoses(fleet.filter(vehicle=>!vehicle.storyVehicle&&!trafficDriver(vehicle)),parkedSpawns)
-   for(const {id,x,z,heading} of playerParked)poses[id]={x,z,heading:wrapAngle(heading)}
+   for(const {id,x,z,heading,storyVehicle} of playerParked)if(!storyVehicle)poses[id]={x,z,heading:wrapAngle(heading)}
    checkpoint.sampleVehicles(poses,true)
   }
   return checkpoint.flush()
@@ -1449,7 +1451,7 @@ export async function start(onContextLost){
     const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
     const matchLand=(x,z)=>canWalk(x,z,boxes,.32,beachGround(x,z))
     const wet=swimming.step(pos,dt,(ax*cs+az*sn)/length,(ax*sn-az*cs)/length,elapsed,matchLand,
-     (x,z)=>boats.some(b=>Math.hypot(x-b.x,z-b.z)<.67&&pos.y>seaLevel-1.7))
+     (x,z)=>boats.some(b=>!b.disabled&&Math.hypot(x-b.x,z-b.z)<.67&&pos.y>seaLevel-1.7))
     speed=wet.speed
     if(wet.land){
      mode='walk';plantFeet(pos.x,pos.z);shadow.visible=true
@@ -1600,7 +1602,7 @@ export async function start(onContextLost){
     rememberMission(episode.tracking())
     const roadDriving=!!player.inVehicle
     const beats=storyWorld.step(stage,dt,player,player.available,roadDriving)
-    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving,boating()?boat:null)
+    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving,boating()?boat:null,elapsed)
     remoteShadow ||= !!chapterBeats.moving
     storyStatus=chapterBeats.status||beats.objectiveStatus||(stage?.kind==='escort'&&Number.isFinite(beats.escortHealth)?'Theo '+beats.escortHealth+'/130':
      stage?.kind==='evade'&&beats.threats?'추격 차량 '+beats.threats+'대':

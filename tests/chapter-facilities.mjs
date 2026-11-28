@@ -3,7 +3,10 @@ import {test} from 'node:test'
 import {Scene,Vector3} from 'three'
 import {buildChapterBuildings} from '../src/chapter-buildings.js'
 import {chapterRoadRoute} from '../src/chapter-route.js'
-import {facilityFloor,hotel,parking,parkingLevel,workshop} from '../src/chapter-sites.js'
+import {facilityFloor,hotel,marina,parking,workshop} from '../src/chapter-sites.js'
+import {cargoLaunch,cargoRoute,pursueCargoBoat,quaySkiff} from '../src/chapter-sea.js'
+import {boatExit,boatPoseClear,boardableBoats,createBoats} from '../src/coastal-motion.js'
+import {cargoLadder,inPier} from '../src/coast-plan.js'
 import {clearPose} from '../src/driving.js'
 import {canWalk,movePlayer} from '../src/navigation.js'
 
@@ -55,4 +58,28 @@ test('both hotel floors connect through real stairs and a separate service exit'
  assert.ok(walker.y<.15)
  follow(walker,[[-115.65,196.9],[-115.25,199.3],[hotel.shelter.x,hotel.shelter.z]])
  assert.ok(walker.distanceTo(new Vector3(hotel.shelter.x,.083,hotel.shelter.z))<.2)
+})
+
+test('the reactive cargo launch berths with a usable exit at low and high pursuit pressure',()=>{
+ for(const close of [false,true]){
+  const boats=createBoats([cargoLaunch,quaySkiff]),target=boats[2]
+  target.disabled=false
+  let next=0
+  for(let frame=0;frame<2400&&next<cargoRoute.length;frame++){
+   next=pursueCargoBoat(target,next,close?{x:target.x-9,z:target.z}:null,boats,1/60)
+   assert.ok(boatPoseClear(target,boats))
+  }
+  assert.equal(next,cargoRoute.length)
+  assert.equal(boatExit(target,inPier,boats)?.dry,true)
+ }
+})
+test('the platform connects to cargo storage and provides a backup skiff and swim ladder',()=>{
+ const boats=createBoats([cargoLaunch,quaySkiff]),backup=boats[3]
+ const walker=new Vector3(marina.berth.x,.12,marina.berth.z)
+ follow(walker,[[125.7,191.2],[127.48,193.94],[marina.storage.x,marina.storage.z]])
+ backup.disabled=false
+ assert.ok(boatPoseClear(backup,boats))
+ assert.equal(boardableBoats({x:backup.x,z:192.3},boats,false)[0],backup)
+ assert.equal(boatExit(backup,inPier,boats)?.dry,true)
+ assert.ok(inPier(cargoLadder.x,cargoLadder.deckZ,.32))
 })

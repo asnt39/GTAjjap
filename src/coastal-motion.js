@@ -54,8 +54,8 @@ export function swimmer(){
  }
  return state
 }
-export function createBoats(){
- return coastalBoats.map(setup=>({...setup,setup,speed:0,rudder:0,slip:0,hit:0,damage:0,travel:0,stepTime:0,bob:0,heel:0}))
+export function createBoats(extra=[]){
+ return [...coastalBoats,...extra].map(setup=>({...setup,setup,speed:0,rudder:0,slip:0,hit:0,damage:0,travel:0,stepTime:0,bob:0,heel:0,disabled:!!setup.missionOnly}))
 }
 export function boatPoseClear(b,others=[]){
  const corners=[[-.47,-.36],[.47,-.36],[-.46,.40],[.46,.40],[0,-.5],[0,.50],[0,0]]
@@ -63,7 +63,7 @@ export function boatPoseClear(b,others=[]){
   const p=worldPoint(b,x*b.width,z*b.length)
   if(!boatWater(p.x,p.z,b.draft))return false
  }
- return !others.some(other=>other!==b&&overlapsCar(b,other))
+ return !others.some(other=>other!==b&&!other.disabled&&overlapsCar(b,other))
 }
 export function driveBoat(boat,input,elapsed,others){
  const step=1/90
@@ -101,14 +101,14 @@ export function driveBoat(boat,input,elapsed,others){
 export function boardableBoats(pos,boats,swimming){
  if(!swimming&&!inPier(pos.x,pos.z))return []
  const range=swimming?2.45:3
- return boats.filter(b=>Math.abs(b.speed)<1.3&&distance(pos,b)<range)
+ return boats.filter(b=>!b.disabled&&!b.storyLocked&&Math.abs(b.speed)<1.3&&distance(pos,b)<range)
   .sort((a,b)=>distance(pos,a)-distance(pos,b))
 }
 export const nearestBoat=(...args)=>boardableBoats(...args)[0]??null
 export function boatExit(b,dry,others){
  const spots=[[-1.45,.15],[1.45,.15],[-2.55,.45],[2.55,.45],[0,b.length*.63]].map(([x,z])=>worldPoint(b,x,z))
  for(const spot of spots)if(dry(spot.x,spot.z)&&!rockSolid(spot.x,spot.z,.45))return {...spot,dry:true}
- for(const spot of spots)if(canStartSwimming(spot.x,spot.z)&&!others.some(k=>k!==b&&distance(spot,k)<k.width))return {...spot,dry:false}
+ for(const spot of spots)if(canStartSwimming(spot.x,spot.z)&&!others.some(k=>k!==b&&!k.disabled&&distance(spot,k)<k.width))return {...spot,dry:false}
  return null
 }
 export const steerTo=(heading,target)=>headingError(target,heading)

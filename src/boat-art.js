@@ -111,7 +111,7 @@ export function boatArt(scene,boats){
  function update(dt,time,position,active){
   for(const rig of rigs){
    const b=rig.boat,bob=swellAt(b.x,b.z,time)
-   rig.root.visible=Math.hypot(b.x-position.x,b.z-position.z)<130||b===active
+   rig.root.visible=!b.disabled&&(Math.hypot(b.x-position.x,b.z-position.z)<130||b===active)
    rig.root.position.set(b.x,bob-.026,b.z)
    rig.root.rotation.order='YXZ'
    b.heel=ease(b.heel,-b.rudder*clamp(b.speed*.033,-.16,.32),3.4,dt)
@@ -119,7 +119,7 @@ export function boatArt(scene,boats){
     b.heel+.033*Math.cos(time*1.45+b.z*.25))
    rig.root.updateMatrixWorld()
    const back=b.length*.44
-   rig.wake(b.x-Math.sin(b.heading)*back,b.z+Math.cos(b.heading)*back,b.heading,b===active?Math.abs(b.speed):0,time)
+   rig.wake(b.x-Math.sin(b.heading)*back,b.z+Math.cos(b.heading)*back,b.heading,!b.disabled&&(b===active||b.missionOnly)?Math.abs(b.speed):0,time)
   }
  }
  return {update,pilot(b){return rigs.find(r=>r.boat===b).pilot},swimTrail}
