@@ -1,6 +1,7 @@
 import {terracePoint,terraceRooms} from './terrace-plan.js'
 import {clockCourt} from './old-town-plan.js'
 import {basinPlate} from './south-basin-plan.js'
+import {foundryAmenities} from './foundry-garden-plan.js'
 
 const indoors=(id,x,z)=>terracePoint(terraceRooms.find(room=>room.index===id||room.title===id),x,z)
 export const citySpots=[
@@ -16,6 +17,7 @@ export const citySpots=[
  {id:'atm',x:-46.1,z:54.15,fromZ:1,title:'Clock Court ATM',label:'ATM 이용',type:'atm'},
  {id:'square-seat',x:-52.8,z:54.70,seatZ:55.44,seatY:.52,fromZ:-1,title:'Clock Court',label:'벤치에 앉기',pose:'sit'},
  {id:'park-seat',x:-169,z:52.25,seatZ:52.94,seatY:.63,fromZ:-1,title:'Foundry Garden',label:'벤치에 앉기',pose:'sit'},
+ ...foundryAmenities,
  {id:'light',...indoors(0,2.6,3.63),targetY:1.25,title:'Gull Street Bakery',label:'조명 스위치',type:'light'},
  {id:'rest',...indoors(34,-3.52,.15),title:'Coopers’ Rooms',label:'침대 옆에서 휴식',pose:'rest',heal:100},
  {id:'recreation',...indoors(8,1.55,-1.95),title:'South Row Social Club',label:'다트 한 라운드',type:'darts'},

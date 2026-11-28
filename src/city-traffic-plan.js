@@ -1,11 +1,33 @@
 import {roadCircuit} from './basin-navigation.js'
+import {basinRoads} from './south-basin-plan.js'
+
+const basinCentre=id=>basinRoads.find(road=>road.id===id).mid
+const basinAvenue=basinCentre('bridge-approach')
+const switchyard=basinCentre('switchyard-road')
+const basinCrossing=basinCentre('basin-crossing')
+const gardenCrossing=basinCentre('garden-crossing')
+const spireStreet=basinCentre('spire-street')
+const southTurn=basinCentre('south-turn')
+const lane=1.67
 
 // Named crossings along the connected street grid. Routes stay on the
 // inside lane of each turn and leave district boundaries on paved links.
 const circuits=[
  [[1.67,-39.74],[-69.8,-39.74],[-69.8,110.65],[-33.3,110.65],[-33.3,85.65],[1.67,85.65]],
  [[-66.4,21.3],[-188.7,21.3],[-188.7,130.45],[-149.4,130.45],[-149.4,102.1],[-66.4,102.1]],
- [[-1.67,113.3],[-1.67,198.6],[-33.7,198.6],[-33.7,146.15],[19.67,146.15],[19.67,113.3]]
+ [[basinAvenue-lane,113.3],[basinAvenue-lane,southTurn-lane],[switchyard+lane,southTurn-lane],
+  [switchyard+lane,basinCrossing+lane],[19.67,basinCrossing+lane],[19.67,113.3]],
+ [[switchyard+lane,basinCrossing-lane],[spireStreet-lane,basinCrossing-lane],
+  [spireStreet-lane,gardenCrossing+lane],[switchyard+lane,gardenCrossing+lane]]
+]
+
+const priority=(x,z)=>({x,z,priority:true})
+const junctions=[
+ [priority(-68,23),priority(-68,100.5),priority(0,84)],
+ [],
+ [priority(basinAvenue,115),priority(basinAvenue,basinCrossing),
+  priority(switchyard,basinCrossing),priority(switchyard,gardenCrossing)],
+ []
 ]
 
 function nearest(nodes,x,z,dx,dz){
@@ -32,12 +54,24 @@ function connect(from,to,approach,departure){
 
 export function cityTrafficCircuits(){
  const layouts=circuits.map(points=>roadCircuit(points.map(([x,z])=>({x,z})),5.25))
- const [central,west,basin]=layouts.map(layout=>layout.nodes)
+ const [central,west,basin,spire]=layouts.map(layout=>layout.nodes)
  connect(nearest(central,-69.8,15,0,1),nearest(west,-78,21.3,-1,0),4.6,5.15)
  connect(nearest(west,-76,102.1,1,0),nearest(central,-69.8,104.5,0,1),3.7,1.9)
  connect(nearest(central,-9,85.65,1,0),nearest(basin,-1.67,124,0,1),8.5,29)
  connect(nearest(basin,9,113.3,-1,0),nearest(central,1.67,73,0,-1),7.5,31)
- for(const layout of layouts)layout.next=(node,turn)=>node.edges[turn%node.edges.length]
+ // The two Basin routes share the existing northbound lane between the
+ // collectors. The fork continues west, or keeps the established east turn.
+ const fork=nearest(basin,switchyard+lane,154,0,-1)
+ const merge=nearest(basin,switchyard+lane,175,0,-1)
+ const lastBend=spire.findLastIndex(node=>node.curve)
+ spire.splice(lastBend+1)
+ spire.at(-1).edges=[merge]
+ fork.edges.push(spire[0])
+ layouts[3].entries=layouts[3].entries.filter(node=>spire.includes(node))
+ for(const [i,layout] of layouts.entries()){
+  layout.next=(node,turn)=>node.edges[turn%node.edges.length]
+  layout.junctions=junctions[i]
+ }
  return layouts
 }
 

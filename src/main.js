@@ -1,6 +1,8 @@
 import {stickVector} from './hud-controls.js'
 import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
 import {buildSouthBasin} from './south-basin.js'
+import {buildBasinSkyline} from './basin-skyline.js'
+import {bunker,bunkerAccess,bunkerWalls,inBunker} from './basin-skyline-plan.js'
 import {beachGround,coastFloor,inCoast,inPier,seaLevel,swimLadder} from './coast-plan.js'
 import {buildCoast} from './coast-scene.js'
 import {boatArt} from './boat-art.js'
@@ -37,6 +39,7 @@ import {buildOldTown} from './old-town.js'
 import {rowCeiling,rowFloor,rowRoomAt} from './market-row-plan.js'
 import {buildRowDetail} from './market-row-detail.js'
 import {buildWestBank} from './west-bank.js'
+import {foundryGardenSurface,inFoundryGarden} from './foundry-garden-plan.js'
 import {insideWorks} from './west-bank-plan.js'
 import {atGarage,garage} from './garage.js'
 import {createPedestrianImpacts} from './vehicle-pedestrians.js'
@@ -95,7 +98,7 @@ const coarse=matchMedia('(pointer:coarse)').matches
 let quality=readQuality(),autoDpr=Math.min(devicePixelRatio,coarse?1:1.5)
 const profile=()=>graphicsProfile(quality,devicePixelRatio,autoDpr)
 export async function start(onContextLost){
- const renderer=new THREE.WebGLRenderer({canvas,antialias:!coarse,powerPreference:'high-performance',alpha:false})
+ const renderer=new THREE.WebGLRenderer({canvas,antialias:!coarse,powerPreference:'high-performance',alpha:false,stencil:true})
  let contextLost=false
  canvas.addEventListener('webglcontextlost',e=>{
   e.preventDefault();contextLost=true;onContextLost()
@@ -115,7 +118,7 @@ export async function start(onContextLost){
  const surfaceMaps={meadow:landscapeMaterial()}
  buildEstuary(scene,surfaceMaps.meadow,addCollider)
  const coastUpdate=buildCoast(scene,addCollider)
- const landFog=scene.fog.color.clone(),landDensity=scene.fog.density,waterColor=new THREE.Color(0x5b9286),waterDeep=new THREE.Color(0x214858)
+ const landFog=scene.fog.color.clone(),landDensity=scene.fog.density,waterColor=new THREE.Color(0x5b9286),waterDeep=new THREE.Color(0x214858),bunkerDark=new THREE.Color(0x222b2a)
  const [char,portUpdate,rigs]=await Promise.all([createCharacter(),buildPort(scene,addCollider),buildStreet(scene,addCollider,surfaceMaps),buildArchitecture(scene,addCollider,surfaceMaps),sky(scene,renderer)])
  portUpdate.optics(scene,sunlight)
  const landBackground=scene.background
@@ -137,6 +140,7 @@ export async function start(onContextLost){
  const rowBoards=new THREE.MeshStandardMaterial({color:0x877665,roughness:.82})
  surfaceMaps.storeFloor=storeFloor;surfaceMaps.rowBoards=rowBoards
  const updateBasin=buildSouthBasin(scene,addCollider,surfaceMaps)
+ const showBunker=buildBasinSkyline(scene,addCollider,surfaceMaps)
  const updateTown=buildOldTown(scene,addCollider,boxes,surfaceMaps)
  const updateRow=buildRowDetail(scene,boxes,storeFloor,rowBoards,surfaceMaps.street)
  updateRow(pos,0)
@@ -201,7 +205,7 @@ export async function start(onContextLost){
  const regionalTraffic=layouts.map((layout,i)=>{
   const from=dockCapacity+i*capacity
   return civilianTraffic(scene,boxes,traffic,trafficRigs.slice(from,from+capacity),
-   {entries:layout.entries,nextNode:layout.next,junction:i===0?{x:0,z:-37}:null,turnarounds:[],canEnter:greenFor,requireDriver:true,idPrefix:'borough-'+i})
+   {entries:layout.entries,nextNode:layout.next,junction:i===0?{x:0,z:-37}:null,junctions:layout.junctions,turnarounds:[],canEnter:greenFor,requireDriver:true,idPrefix:'borough-'+i})
  })
  const trafficSystems=[civilians,...regionalTraffic],claimedTraffic=[],departed=[],playerParked=new Set()
  const trafficDriver=car=>{
@@ -373,8 +377,9 @@ export async function start(onContextLost){
   rigs[vehicle.id].updatePose(vehicle)
   if(Object.hasOwn(checkpoint.vehicles,vehicle.id)){civilians.retire(vehicle);playerParked.add(vehicle)}
  }
- const canRestore=(x,z,y)=>canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&
-  (y>2.4||!occupied(x,z))
+ const belowGround=()=>inBunker(pos.x,pos.z,pos.y)
+ const canRestore=(x,z,y)=>inBunker(x,z,y)?canWalk(x,z,bunkerWalls,.32,y):
+  canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&(y>2.4||!occupied(x,z))
  const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
@@ -387,7 +392,7 @@ export async function start(onContextLost){
   }
   return nearest
  }
- const canAttack=()=>!custody.locked&&mode==='walk'&&!isPaused&&!crowd.talking&&!foot.air&&foot.land<=.25&&!activity.current&&player.f.action!=='knockdown'&&player.f.hp>0
+ const canAttack=()=>!custody.locked&&mode==='walk'&&!belowGround()&&!isPaused&&!crowd.talking&&!foot.air&&foot.land<=.25&&!activity.current&&player.f.action!=='knockdown'&&player.f.hp>0
  function attack(){
   if(!canAttack())return
   if(custody.canPunch){swing(player.f);return}
@@ -531,6 +536,9 @@ export async function start(onContextLost){
   if(pendingSeat||seaTransition||transition||isPaused)return list
   if(crowd.talking){add('talk-end','대화 마치기',()=>crowd.endTalk());return list}
   if(activity.current){add('activity-end',activity.current.spot.pose==='sit'?'일어서기':'취소',()=>activity.leave());return list}
+  const lift=room.phase==='offline'&&canAct()?bunkerAccess(pos):null
+  if(lift)add('bunker-'+lift,lift==='enter'?'승강기로 지하 벙커 들어가기':'승강기로 지상 돌아가기',()=>useBunkerLift(lift),pos,4)
+  if(belowGround())return list
   if(operating()){
    add('exit',boating()?'보트에서 내리기':Math.abs(car.speed)<=.45?'하차':room.phase==='offline'?'주행 중 하차':'정차 후 하차',interactCar,pos,2)
   }else{
@@ -591,7 +599,7 @@ export async function start(onContextLost){
   if(spot.price&&episode.snapshot().money<spot.price){ui.toast('현금이 부족해');return}
   if(spot.pose){
    clearControls()
-   if(spot.pose==='sit')face=Math.PI
+   if(spot.pose==='sit')face=spot.seatFace??Math.PI
    if(spot.pose==='rest')face=Math.atan2(spot.x-pos.x,spot.z-pos.z)
    activity.begin(spot,()=>{
     if(spot.price){
@@ -792,6 +800,15 @@ export async function start(onContextLost){
   crowd.endTalk();clearControls();walkSpeed=0
   renderer.shadowMap.needsUpdate=true
  }
+ function useBunkerLift(action){
+  if(room.phase!=='offline'||!canAct()||bunkerAccess(pos)!==action)return
+  const descending=action==='enter',point=descending?bunker.arrival:bunker.entry
+  yaw=descending?0:Math.PI;pitch=.13;lookHold=0
+  resetWalk(point.x,point.z,Math.PI-yaw,descending?bunker.floor:undefined)
+  positionCamera(0,true)
+  saveCheckpoint()
+  ui.toast(descending?'사우스 베이슨 지하 대피소 · B1':'사우스 베이슨 · 지상')
+ }
  function recover(kind){
   if(kind==='input'||kind==='all')clearControls()
   if(kind==='position'||kind==='all'){
@@ -991,8 +1008,9 @@ export async function start(onContextLost){
  function positionCamera(dt,initial=false){
   cameraBlend=damp(cameraBlend,driving()?1:0,5,dt)
   shoulder=damp(shoulder,aiming&&!driving()?1:0,12,dt)
-  const localRoom=rowRoomAt(pos.x,pos.z)
-  const roomDistance=localRoom||insideClub(pos.x,pos.z)?Math.min(distance,2.65):distance
+  const below=belowGround(),localRoom=rowRoomAt(pos.x,pos.z)
+  showBunker(below)
+  const roomDistance=localRoom||below||insideClub(pos.x,pos.z)?Math.min(distance,2.65):distance
   const viewDistance=THREE.MathUtils.lerp(roomDistance,Math.min(roomDistance,2.45),shoulder)
   wetView=damp(wetView,inWater()?swimming.wet:0,5,dt)
   const arm=viewDistance+cameraBlend*car.setup.camera+(boating()?2.1:0)-wetView
@@ -1005,8 +1023,9 @@ export async function start(onContextLost){
   anchor.set(pos.x+sideOffset*cs,
    (followHeight+height)*(1-cameraBlend)+vehicleHeight*cameraBlend,pos.z+sideOffset*sn)
   eye.set(anchor.x-sn*arm*flat,anchor.y+lift*arm,anchor.z+cs*arm*flat)
-  let fraction=cameraFraction(anchor,eye,boxes)
-  for(const vehicle of traffic){
+  let fraction=below?cameraFraction({x:anchor.x,y:anchor.y-bunker.floor,z:anchor.z},
+   {x:eye.x,y:eye.y-bunker.floor,z:eye.z},bunkerWalls):cameraFraction(anchor,eye,boxes)
+  for(const vehicle of below?[]:traffic){
    if(vehicle===car&&mode!=='walk')continue
    const a=localPoint(vehicle,anchor.x,anchor.z),b=localPoint(vehicle,eye.x,eye.z)
    fraction=Math.min(fraction,cameraFraction({...a,y:anchor.y},{...b,y:eye.y},[[-vehicle.width/2,vehicle.width/2,-vehicle.length/2,vehicle.length/2,vehicle.height]]))
@@ -1026,21 +1045,24 @@ export async function start(onContextLost){
    const ceiling=rowCeiling(localRoom,pos.x,pos.y)-.14
    if(eye.y>ceiling)fraction=Math.min(fraction,Math.max(.04,(ceiling-anchor.y)/(eye.y-anchor.y)))
   }
+  const bunkerCeiling=bunker.floor+bunker.headroom-.14
+  if(below&&eye.y>bunkerCeiling&&eye.y>anchor.y)fraction=Math.min(fraction,Math.max(.04,(bunkerCeiling-anchor.y)/(eye.y-anchor.y)))
   const availableArm=arm*fraction
   actualArm=initial?availableArm:availableArm<actualArm?availableArm:damp(actualArm,availableArm,8,dt)
   reach.copy(eye).sub(anchor).multiplyScalar(actualArm/arm)
   camera.position.copy(anchor).add(reach)
-  if(coastFloor(pos.x,pos.z)&&!inOldTown(pos.x,pos.z)){
+  if(below)camera.position.y=Math.max(bunker.floor+.24,camera.position.y)
+  else if(coastFloor(pos.x,pos.z)&&!inOldTown(pos.x,pos.z)){
    camera.position.y=wetView>.53?Math.min(seaLevel-.18,camera.position.y):Math.max(seaLevel+.20,camera.position.y)
   }else camera.position.y=Math.max(.24,camera.position.y)
-  const submerged=camera.position.y<seaLevel-.06
+  const submerged=!below&&camera.position.y<seaLevel-.06
   const depth=Math.max(0,seaLevel-camera.position.y)
   if(submerged){
    waterColor.setHex(0x5b9286).lerp(waterDeep,1-Math.exp(-depth*.31))
    scene.fog.color.copy(waterColor)
-  }else scene.fog.color.copy(landFog)
-  scene.fog.density=submerged?.064+depth*.012:landDensity
-  scene.background=submerged?waterColor:landBackground
+  }else scene.fog.color.copy(below?bunkerDark:landFog)
+  scene.fog.density=below?.025:submerged?.064+depth*.012:landDensity
+  scene.background=below?bunkerDark:submerged?waterColor:landBackground
   aim.set(anchor.x+sn*2.2,anchor.y+.12-lift*2.2,anchor.z-cs*2.2)
   if(shake){camera.position.x+=Math.sin(elapsed*63)*.1*shake;camera.position.y+=Math.cos(elapsed*80)*.075*shake}
   camera.lookAt(aim)
@@ -1063,9 +1085,12 @@ export async function start(onContextLost){
  positionCamera(0,true)
  function footSurface(){
   const {x,z,y}=pos
+  if(inBunker(x,z,y))return 'concrete'
   if(coastFloor(x,z)&&!inOldTown(x,z))return inPier(x,z)?'wood':y<seaLevel+.10?'splash':'sand'
   if(insideBasin(x,z)&&basinGreen.some(g=>within(g.bounds,x,z)))return 'grass'
-  if(within(pocketGarden,x,z)||x>-174.4&&x<-159.6&&z>39.6&&z<54.8)return 'grass'
+  if(within(pocketGarden,x,z))return 'grass'
+  const gardenSurface=foundryGardenSurface(x,z)
+  if(gardenSurface)return gardenSurface
   if(insideTerrace(x,z)||rowRoomAt(x,z)||insideClub(x,z))return y>1.8?'stairs':'wood'
   if(x>15&&onQuay(x,z))return 'metal'
   return groundHeight(x,z)-breakwaterGradeAt(x,z)<.04?'asphalt':'concrete'
@@ -1084,6 +1109,7 @@ export async function start(onContextLost){
   return .008+.083*clamp(edge/.18,0,1)
  }
  function ceilingHeight(x,z,feet){
+  if(inBunker(x,z,feet))return bunker.floor+bunker.headroom
   if(insideClub(x,z))return clubCeilingAt(x,z)
   const room=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   return room?rowCeiling(room,x,feet):x<archive.front&&archiveAccess(x,z,0)?archive.ceiling:
@@ -1092,6 +1118,7 @@ export async function start(onContextLost){
    (insidePremises(x,z)||insideWeaponShop(x,z))?3.44:Infinity
  }
  function floorAt(x,z,feet,airborne=false){
+  if(inBunker(x,z,feet))return bunker.floor
   const localRoom=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):
    terrace?.loft?terraceFloorAt(terrace,x,z,feet,airborne):insideWorks(x,z)?worksUpper(x,z,feet,airborne):groundHeight(x,z)
@@ -1290,8 +1317,9 @@ export async function start(onContextLost){
     velocity.y=damp(velocity.y,targetZ,response,dt)
    }
    const ox=pos.x,oz=pos.z
-   const liftImpact=moveImpact(player.f,pos,dt,boxes,occupied)
-   if(!player.f.motion)movePlayer(pos,velocity.x*dt,velocity.y*dt,boxes,occupied,foot.height)
+   const below=belowGround(),levelColliders=below?bunkerWalls:boxes,levelOccupied=below?undefined:occupied
+   const liftImpact=moveImpact(player.f,pos,dt,levelColliders,levelOccupied)
+   if(!player.f.motion)movePlayer(pos,velocity.x*dt,velocity.y*dt,levelColliders,levelOccupied,foot.height)
    const floor=floorAt(pos.x,pos.z,foot.height,foot.air)
    const landing=foot.advance(dt,floor,ceilingHeight(pos.x,pos.z,foot.height)-player.height)
    if(landing){effects.land(pos.x,floor,pos.z,landing);ui.sound(footSurface(),pos,.7)}
@@ -1370,11 +1398,12 @@ export async function start(onContextLost){
    if(!transition&&mode==='walk')walkSpeed=speed
    else walkSpeed=0
    remoteShadow=presence.update(frame,room.session?.id,dt)||remoteShadow
-   player.available=!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
+   const below=belowGround()
+   player.available=!below&&!custody.active&&mode==='walk'&&player.f.hp>0&&!foot.air
    const progress=player.f.hp>0?episode.update(dt,{x:pos.x,z:pos.z,speed,inVehicle:operating(),driving:driving()&&car===cars.touring,onFoot:player.available}):null
    if(progress)ui.toast(progress.message)
    player.inVehicle=driving()?car:null
-   player.exposed=!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
+   player.exposed=!below&&!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    const prologue=room.phase==='offline'?episode.prologue:null
    const stage=player.f.hp>0?prologue?.stage:null
    const chapter=room.phase==='offline'?episode.chapter:null
@@ -1397,7 +1426,7 @@ export async function start(onContextLost){
    trafficProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse)
    trafficView.setFromProjectionMatrix(trafficProjection)
    walkers.length=0
-   if(!driving()&&pos.y<1.35&&!foot.air)walkers.push(pos)
+   if(!below&&!driving()&&pos.y<1.35&&!foot.air)walkers.push(pos)
    for(const resident of crowd.all)if(resident.pos.y<1.35&&!resident.policeOrder?.aboard)walkers.push(resident.pos)
    for(const resident of departed)walkers.push(resident.rig.root.position)
    const trafficLocal=room.phase==='offline'&&!custody.active
@@ -1469,8 +1498,8 @@ export async function start(onContextLost){
    const {x,z}=pos
    const coastal=inCoast(x,z)&&x>30
    const harbor=x>10&&z<43||x<-200&&z>96||insideBasin(x,z)&&x>20||coastal
-   const park=x<-156&&x>-177&&z>37&&z<58||insideBasin(x,z)&&z>187&&x>7
-   const indoor=insideTerrace(x,z)||rowRoomAt(x,z)||insidePremises(x,z)||insideWeaponShop(x,z)||atGarage(x,z)||atStation(x,z)||insideWorks(x,z)||insideClub(x,z)
+   const park=inFoundryGarden(x,z)||insideBasin(x,z)&&z>187&&x>7
+   const indoor=belowGround()||insideTerrace(x,z)||rowRoomAt(x,z)||insidePremises(x,z)||insideWeaponShop(x,z)||atGarage(x,z)||atStation(x,z)||insideWorks(x,z)||insideClub(x,z)
    let policeDistance=Infinity,passing=null,passingDistance=32
    for(const unit of squads.units)if(['approach','chase','stopping'].includes(unit.stage)){
     policeDistance=Math.min(policeDistance,Math.hypot(unit.car.x-x,unit.car.z-z))

@@ -57,6 +57,10 @@ test('the quay ambush arrives from outside the yard and stays active when the ma
  assert(first,'the first attacker joined the encounter')
  assert.equal(crowd.all.length,1,'hostiles join on staggered beats')
  assert(gap(first,player.pos)>15,'the first attacker approaches from a distance')
+ const firstAttacker=crowd.all[0]
+ const outline=()=>firstAttacker.rig.root.getObjectsByProperty('name','Mission enemy outline')
+ assert(outline().length>=2)
+ assert(outline().every(pass=>!pass.visible),'a distant attacker keeps the outline hidden')
  const initialGap=gap(first,player.pos)
  step(4)
  assert(gap(world.markers()[0],player.pos)<initialGap-3,'the first attacker closes on the yard')
@@ -80,6 +84,8 @@ test('the quay ambush arrives from outside the yard and stays active when the ma
  const remaining=world.markers().length
  step(.1,escape)
  assert.equal(world.markers().length,remaining,'the surviving attackers remain during the drive out')
+ world.clean()
+ assert.equal(outline().length,0)
 })
 
 test('the tail joins in separate cars and follows the player away from the market junction',()=>{

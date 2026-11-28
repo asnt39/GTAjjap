@@ -13,7 +13,6 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  const steel=new T.MeshStandardMaterial({color:0x4e5c55,metalness:.35,roughness:.65})
  const wood=new T.MeshStandardMaterial({color:0x7e5b43,roughness:.86})
  const paint=new T.MeshStandardMaterial({color:0xc6bb9c,roughness:.8})
- const plants=new T.MeshStandardMaterial({color:0x566340,roughness:.95})
  const warm=new T.MeshStandardMaterial({color:0xffdf9e,emissive:0xc88641,emissiveIntensity:.65})
  const glass=new T.MeshStandardMaterial({color:0x8eaaa3,metalness:.32,roughness:.22,transparent:true,opacity:.55})
  const pieces=new Map()
@@ -139,36 +138,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  sign('NIGHT SERVICE LOG',-135.7,1.88,48.52,2.65)
  for(const x of [-140.8,-117.4])box(paint,x,.091,31,.07,.012,3.3)
 
- // A garden with a diagonal walk, planted beds and the reclaimed pump.
- const garden=foundryGarden(district,maps)
- for(const [x,z] of [[-173,52],[-174,41],[-166,41],[-161,53],[-164,55]]){
-  box(stone,x,.23,z,2.35,.36,1.4)
-  box(plants,x,.44,z,2.07,.15,1.15)
-  addCollider(x-1.175,x+1.175,z-.7,z+.7,.40,true)
- }
- for(const [x,z] of [[-169,53],[-160.4,46.7]]){
-  for(const side of [-1,1])box(steel,x+side*.77,.29,z,.12,.53,.55)
-  box(wood,x,.58,z,1.88,.10,.50)
-  box(wood,x,.86,z+.21,1.88,.27,.09)
-  addCollider(x-.95,x+.95,z-.26,z+.28,.59,true)
- }
- column(stone,-167.8,48.5,1.54,.32)
- const coping=new T.Mesh(new T.TorusGeometry(1.37,.115,7,36),stone)
- coping.rotation.x=Math.PI/2;coping.position.set(-167.8,.42,48.5);district.add(coping)
- const basin=new T.Mesh(new T.CircleGeometry(1.38,36),new T.MeshStandardMaterial({color:0x658d89,roughness:.21,metalness:.42}))
- basin.rotation.x=-Math.PI/2;basin.position.set(-167.8,.40,48.5);district.add(basin)
- column(steel,-167.8,48.5,.38,1.09,.91)
- column(stone,-167.8,48.5,.67,.16,1.42)
- column(steel,-167.8,48.5,.17,.28,1.56)
- // Approximate the circular plinth with short chords so the corners stay walkable.
- for(let k=0;k<8;k++){
-  const offset=(k-3.5)*.36,half=Math.sqrt(1.45**2-offset**2)
-  addCollider(-167.8-half,-167.8+half,48.5+offset-.18,48.5+offset+.18,.48,true)
- }
- addCollider(-168.18,-167.42,48.12,48.88,1.70)
- sign('FOUNDRY GARDEN',-166.1,1.3,51.1,2.8,Math.PI*.20)
- const water=new T.Mesh(new T.CylinderGeometry(.065,.18,.82,10),new T.MeshStandardMaterial({color:0x9aced5,roughness:.24,transparent:true,opacity:.72}))
- water.position.set(-167.8,1.84,48.5);water.visible=false;district.add(water)
+ const garden=foundryGarden(district,maps,addCollider)
 
  // Former ferry shed and gantry frame, with a walk-in viewing platform.
  for(const [a,b,n,s,h] of [[-221,-220.7,100,111,4.7],[-220.7,-204,110.72,111,4.7],[-204.25,-204,105,111,4.7]]){
@@ -224,7 +194,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
  }
 
  // Street lighting and masonry perimeter along the irregular edge.
- for(const [x,z] of [[-118,31],[-102.8,68],[-180,54],[-197,71],[-209,51],[-209,79],[-177,119],[-140,112],[-135,6]]){
+ for(const [x,z] of [[-118,31],[-102.8,68],[-181.55,54],[-197,71],[-209,51],[-209,79],[-177,119],[-140,112],[-135,6]]){
   column(steel,x,z,.11,3.7);box(steel,x+.28,3.55,z,.66,.18,.20);box(warm,x+.49,3.48,z,.29,.08,.2)
   addCollider(x-.125,x+.125,z-.125,z+.125,3.73)
  }
@@ -237,7 +207,7 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
   })
   district.add(mesh);batches.push(mesh)
  }
- let pump=0,signal=0,shadows=false
+ let signal=0,shadows=false
  const stream=streamDistrict({load:loadWorksDetail,enterDistance:62,leaveDistance:88,
   attach(detail){district.add(detail.group);colliders?.push(...detail.footprints)},
   detach(detail){
@@ -245,12 +215,11 @@ export function buildWestBank(scene,addCollider,maps,colliders) {
    if(colliders)for(const bounds of detail.footprints){const i=colliders.indexOf(bounds);if(i>=0)colliders.splice(i,1)}
   }})
  return {
-  operate(tag){if(tag==='PARK')pump=8;if(tag==='WEST')signal=8},
+  operate(tag){if(tag==='PARK')garden.operate();if(tag==='WEST')signal=8},
   update(dt,elapsed,pos,low=false){
-   const gardenChanged=garden(elapsed,Math.hypot(pos.x+167,(pos.z??47)-47),low)
+   const gardenChanged=garden.update(dt,elapsed,pos,low)
    const changed=stream(Math.hypot(pos.x+166,(pos.z??44)-58))
-   pump=Math.max(0,pump-dt);signal=Math.max(0,signal-dt)
-   water.visible=pump>0;water.scale.y=.72+.26*Math.sin(elapsed*9)
+   signal=Math.max(0,signal-dt)
    beacon.material.emissiveIntensity=signal?(Math.sin(elapsed*10)>.1?2.6:.15):.4
    const near=pos.x<-92
    if(near===shadows)return changed||gardenChanged

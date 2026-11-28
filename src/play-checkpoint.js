@@ -1,9 +1,12 @@
+import {inBunker} from './basin-skyline-plan.js'
+
 const key='harborline.lastPosition.v1'
 const fields=['x','y','z','face','yaw','pitch','distance']
 
 function valid(snapshot){
  return snapshot&&fields.every(field=>Number.isFinite(snapshot[field]))&&
-  Math.abs(snapshot.x)<2048&&Math.abs(snapshot.z)<2048&&snapshot.y>=-.1&&snapshot.y<32&&
+  Math.abs(snapshot.x)<2048&&Math.abs(snapshot.z)<2048&&
+  (snapshot.y>=-.1&&snapshot.y<32||inBunker(snapshot.x,snapshot.z,snapshot.y))&&
   snapshot.pitch>=-.19&&snapshot.pitch<=.93&&snapshot.distance>=2.3&&snapshot.distance<=7.4
 }
 

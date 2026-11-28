@@ -1,5 +1,6 @@
-import {ConeGeometry,Mesh,MeshBasicMaterial,Vector3} from 'three'
+import {Vector3} from 'three'
 import {createCharacter} from './character.js'
+import {missionEnemyOutline} from './mission-enemy-outline.js'
 import {createCompanion} from './companion.js'
 import {nearBody} from './driving.js'
 import {moveImpact} from './impact-motion.js'
@@ -17,8 +18,6 @@ const combatRoles={
  flank:{weapon:'pistol',mag:5,damage:8,range:17,aim:.64,cadence:.94,pace:2.35,run:3.35},
  rush:{weapon:'shotgun',mag:3,damage:13,range:10,aim:.78,cadence:1.33,pace:2.7,run:3.95}
 }
-const pinGeometry=new ConeGeometry(.107,.17,4).rotateZ(Math.PI)
-const pinMaterial=new MeshBasicMaterial({color:0xda3e49,toneMapped:false})
 const phaseOf=stage=>phases.has(stage?.set)?stage.set:phases.has(stage?.kind)?stage.kind:null
 const isFight=phase=>phase==='ambush'||phase==='street'
 
@@ -61,7 +60,7 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
   for(const n of actors){
    const index=crowd.all.indexOf(n)
    if(index>=0)crowd.all.splice(index,1)
-   n.rig.root.removeFromParent();n.rig.dispose()
+   n.outline?.dispose();n.rig.root.removeFromParent();n.rig.dispose()
   }
   restoreJack()
   actors.length=0;current=null;playerPos=null;ready=met=false;elapsed=evacLeg=0;failed=''
@@ -107,10 +106,7 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
    move:(p,dx,dz)=>movePlayer(p,dx,dz,boxes,(x,z)=>blocked(n,x,z),p.y),
    stopDistance:id==='jack'?1.0:.53,walkSpeed:n.combat?.pace??2.24,runSpeed:n.combat?.run??3.15})
   if(id!=='jack'||phase!=='entry')n.route.command('join')
-  if(missionRole==='hostile'){
-   n.pin=new Mesh(pinGeometry,pinMaterial)
-   n.pin.visible=false;n.pin.position.y=2.10;rig.root.add(n.pin)
-  }
+  if(missionRole==='hostile')n.outline=missionEnemyOutline(rig.root)
   rig.root.name=name+' · The Lantern Room'
   return n
  }
@@ -294,7 +290,7 @@ export function newBloodWorld({scene,boxes,crowd,traffic,height,combat,notify}){
    n.rig.update(dt,n.speed,combatPose(n.f))
    const aiming=armed&&n.focus&&n.speed<1.65&&distance(n.pos,n.focus.pos)<n.combat.range&&firearms.visible(n,n.focus)
    firearms.tick(n,n.focus,dt,!!aiming,armed,shot)
-   if(n.pin)n.pin.visible=!!n.f.hp&&(!!aiming||playerGap<11)
+   n.outline?.show(!!n.f.hp&&(!!aiming||playerGap<11))
   }
   failed=jack&&!jack.f.hp?'Jack을 보호하지 못했습니다.':victor&&!victor.f.hp?'Victor를 보호하지 못했습니다.':failed
   const arrived=phase==='entry'&&onFoot&&jack?.joined&&jack.route.mode!=='hold'&&

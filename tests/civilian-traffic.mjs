@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {Group,Scene} from 'three'
 import {test} from 'node:test'
 import {civilianTraffic} from '../src/civilian-traffic.js'
+import {cityTrafficCircuits} from '../src/city-traffic-plan.js'
 import {clearPose,nearBody,overlapsCar} from '../src/driving.js'
 import {vehicles} from '../src/vehicles.js'
 
@@ -115,4 +116,81 @@ test('mixed civilian traffic clears dock turns without a stuck queue or visible 
    }
   }
  }
+})
+
+const crossing={x:0,z:-37},observer={x:8,z:-23}
+function crossingLane(dx,dz,{curves=true}={}){
+ const nodes=Array.from({length:35},(_,i)=>({x:crossing.x+(i-13)*3*dx,z:crossing.z+(i-13)*3*dz,
+  dx,dz,curve:curves&&i>=11&&i<=15,edges:[]}))
+ for(const [i,node] of nodes.entries())node.edges=[nodes[(i+1)%nodes.length]]
+ return {entries:[nodes[3]],nextNode:node=>node.edges[0],junction:{...crossing},turnarounds:[]}
+}
+
+test('separate traffic controllers take turns at a shared intersection',()=>{
+ const traffic=[],scene=new Scene()
+ const systems=[crossingLane(1,0),crossingLane(0,1)].map((options,i)=>civilianTraffic(scene,[],traffic,[rig()],{...options,idPrefix:'crossing-'+i}))
+ const approached=new Set(),cleared=new Set()
+ for(let frame=0;frame<1200;frame++){
+  for(const system of systems)system.update(1/60,observer,{enabled:true,walkers:[]})
+  const entered=traffic.filter(car=>Math.hypot(car.x-crossing.x,car.z-crossing.z)<9)
+  assert(entered.length<=1,`Both controllers entered at frame ${frame}`)
+  for(const car of traffic){
+   if(entered.includes(car))approached.add(car)
+   if(approached.has(car)&&Math.max(car.x-crossing.x,car.z-crossing.z)>14)cleared.add(car)
+  }
+  if(cleared.size===2)break
+ }
+ assert.equal(cleared.size,2,JSON.stringify(traffic.map(({id,x,z,speed})=>({id,x,z,speed}))))
+})
+
+test('a car whose light turns red before the stop line waits for green',()=>{
+ const traffic=[],options={enabled:true,walkers:[]}
+ let green=true
+ const ai=civilianTraffic(new Scene(),[],traffic,[rig()],{...crossingLane(0,1),canEnter:()=>green})
+ for(let frame=0;frame<450&&(traffic[0]?.z??-Infinity)<-50.75;frame++)ai.update(1/60,observer,options)
+ const car=traffic[0]
+ assert(car.z>=-50.75&&car.z< -50.55)
+ green=false
+ for(let frame=0;frame<180;frame++){
+  ai.update(1/60,observer,options)
+  assert(car.z< -47,`Entered on red at ${car.z}`)
+ }
+ assert(car.speed<.1)
+ green=true
+ for(let frame=0;frame<450&&car.z< -23;frame++)ai.update(1/60,observer,options)
+ assert(car.z>=-23)
+})
+
+test('a through lane waits outside a junction while its downstream lane is full',()=>{
+ const blocker={...vehicles.van,x:0,z:-21,heading:Math.PI,speed:0}
+ const traffic=[blocker],options={enabled:true,walkers:[],inView:car=>car!==blocker&&traffic.includes(car)}
+ const ai=civilianTraffic(new Scene(),[],traffic,[rig()],{
+  ...crossingLane(0,1,{curves:false}),junction:null,junctions:[{...crossing,priority:true}]
+ })
+ for(let frame=0;frame<480;frame++)ai.update(1/60,observer,options)
+ const car=traffic[1]
+ assert(car.z< -47&&car.speed<.1,`Queued at ${car.z}, speed ${car.speed}`)
+ traffic.shift()
+ for(let frame=0;frame<450&&car.z< -21;frame++)ai.update(1/60,observer,options)
+ assert(car.z>=-21)
+})
+
+test('South Basin traffic can drive both collector links through the Spire Street circuit',()=>{
+ const layouts=cityTrafficCircuits(),traffic=[],scene=new Scene(),player={x:-74,z:165}
+ const systems=layouts.map((layout,i)=>civilianTraffic(scene,[],traffic,Array.from({length:4},rig),{
+  entries:layout.entries,nextNode:layout.next,junction:null,junctions:layout.junctions,idPrefix:'spire-'+i
+ }))
+ const links=new Set()
+ for(let frame=0;frame<3600&&links.size<3;frame++){
+  for(const system of systems)system.update(1/60,player,{enabled:true,walkers:[]})
+  for(const [index,car] of traffic.entries()){
+   assert(clearPose(car,[]))
+   assert(!traffic.slice(index+1).some(other=>overlapsCar(car,other)))
+   if(car.speed<1)continue
+   if(car.x< -87&&car.z>151&&car.z<176)links.add('Spire Street')
+   if(car.x> -82&&car.x< -44&&car.z>140&&car.z<149)links.add('Basin Crossing')
+   if(car.x> -82&&car.x< -44&&car.z>176&&car.z<185)links.add('Garden Crossing')
+  }
+ }
+ assert.equal(links.size,3,[...links].join(', '))
 })

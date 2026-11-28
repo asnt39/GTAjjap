@@ -28,6 +28,7 @@ import {createTerraceDoors} from '../src/terrace-doors.js'
 import {buildEstuary,waterfrontEdges} from '../src/estuary.js'
 import {canWalk,movePlayer,inCoreDistrict,inDistrict,cameraFraction,sights} from '../src/navigation.js'
 import {nearbyAction} from '../src/city-actions.js'
+import {citySpots as parkActions} from '../src/city-life-plan.js'
 import {beachGate} from '../src/coast-plan.js'
 import {motorcycleSetup} from '../src/motorcycle.js'
 import {vehicles} from '../src/vehicles.js'
@@ -54,6 +55,35 @@ beacons(scene,add);districtGates(scene,add);stationColliders(add);marketCollisio
 const system=createTerraceDoors(scene,boxes)
 function stand(r,x,z){return {...terracePoint(r,x,z),y:.083}}
 function advance(p,npcs=[]){for(let i=0;i<60;i++)system.update(1/60,p,npcs)}
+
+test('Foundry Garden connects each street entrance to public facilities on foot',()=>{
+ const routes=[
+  [[-166.15,28.15],[-166.15,31.7],[-169.25,31.7]],
+  [[-166.15,28.15],[-166.15,35.7],[-163.4,35.7]],
+  [[-181.6,46.1],[-177.1,46.1],[-177.1,53],[-177.1,58.4]],
+  [[-157.65,47.5],[-163.3,47.5],[-163.3,49.5],[-165.6,49]],
+  [[-161.7,58.35],[-161.3,54],[-163.3,49.5],[-163.3,45.4],[-167.2,43.8]]
+ ]
+ for(const [[x,z],...stops] of routes){
+  const p={x,z,y:.083}
+  for(const [nextX,nextZ] of stops){
+   movePlayer(p,nextX-p.x,nextZ-p.z,boxes,undefined,p.y)
+   assert(Math.hypot(p.x-nextX,p.z-nextZ)<.025,JSON.stringify({p,nextX,nextZ}))
+  }
+ }
+ assert(!canWalk(-171.6,31.2,boxes,.32,.083),'the shelter post has physical collision')
+ assert(!canWalk(-161.1,35.5,boxes,.32,.083),'the play steps have physical collision')
+ assert(canWalk(-161.1,35.5,boxes,.32,.58),'the play steps support a player who jumps onto them')
+})
+
+test('the Foundry Garden picnic seat is usable from the shelter aisle',()=>{
+ const p={x:-169.25,y:.083,z:31.7}
+ const action=nearbyAction(parkActions,p,Math.PI,spot=>cameraFraction(
+  {...p,y:p.y+1.36},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84)
+ assert.equal(action?.id,'foundry-picnic-seat')
+ assert.equal(action.pose,'sit')
+ assert(!canWalk(action.x,action.seatZ,boxes,.32,.083),'the registered seat matches its physical bench')
+})
 
 test('Quay Transfer leaves a clear vehicle lane and a separate walkable handoff point',()=>{
  const car={...newDrive(vehicles.touring,vehicles.touring),...transferYard,heading:0}
@@ -345,7 +375,7 @@ test('moving exit poses stay on the requested side and finish at a safe doorstep
 
 test('civilian cars follow the extended roads at three density levels',async()=>{
  const {cityTrafficCircuits,trafficPreference}=await import('../src/city-traffic-plan.js')
- const locations=[{x:-60,z:80},{x:-172,z:98},{x:6,z:159}]
+ const locations=[{x:-60,z:80},{x:-172,z:98},{x:6,z:159},{x:-74,z:164}]
  const density=trafficPreference()
  const times=[]
  for(const label of ['보통','높음','낮음']){
@@ -356,7 +386,7 @@ test('civilian cars follow the extended roads at three density levels',async()=>
     return {...setup,setup,root:new Group(),driver:new Group(),updatePose(){}}
    })
    return civilianTraffic(new Scene(),boxes,traffic,rigs,{entries:layout.entries,nextNode:layout.next,
-    idPrefix:'measure-'+index,junction:null})
+    idPrefix:'measure-'+index,junction:null,junctions:layout.junctions})
   })
   const limit=density.limit(4,false,16)
   let peak=0
@@ -376,5 +406,5 @@ test('civilian cars follow the extended roads at three density levels',async()=>
   density.cycle()
  }
  assert(times[0].peak<times[1].peak&&times[2].peak<times[0].peak,JSON.stringify(times))
- console.log('Traffic CPU incl. test collision checks, three regions and 1,500 fixed 60 Hz frames:',JSON.stringify(times))
+ console.log('Traffic CPU incl. test collision checks, four regions and 1,500 fixed 60 Hz frames:',JSON.stringify(times))
 })

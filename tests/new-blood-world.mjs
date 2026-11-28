@@ -115,11 +115,21 @@ test('Victor can be met, and Jack returns real fire against the ambush attackers
  const jack=crowd.all.find(n=>n.name==='Jack Bennett')
  await wait(attack,()=>world.markers().length===1)
  assert(crowd.all.includes(jack),'Jack stays physically present between scenes')
+ const enemy=crowd.all.find(n=>n.missionRole==='hostile')
+ const enemyOutline=()=>enemy.rig.root.getObjectsByProperty('name','Mission enemy outline')
+ assert.equal(jack.rig.root.getObjectsByProperty('name','Mission enemy outline').length,0)
+ assert(enemyOutline().filter(pass=>pass.visible&&pass.parent.visible).length>=2,'nearby attackers have active body outlines')
+ for(const pass of enemyOutline().filter(pass=>pass.parent.isSkinnedMesh)){
+  assert(pass.children.every(mesh=>mesh.skeleton===pass.parent.skeleton),'outline geometry shares the animated rig')
+ }
  assert(!step(attack).cleared)
  await wait(attack,()=>shots.some(shot=>shot.shooter===jack.id))
  assert(crowd.all.some(n=>n.missionRole==='hostile'&&n.f.hp<n.f.maxHealth))
- assert(crowd.all.some(n=>n.missionRole==='hostile'))
+ enemy.f.hp=0
+ step(attack)
+ assert(enemyOutline().every(pass=>!pass.visible),'downed attackers lose the outline')
  world.clean()
+ assert.equal(enemyOutline().length,0)
  assert.equal(world.markers().length,0)
 })
 

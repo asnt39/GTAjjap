@@ -1,14 +1,15 @@
 // Local coordinates in metres. Sections meet at their shared quay level.
 export const basinLand=[
- [-20,26,90,126],[-49,29,126,174],[-43,26,174,209]
+ [-20,26,90,126],[-49,29,126,174],[-43,26,174,209],[-100,-41,126,209]
 ]
 export const basinRoads=[
  {id:'bridge-approach',axis:'z',mid:0,from:89.5,to:201,width:11,class:'avenue'},
  {id:'mariner-street',axis:'z',mid:18,from:110,to:185,width:9,class:'collector'},
  {id:'switchyard-road',axis:'z',mid:-32,from:140,to:201,width:9,class:'local'},
  {id:'station-crossing',axis:'x',mid:115,from:-5.5,to:22.5,width:10,class:'collector'},
- {id:'basin-crossing',axis:'x',mid:144.5,from:-36.5,to:22.5,width:9,class:'collector'},
- {id:'garden-crossing',axis:'x',mid:180.5,from:-36.5,to:22.5,width:9,class:'collector'},
+ {id:'basin-crossing',axis:'x',mid:144.5,from:-94.5,to:22.5,width:9,class:'collector'},
+ {id:'garden-crossing',axis:'x',mid:180.5,from:-94.5,to:22.5,width:9,class:'collector'},
+ {id:'spire-street',axis:'z',mid:-89.5,from:140,to:185,width:10,class:'local'},
  {id:'south-turn',axis:'x',mid:197,from:-36.5,to:5.5,width:8,class:'local'}
 ]
 export const roadRect=({axis,mid,from,to,width})=>axis==='z'
@@ -52,5 +53,7 @@ export const basinPromenade=[[23.2,25.9,94,209],[23.5,28,129,171]]
 export const basinCrossings=[
  {axis:'z',mid:0,at:106,span:11},{axis:'z',mid:0,at:137.2,span:11},
  {axis:'z',mid:0,at:173.4,span:11},{axis:'z',mid:18,at:152.2,span:9},
- {axis:'x',mid:180.5,at:8.9,span:9},{axis:'z',mid:-32,at:151.2,span:9}
+ {axis:'x',mid:180.5,at:8.9,span:9},{axis:'z',mid:-32,at:151.2,span:9},
+ {axis:'z',mid:-89.5,at:170,span:10},{axis:'x',mid:144.5,at:-80,span:9},
+ {axis:'x',mid:180.5,at:-73,span:9},{axis:'x',mid:180.5,at:-49,span:9}
 ]

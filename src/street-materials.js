@@ -1,4 +1,7 @@
 import * as T from 'three'
+import {pierStreetEast} from './street-plan.js'
+
+const pierEnd=pierStreetEast[1].toFixed(2)
 
 export const asphaltScale=4.04,pavingScale=2.65
 export function pavingSurface(colorMap,normalMap){
@@ -16,11 +19,17 @@ export function roadSurface(diffuse, normal) {
       .replace('#include <project_vertex>', '#include <project_vertex>\nstreetPoint = (modelMatrix * vec4(transformed,1.)).xyz;')
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       varying vec3 streetPoint;
+      float roadHash(vec2 cell){
+        vec3 p=fract(cell.xyx*vec3(.1031,.1030,.0973));
+        p+=dot(p,p.yzx+33.33);
+        return fract((p.x+p.y)*p.z);
+      }
       float roadNoise(vec2 p){
         vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-        vec4 c=vec4(dot(i,vec2(127.1,311.7)))+vec4(0.,127.1,311.7,438.8);
-        c=fract(sin(c)*43758.5453);
-        return mix(mix(c.x,c.y,f.x),mix(c.z,c.w,f.x),f.y);
+        // Hash each grid coordinate directly so adjacent cells share corners.
+        float low=mix(roadHash(i),roadHash(i+vec2(1.,0.)),f.x);
+        float high=mix(roadHash(i+vec2(0.,1.)),roadHash(i+vec2(1.)),f.x);
+        return mix(low,high,f.y);
       }
       float finiteStripe(float v,float w){
         float aa=clamp(fwidth(v),.002,.12);
@@ -36,13 +45,17 @@ export function roadSurface(diffuse, normal) {
       }`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       vec2 p=streetPoint.xz;
+      // The same continuous finish follows world position across every road tile.
+      float patches=.23+.55*roadNoise(p*vec2(.48,.20));
+      patches=.81*patches+.19*roadNoise(p*vec2(1.28,.48)+3.);
+      float sheen=smoothstep(.38,.64,patches);
+      float grain=clamp(diffuseColor.r*3.6,0.,1.);
+      diffuseColor.rgb*=mix(1.02,.68,sheen);
+
+      // Only these streets have Breakwater's double lines and marked bays.
       float lane=abs(p.x);
       float quay=(1.-step(.04,streetPoint.y))*step(-107.,p.y)*(1.-step(63.,p.y));
-      float dockJunction=quay*step(-40.,p.x)*step(p.x,26.);
-      float basin=.23+roadNoise(p*vec2(.48,.20))*.55;
-      if(dockJunction>0.) basin=basin*.81+roadNoise(p*vec2(1.28,.48)+3.)*.19;
-      float water=smoothstep(.38,.64,basin);
-      float grain=clamp(diffuseColor.r*3.6,0.,1.);
+      float dockJunction=quay*step(-40.,p.x)*step(p.x,${pierEnd});
       float wear=clamp(.57+2.*grain+.20*roadNoise(p*19.),.30,1.);
       float onAvenue=(1.-smoothstep(5.99,6.,lane))*quay;
       float crossingArea=abs(p.y+37.);
@@ -53,14 +66,14 @@ export function roadSurface(diffuse, normal) {
       float crosswalkA=(1.-smoothstep(.78,.80,abs(crossingArea-7.20)))*finiteStripe(mod(p.x+.4,1.)-.5,.28)*step(lane,5.75);
       float crosswalkB=(1.-smoothstep(.70,.72,abs(lane-7.20)))*finiteStripe(mod(p.y+.36,1.)-.5,.28)*step(crossingArea,5.72);
       float stopLine=finiteStripe(crossingArea-9.36,.13)*step(.26,lane)*step(lane,5.68)*step(0.,-p.x*(p.y+37.));
-      float sideLine=finiteStripe(crossingArea-.11,.038)*smoothstep(9.2,9.8,lane);
-      diffuseColor.rgb*=mix(1.02,.60,water);
+      float sideLine=finiteStripe(crossingArea-.11,.038)*smoothstep(9.2,9.8,lane)*(1.-smoothstep(${pierEnd}-.8,${pierEnd}-.15,p.x));
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.31,.188,.044),clamp((paired+sideLine*dockJunction)*wear,0.,1.));
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.44,.425,.355),clamp((bay*.58+(max(crosswalkA,crosswalkB)*.85+stopLine*.9)*dockJunction)*wear,0.,1.));`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor=mix(.62,.21,water)*(.86+.26*grain);`)
+      roughnessFactor=mix(.60,.25,sheen)*(.86+.26*grain);`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
-      if(onAvenue>0.){
+      float avenueGlow=onAvenue*smoothstep(-107.,-103.,p.y)*(1.-smoothstep(55.,63.,p.y));
+      if(avenueGlow>0.){
       vec2 ahead=p-cameraPosition.xz;
       float dist=length(ahead);
       float eye=max(cameraPosition.y,.65);
@@ -77,8 +90,8 @@ export function roadSurface(diffuse, normal) {
         float lit=smoothstep(.27,.56,roadNoise(vec2(floor(zHit/5.),sign(ahead.x)*7.)));
         shop=(1.-smoothstep(.9,2.2,abs(reflectedHeight-2.0)))*bays*lit*step(0.,t)*fleck;
       }
-      float ripple=(.48+.52*water)*(.70+.3*roadNoise(p*vec2(3.,15.)));
-      outgoingLight+=onAvenue*ripple*(vec3(.85,.39,.106)*lens*.86+vec3(.34,.16,.047)*shop*.66)*(.38+.62*grazing);
+      float ripple=(.48+.52*sheen)*(.70+.3*roadNoise(p*vec2(3.,15.)));
+      outgoingLight+=avenueGlow*ripple*(vec3(.85,.39,.106)*lens*.86+vec3(.34,.16,.047)*shop*.66)*(.38+.62*grazing);
       }
       #include <opaque_fragment>`)
   }

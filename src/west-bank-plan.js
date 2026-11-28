@@ -13,7 +13,7 @@ export const westBankRoads=[
  [-132.9,-125.1,25,45.6],[-221,-211,19,40],[-221,-182,18.5,27.5]
 ]
 export const westBankSights=[
- {x:-165.6,z:49,tag:'PARK',title:'Foundry Garden',name:'정원 분수 스위치',body:'예전 제철소에서 쓰던 물탱크를 작은 정원의 분수로 바꿔 놓았다.'},
+ {x:-165.6,z:49,tag:'PARK',title:'Foundry Garden',name:'정원 분수 스위치',body:'예전 제철소의 물탱크를 분수로 바꿨다. 북쪽 산책로는 놀이터와 쉼터로, 남쪽 길은 주민 텃밭으로 이어진다.'},
  {x:-214,z:103,tag:'WEST',title:'West Ferry Yard',name:'선착장 신호등 시험',body:'서편 여객선은 운항을 멈췄다. 신호등은 작업자가 직접 시험할 수 있다.'},
  {x:-134.2,z:43.6,tag:'WORK',title:'West Bank Works',name:'정비동 작업 기록',body:'좌측 공구대에 야간 수리 기록이 놓여 있다. 출고 승인은 남쪽 선착장 시설팀이 맡는다.'},
  {x:-207.7,z:30.4,tag:'YARD',title:'North Service Yard',name:'북쪽 정비장의 반출 안내',body:'서쪽 진입로와 남쪽 작업로가 이어지는 점검 구역. 밤 출고 품목은 West Bank Works에 기록한다.'}

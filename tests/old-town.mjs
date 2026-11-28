@@ -11,6 +11,9 @@ import {loadWorksDetail} from '../src/works-detail.js'
 import {garage} from '../src/garage.js'
 import {createPedestrianImpacts} from '../src/vehicle-pedestrians.js'
 import {buildStreet} from '../src/street.js'
+import {asphaltScale,pavingScale} from '../src/street-materials.js'
+import {buildPort} from '../src/port.js'
+import {buildSouthBasin} from '../src/south-basin.js'
 import {buildArchitecture} from '../src/architecture.js'
 import {districtGates} from '../src/atmosphere.js'
 import {firstWorkRoadblock} from '../src/first-work-roadblock.js'
@@ -106,6 +109,50 @@ for(const rig of parked){
 const textures=new Set()
 model.getObjectByName('Old Town').traverse(obj=>{if(obj.material?.map)textures.add(obj.material.map)})
 assert(textures.has(surfaceMaps.street[0])&&textures.has(surfaceMaps.architecture[4]))
+
+test('Pier Street asphalt remains exposed across the terminal entrance',async()=>{
+ const terminal=new Scene()
+ await buildPort(terminal,()=>{})
+ terminal.updateMatrixWorld(true)
+ model.updateMatrixWorld(true)
+ const street=model.getObjectByName('Breakwater Avenue streetscape')
+ const deck=terminal.getObjectByName('Harborline container terminal')
+ const meshes=[...street.children,...deck.children].filter(mesh=>mesh.isMesh)
+ const ray=new Raycaster(new Vector3(15.2,.5,-35.65),new Vector3(0,-1,0))
+ const [pier]=ray.intersectObjects(meshes,false)
+ assert.equal(pier.object.material,surfaceMaps.citySurfaces.asphalt,'Pier Street uses the shared asphalt')
+ ray.ray.origin.set(12.6,.5,9.5)
+ const [quay]=ray.intersectObjects(meshes,false)
+ assert.equal(quay.object.parent,deck,'the adjacent service deck remains paved')
+ assert.notEqual(quay.object.material,pier.object.material)
+})
+
+test('Loading aprons, parking and the West Bank service junction have one asphalt surface',()=>{
+ const basin=new Scene(),town=model.getObjectByName('Old Town')
+ buildSouthBasin(basin,()=>{},surfaceMaps)
+ basin.updateMatrixWorld(true)
+ town.updateMatrixWorld(true)
+ const asphalt=surfaceMaps.citySurfaces.asphalt,paving=surfaceMaps.citySurfaces.paving
+ const ray=new Raycaster(new Vector3(),new Vector3(0,-1,0))
+ for(const [x,z] of [[-115.975,55.36],[8.77,153.4],[-127.893,28.047],[-125.603,28.047]]){
+  ray.ray.origin.set(x,.5,z)
+  const layers=ray.intersectObjects([town,basin],true).filter(hit=>[asphalt,paving].includes(hit.object.material))
+  assert.equal(layers.length,1,`one surface at ${x}, ${z}`)
+  const [hit]=layers
+  assert.equal(hit.object.material,asphalt)
+  assert(Math.abs(hit.point.y)<1e-6 && Math.abs(hit.uv.x-x/asphaltScale)<1e-5)
+ }
+})
+
+test('Old Town crossing ramps align to the neighboring sidewalk texture',()=>{
+ const town=model.getObjectByName('Old Town'),x=-73.92,z=38.31
+ town.updateMatrixWorld(true)
+ const ray=new Raycaster(new Vector3(x,.5,z),new Vector3(0,-1,0))
+ const [ramp]=ray.intersectObject(town,true)
+ assert.equal(ramp.object.material,surfaceMaps.citySurfaces.paving)
+ assert(Math.abs(ramp.uv.x-x/pavingScale)<1e-5 && Math.abs(ramp.uv.y+z/pavingScale)<1e-5)
+})
+
 assert(canWalk(spawn.x,spawn.z,boxes))
 assert(!canWalk(clockCourt.x,clockCourt.z,boxes))
 assert(canWalk(clockCourt.x+3,clockCourt.z+1,boxes))

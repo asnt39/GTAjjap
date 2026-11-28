@@ -1,4 +1,4 @@
-import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
+import {pavingScale,pavingSurface} from './street-materials.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {basinRoads,basinGreen,basinLots,basinPlate,basinPromenade,basinCrossings,basinSights,distanceToBasin} from './south-basin-plan.js'
@@ -19,18 +19,16 @@ export function buildSouthBasin(scene,addCollider,maps){
  const iron=new T.MeshStandardMaterial({color:0x424b4b,metalness:.27,roughness:.77})
  const pavement=maps.citySurfaces?.paving??pavingSurface(maps.street[2],maps.street[3])
  const lawn=new T.MeshStandardMaterial({color:0x879368,roughness:.94,map:maps.meadow?.map??null})
- const road=maps.citySurfaces?.asphalt??roadSurface(maps.street[0],maps.street[1])
  const emissive=new T.MeshStandardMaterial({color:0xffe5b9,emissive:0xffba70,emissiveIntensity:.53})
  function batch(g,m){const parts=batches.get(m)??[];parts.push(g);batches.set(m,parts)}
  function cube(x,y,z,w,h,d,m){batch(box.clone().scale(w,h,d).translate(x,y,z),m)}
  function top([w,e,n,s],y,m){
   const g=new T.PlaneGeometry(e-w,s-n).rotateX(-Math.PI/2).translate((w+e)/2,y,(n+s)/2),uv=g.attributes.uv
   const p=g.attributes.position
-  const scale=m===road?asphaltScale:m===pavement?pavingScale:4.5
+  const scale=m===pavement?pavingScale:4.5
   for(let i=0;i<uv.count;i++)uv.setXY(i,p.getX(i)/scale,-p.getZ(i)/scale)
   batch(g,m)
  }
- for(const rect of basinLots){top(rect,.086,road)}
  for(const rect of basinPromenade)top(rect,.091,pavement)
  for(const {bounds} of basinGreen)top(bounds,.091,lawn)
  const gardenWalks=[[13.9,16.1,187.2,205.3],[7.2,22.4,196.9,201.6],[13.9,20.3,201.2,203.2]]
@@ -77,7 +75,7 @@ export function buildSouthBasin(scene,addCollider,maps){
    cube(vertical?stop:before,.011,vertical?before:stop,vertical?span*.45:.12,.012,vertical?.12:span*.45,paint)
   }
  }
- for(const [w,e,n,s] of basinLots)for(let x=w+.2;x<e;x+=2.36)cube(x,.093,(n+s)/2,.052,.008,s-n-.21,paint)
+ for(const [w,e,n,s] of basinLots)for(let x=w+.2;x<e;x+=2.36)cube(x,.009,(n+s)/2,.052,.008,s-n-.21,paint)
  for(const [x,z,rotation] of [[5.84,113.4,0],[18.04,152.2,0],[-27.2,159,0],[-12.6,140.22,Math.PI/2],[10.5,191.8,Math.PI/2]]){
   batch(new T.BoxGeometry(.34,.009,.66).rotateY(rotation).translate(x,.009,z),iron)
   for(let slot=-2;slot<=2;slot++)batch(new T.BoxGeometry(.24,.005,.027)

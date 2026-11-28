@@ -1,7 +1,9 @@
 import {quayApron} from './quay-plan.js'
+import {pierStreetEast} from './street-plan.js'
 import {coastalSurface} from './coastal-surface.js'
 import {loadPortProp} from './port-props.js';
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 const PI = Math.PI;
 const assetRoot = `${import.meta.env?.BASE_URL ?? '/'}assets/port/`;
@@ -96,11 +98,20 @@ export async function buildPort(scene, addCollider) {
   }
   const line = (a,b,width,color) => beam(a,b,width,width,color,plain,rodShape);
   const safety = '#d9a544', iron = '#3a4b4b', dark = '#303b3e', oxide = '#bc513b', orange = '#ea7953';
-  const quay = new THREE.Mesh(new THREE.PlaneGeometry(16.06,114),new THREE.MeshStandardMaterial({
+  const [left,right,north,south]=[9.98,26.04,-71,43];
+  const [,pierEnd,pierNorth,pierSouth]=pierStreetEast;
+  // Keep the service-deck texture continuous around the Pier Street entrance.
+  const deckTiles=[[left,right,north,pierNorth],[left,right,pierSouth,south],[pierEnd,right,pierNorth,pierSouth]];
+  const deckParts=deckTiles.map(([w,e,n,s])=>{
+    const geometry=new THREE.PlaneGeometry(e-w,s-n).rotateX(-PI/2).translate((w+e)/2,.001,(n+s)/2);
+    const {position,uv}=geometry.attributes;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)-left)/(right-left),(south-position.getZ(i))/(south-north));
+    return geometry;
+  });
+  const quay = new THREE.Mesh(mergeGeometries(deckParts),new THREE.MeshStandardMaterial({
     map:groundMap, normalMap:groundNormal, normalScale:new THREE.Vector2(.56,.56),color:0xb5b3a8,roughness:.92
   }));
-  quay.rotation.x = -PI/2;
-  quay.position.set(18.01,.001,-14);
+  deckParts.forEach(part=>part.dispose());
   quay.receiveShadow = true;
   group.add(quay);
   box(25.83,-1.03,-14,.44,2.11,114,'#8d9385');
@@ -122,8 +133,12 @@ export async function buildPort(scene, addCollider) {
     }
   }
   for (let z=-65;z<43;z+=8) {
-    box(12,.013,z,.055,.018,7.86,'#9e9b8a');
-    box(18,.013,z,15.93,.018,.025,'#96978a');
+    const start=z-3.93,end=z+3.93;
+    for(const [a,b] of [[start,Math.min(end,pierNorth)],[Math.max(start,pierSouth),end]]){
+      if(b>a)box(12,.013,(a+b)/2,.055,.018,b-a,'#9e9b8a');
+    }
+    const seamStart=z>pierNorth&&z<pierSouth?pierEnd:10.035,seamEnd=25.965;
+    box((seamStart+seamEnd)/2,.013,z,seamEnd-seamStart,.018,.025,'#96978a');
   }
   function container(x, base, z, length, style, across = false, solid = false) {
     const h = 2.57, w = 2.44;

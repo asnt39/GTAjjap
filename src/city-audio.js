@@ -5,7 +5,8 @@ const scores={
  harbor:['last-ferry','after-hours'],danger:['blue-beacons','crosswind'],story:['crosswind','after-hours'],radio:['causeway','after-hours','market-lights']
 }
 const scoreLevel={explore:.43,night:.40,drive:.44,harbor:.42,danger:.54,story:.45,radio:.68}
-const firearmReports={pistol:{level:.74,interval:.043},shotgun:{level:.95,interval:.07},sniper:{level:.87,interval:.07}}
+const firearmReports={pistol:{level:.68,interval:.043},shotgun:{level:.82,interval:.07},sniper:{level:.76,interval:.07}}
+const drivingReports={engineStart:{clip:'ignition',level:.74},brake:{clip:'brake',level:.42}}
 const shiftSpeeds={bike:[4.5,9.5,15.5,23,31],sport:[6.5,13,20,27,34],car:[5,10.5,16.5,22,27]}
 const unit=value=>Math.min(1,Math.max(0,value))
 const sounds={
@@ -18,7 +19,7 @@ const sounds={
  switch:[232,1400,.11,.12],buy:[587,2400,.19,.11],click:[310,1750,.08,.085],
  drink:[143,490,.24,.10],eat:[116,980,.15,.12],repair:[328,1900,.32,.16],
  mission:[392,2400,.38,.12],ui:[345,1550,.10,.085],horn:[330,1300,.52,.20],
- tire:[55,920,.17,.17],gear:[67,390,.16,.12],bird:[1660,2300,.23,.07],gull:[980,1400,.38,.13],
+ tire:[55,920,.17,.17],brake:[140,1900,.31,.21],gear:[67,390,.16,.12],bird:[1660,2300,.23,.07],gull:[980,1400,.38,.13],
  harborBell:[510,1230,.42,.14],wallHit:[91,1200,.11,.13],
  sand:[69,610,.115,.095],splash:[83,2180,.34,.19],boatStart:[47,580,.52,.19]
 }
@@ -39,7 +40,7 @@ export function cityAudio(browser=globalThis){
  const settings=readMixer(storage)
  let ctx,master,buses,roomFilter,echo,windGain,waterGain,cityGain,motor,motorGain,motorHarmonic,harmonicGain,motorFilter,roadGain,traction,siren,sirenGain,noise,spatialWind
  let active=false,paused=false,hidden=false,listener={x:0,z:0,yaw:0},muted=false,cue='',previousTrack=''
- let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0
+ let tracks=[],targetTrack=null,lastPlayback=0,velocityBand=0,drivenCar=null,shiftUntil=0,nextAmbience=0,brakeActive=false
  const shots=new Map(),roadClips=new Map(),firearmClips=new Map()
  let roadMedia=null,loadingRoad=false,firearmsRequested=false
  function store(){try{storage?.setItem(settingsKey,JSON.stringify(settings))}catch{}}
@@ -50,9 +51,9 @@ export function cityAudio(browser=globalThis){
   return filter
  }
  function gain(value){const g=ctx.createGain();g.gain.value=value;return g}
- function noiseLoop(type,hz){
+ function noiseLoop(type,hz,target=buses.ambient){
   const source=ctx.createBufferSource(),level=gain(0)
-  source.buffer=spatialWind;source.loop=true;filtered(source,type,hz,level);level.connect(buses.ambient);source.start()
+  source.buffer=spatialWind;source.loop=true;filtered(source,type,hz,level);level.connect(target);source.start()
   return level
  }
  function init(){
@@ -80,7 +81,7 @@ export function cityAudio(browser=globalThis){
   motorHarmonic=ctx.createOscillator();motorHarmonic.type='sawtooth';harmonicGain=gain(0)
   motorHarmonic.connect(harmonicGain).connect(motorFilter);motorHarmonic.start()
   motorGain.connect(buses.effects);motor.start()
-  roadGain=noiseLoop('highpass',680);traction=noiseLoop('bandpass',1680)
+  roadGain=noiseLoop('highpass',680,buses.effects);traction=noiseLoop('bandpass',1680,buses.effects)
   siren=ctx.createOscillator();siren.type='triangle';sirenGain=gain(0)
   siren.connect(sirenGain).connect(buses.ambient);siren.start()
  }
@@ -149,7 +150,7 @@ export function cityAudio(browser=globalThis){
  function prepareRoad(){
   if(roadMedia||loadingRoad||!browser.fetch)return
   loadingRoad=true
-  const library=['rpm-low','rpm-high','skid','ignition']
+  const library=['rpm-low','rpm-high','skid',...Object.values(drivingReports).map(report=>report.clip)]
   Promise.allSettled(library.map(async id=>{
    const clip=await loadClip('/assets/driving-audio/'+id+'.wav')
    if(clip)roadClips.set(id,clip)
@@ -199,9 +200,10 @@ export function cityAudio(browser=globalThis){
   const near=1-d/radius
   const attenuation=Math.max(report?0:.05,near*near)*(menu?settings.effects:1)*amount
   const pan=position(dx,dz,d)
-  const clip=report?firearmClips.get(name):name==='engineStart'?roadClips.get('ignition'):null
+  const drivingReport=drivingReports[name]
+  const clip=report?firearmClips.get(name):roadClips.get(drivingReport?.clip)
   if(clip){
-   playClip(clip,attenuation*(report?.level??.82),pan,target,.97+Math.random()*.06,
+   playClip(clip,attenuation*(report??drivingReport).level,pan,target,.97+Math.random()*.06,
     report?650+near*near*14000:null,!!report&&!menu&&!ambient)
    return
   }
@@ -274,7 +276,7 @@ export function cityAudio(browser=globalThis){
    const engaged=driving&&car.speed>=0
    if(!driving||drivenCar!==car){
     velocityBand=engaged?gears.slice(0,-1).filter(limit=>speed>limit).length:0
-    shiftUntil=0;drivenCar=driving?car:null
+    shiftUntil=0;drivenCar=driving?car:null;brakeActive=false
    }else if(engaged&&velocityBand<gears.length-1&&speed>gears[velocityBand]+.35){
     velocityBand++;shiftUntil=ctx.currentTime+.17
     if(throttle>.24&&driveLevel)sound('gear',null,.38)
@@ -296,9 +298,15 @@ export function cityAudio(browser=globalThis){
    fade(motorGain.gain,boat&&!paused?.037+marineRPM*.086:driveLevel*(.037+rpm*.039+throttle*.075)*synthetic,.13)
    fade(roadGain.gain,boat&&!paused?Math.min(.15,marineSpeed*.018):driveLevel*Math.min(.19,speed*.012),.18)
    const slip=Math.abs(car.slip??0)
-   const brakeSlip=car.braking?unit((-(car.accel??0)-4)/5)*unit((speed-7)/14)*.34:0
-   const scrub=unit((speed-2.8)/8)*unit(slip*3.8+brakeSlip)
+   const scrub=unit((speed-2.8)/8)*unit(slip*3.8)
    const skid=scrub**1.5
+   const deceleration=-(car.accel??0)*Math.sign(car.speed)
+   const brakePressure=unit((speed-2.8)/8)*unit((deceleration-1.8)/4.2)
+   if(!car.braking)brakeActive=false
+   else if(driveLevel&&!brakeActive&&brakePressure>.18){
+    sound('brake',null,(.54+.46*brakePressure)*(1-.35*scrub))
+    brakeActive=true
+   }
    fade(traction.gain,driveLevel*scrub*(roadMedia?.skid ? .16 : .30),scrub>.2?.07:.15)
    function mix(loop,level,rate,seconds=.13){
     if(loop){fade(loop.level.gain,level,seconds);fade(loop.source.playbackRate,rate,.17)}

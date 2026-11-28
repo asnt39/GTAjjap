@@ -10,20 +10,32 @@ const spawnNear=25,spawnFar=92,despawnAt=108
 // District controllers share a fleet and can meet on the same approach.
 const flowByFleet=new WeakMap()
 
-export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntries,nextNode=civilianNext,junction=dockJunction,seeded=[],idPrefix='traffic',turnarounds=civilianTurnarounds,requireDriver=false,canEnter=()=>true}={}){
+export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntries,nextNode=civilianNext,junction=dockJunction,junctions=[],seeded=[],idPrefix='traffic',turnarounds=civilianTurnarounds,requireDriver=false,canEnter=()=>true}={}){
  const units=[...rigs.map(rig=>({rig})),...seeded].map(({rig,car:externalCar},index)=>{
   const setup={...rig.setup,top:8+(index%4)*.55,power:3.25,steer:.88,steerRate:3}
   const car=externalCar??Object.assign(newDrive(rig,setup),{id:idPrefix+'-'+index,localOnly:true})
   if(!externalCar){rig.root.visible=false;scene.add(rig.root)}
-  return {rig,car,setup,external:!!externalCar,driver:rig.driver,active:false,path:[],turn:index,index,
+  return {rig,car,setup,external:!!externalCar,driver:rig.driver,active:false,path:[],turn:index,
    stopped:0,waiting:0,blocked:0,dependency:null,recover:0,retry:0,released:false}
  })
  const byVehicle=new Map(units.map(unit=>[unit.car,unit]))
  let flow=flowByFleet.get(traffic)
- if(!flow){flow={units:new Map(),owner:null};flowByFleet.set(traffic,flow)}
- for(const unit of units)flow.units.set(unit.car,unit)
- const zones=junction?[{point:junction,entry:17,stop:13.2,inside:9.8,release:10.9},
-  ...turnarounds.map(point=>({point,entry:15,stop:10,inside:6.8,release:8}))]:[]
+ if(!flow){flow={units:new Map(),zones:[],owner:null};flowByFleet.set(traffic,flow)}
+ const {zones}=flow
+ for(const unit of units){
+  unit.canEnter=(point,approach)=>point.priority||canEnter(unit.car,point,approach)
+  unit.tryAlternateExit=zone=>tryAlternateExit(unit,zone)
+  flow.units.set(unit.car,unit)
+ }
+ function registerZone(point,entry,stop,inside,release){
+  if(zones.some(zone=>zone.point.x===point.x&&zone.point.z===point.z))return
+  zones.push({point,entry,stop,inside,release,owner:null,entered:false})
+ }
+ if(junction){
+  registerZone(junction,17,13.2,9.8,10.9)
+  for(const point of turnarounds)registerZone(point,15,10,6.8,8)
+ }
+ for(const point of junctions)registerZone(point,point.entry??16,point.stop??11.3,point.inside??8,point.release??9.5)
  let spawnClock=0,spawnCursor=0
  function remove(unit,claimed=false){
   if(!unit.active)return
@@ -33,7 +45,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
   if(!claimed&&!unit.external)unit.rig.root.visible=false
   if(unit.driver)unit.driver.visible=false
   if(unit.external)unit.car.speed=unit.car.throttle=unit.car.slip=unit.car.remainder=0
-  for(const zone of zones)if(zone.owner===unit){zone.owner=null;zone.entered=false}
+  for(const zone of zones)if(zone.owner===unit)reserveZone(zone,null)
   if(unit.passing||unit.yielding)endPass(unit.passing??unit.yielding)
   if(flow.owner===unit)flow.owner=null
  }
@@ -69,7 +81,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
   for(let i=0;i<entries.length;i++){
    const node=entries[(spawnCursor+i)%entries.length]
    const range=distance(node,player)
-   if(range<spawnNear||range>spawnFar||inView(node)&&range<72)continue
+   if(range<spawnNear||range>spawnFar||inView(node)&&range<72||zones.some(zone=>distance(node,zone.point)<zone.stop+1))continue
    const pose={...newDrive(unit.rig,unit.car.setup),travel:0,x:node.x,z:node.z,heading:heading(node)}
    if(!clearPose(pose,boxes)||traffic.some(other=>distance(other,pose)<9)||walkers.some(p=>nearBody(pose,p.x,p.z,.9)))continue
    Object.assign(unit.car,pose)
@@ -89,14 +101,20 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
   while(curve?.curve)curve=curve.edges[0]
   return curve
  }
- function zoneCurve(unit,zone){
-  return unit.path.find(node=>node.curve&&distance(node,zone.point)<(zone.point.curve?5.5:7.5))
+ function zoneApproach(unit,zone){
+  return unit.path.find(node=>zone.point.priority
+   ?distance(node,zone.point)<zone.inside
+   :node.curve&&distance(node,zone.point)<(zone.point.curve?5.5:7.5))
  }
  function reserved(unit,zone){
-  return distance(unit.car,zone.point)<zone.entry&&zoneCurve(unit,zone)
+  return distance(unit.car,zone.point)<zone.entry&&zoneApproach(unit,zone)
  }
- function blockedExit(unit,curve){
-  const exit=exitFrom(curve)
+ function blockedExit(unit,approach,zone){
+  let exit
+  if(zone?.point.priority){
+   const at=unit.path.indexOf(approach)
+   exit=unit.path.slice(at+1).find(node=>distance(node,zone.point)>=zone.release)
+  }else exit=exitFrom(approach)
   if(!exit)return true
   const {car}=unit,angle=heading(exit)
   const outbound=traffic.filter(v=>v!==car&&distance(v,exit)<13)
@@ -108,8 +126,8 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
   }
   return false
  }
- function tryAlternateExit(unit){
-  const at=unit.path.findIndex(node=>node.edges.length>1&&distance(node,junction)<10)
+ function tryAlternateExit(unit,zone){
+  const at=unit.path.findIndex(node=>node.edges.length>1&&distance(node,zone.point)<10)
   if(at<0)return false
   const branch=unit.path[at],current=unit.path[at+1]
   for(let i=0;i<branch.edges.length;i++){
@@ -121,21 +139,34 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
   }
   return false
  }
+ function reserveZone(zone,owner,entered=false){
+  if(zone.owner)zone.owner.intentClock=0
+  if(owner)owner.intentClock=0
+  zone.owner=owner;zone.entered=entered
+ }
  function updateZone(zone){
-  if(zone.owner){
-   const radius=distance(zone.owner.car,zone.point)
+  const {owner,point}=zone
+  if(owner){
+   const radius=distance(owner.car,point)
    zone.entered||=radius<zone.inside
-   const turn=reserved(zone.owner,zone)
-   const permitted=canEnter(zone.owner.car,zone.point)||radius<zone.stop+1
-   if(zone.entered?radius<zone.release+zone.owner.car.length*.5:turn&&permitted&&!blockedExit(zone.owner,turn))return
-   zone.owner=null;zone.entered=false
+   const approach=reserved(owner,zone)
+   const permitted=owner.canEnter(point,approach)||radius<zone.stop-.45
+   if(zone.entered?radius<zone.release+owner.car.length*.5:approach&&permitted&&!blockedExit(owner,approach,zone))return
+   reserveZone(zone,null)
   }
-  const inside=units.find(u=>u.active&&distance(u.car,zone.point)<zone.inside)
-  if(inside){zone.owner=inside;zone.entered=true;return}
-  const queue=units.filter(u=>u.active&&reserved(u,zone)&&!u.recover&&canEnter(u.car,zone.point))
-   .sort((a,b)=>b.waiting-a.waiting||distance(a.car,zone.point)-distance(b.car,zone.point)||a.index-b.index)
-  zone.owner=queue.find(u=>!blockedExit(u,zoneCurve(u,zone))||
-   !zone.point.curve&&u.waiting>2&&tryAlternateExit(u))??null
+  const queue=[]
+  for(const unit of flow.units.values()){
+   if(!unit.active)continue
+   const radius=distance(unit.car,point)
+   if(radius<zone.inside){reserveZone(zone,unit,true);return}
+   if(radius>=zone.entry||unit.recover)continue
+   const approach=zoneApproach(unit,zone)
+   if(approach&&unit.canEnter(point,approach))queue.push({unit,radius,approach})
+  }
+  queue.sort((a,b)=>b.unit.waiting-a.unit.waiting||a.radius-b.radius||String(a.unit.car.id).localeCompare(String(b.unit.car.id)))
+  const next=queue.find(({unit,approach})=>!blockedExit(unit,approach,zone)||
+   !point.curve&&!point.priority&&unit.waiting>2&&unit.tryAlternateExit(zone))
+  if(next)reserveZone(zone,next.unit)
  }
  function canReverse(car,obstacles,people,steer){
   const curvature=Math.tan(steer*car.setup.steer)/(car.length*car.setup.wheelbase)
@@ -330,7 +361,7 @@ export function civilianTraffic(scene,boxes,traffic,rigs,{entries=civilianEntrie
    }
    if(active.length<limit&&spawnClock<=0){
     const unit=units.find(unit=>!unit.active&&!unit.released&&unit.external&&distance(unit.car,player)<75)
-    if(unit&&seed(unit)){spawnClock=1;active.push(unit)}
+    if(unit&&seed(unit)){spawnClock=1;prepare(unit);active.push(unit)}
    }
    zones.forEach(updateZone)
    const intents=new Map(active.map(unit=>{

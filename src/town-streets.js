@@ -1,7 +1,8 @@
 import * as T from 'three'
+import {pavingScale} from './street-materials.js'
 import {crossings,loadingCourt,serviceApron,pocketGarden,within} from './street-plan.js'
 
-const streetAprons=[loadingCourt,[serviceApron[0],serviceApron[1],serviceApron[2],loadingCourt[2]]]
+export const streetAprons=[loadingCourt,serviceApron]
 const crossingBeds=crossings.flatMap(c=>[-1,1].map(side=>{
  const along=(c.axis==='z'?c.z:c.x),across=(c.axis==='z'?c.x:c.z)+side*c.span/2
  const wide=c.width/2+.7,edge=across+side*1.08
@@ -10,8 +11,7 @@ const crossingBeds=crossings.flatMap(c=>[-1,1].map(side=>{
 }))
 export const reservedSurfaces=[...streetAprons,...crossingBeds.map(b=>b.rect),pocketGarden]
 export function streetDetails({floor,box,batch,addCollider,materials}){
- const {stone,paint,asphalt,paving,planted,iron}=materials
- for(const r of streetAprons)floor(r,.002,asphalt)
+ const {stone,paint,paving,planted,iron}=materials
  floor(pocketGarden,.082,planted)
  // Four 2.55 m bays and an unobstructed manoeuvring lane on the former plaza.
  for(let i=0;i<=4;i++)box(-138.25+i*2.55,.009,54.94,.075,.008,4.35,paint)
@@ -33,7 +33,7 @@ export function streetDetails({floor,box,batch,addCollider,materials}){
     const a=across+col*side*1.08,b=along+t
     const x=c.axis==='z'?a:b,z=c.axis==='z'?b:a
     const h=col||Math.abs(t)>w?.082:.004
-    verts.push(x,h,z);uv.push(x/4.5,-z/4.5)
+    verts.push(x,h,z);uv.push(x/pavingScale,-z/pavingScale)
    }
    if(!row)continue
    const i=row*2-2,flip=(c.axis==='z')=== (side>0)

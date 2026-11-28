@@ -1,5 +1,6 @@
-import {BoxGeometry,ConeGeometry,Group,Mesh,MeshBasicMaterial,MeshStandardMaterial,Vector3} from 'three'
+import {BoxGeometry,Group,Mesh,MeshStandardMaterial,Vector3} from 'three'
 import {createCharacter} from './character.js'
+import {missionEnemyOutline} from './mission-enemy-outline.js'
 import {clearPose,nearBody,newDrive,overlapsCar,resetVehicleGround} from './driving.js'
 import {advance,combatPose,fighter,injure} from './melee.js'
 import {moveImpact} from './impact-motion.js'
@@ -35,8 +36,6 @@ const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a))
 const disabled=car=>Object.values(car.dents??{}).reduce((sum,dent)=>sum+dent.depth,0)>=.60
 const quayLegs=[{x:12.2,z:-44.7},{x:12.1,z:-38.5},{x:13.7,z:-36},{x:15.4,z:-30.1},{x:12.1,z:-28.6}]
 const manifestTime=2.2
-const hostilePin=new ConeGeometry(.107,.17,4).rotateZ(Math.PI)
-const hostileRed=new MeshBasicMaterial({color:0xda3e49,toneMapped:false})
 function nextLeg(from,to,clear,paths){
  if(clear(from,to))return to
  const points=[from,...paths,to],last=points.length-1,queue=[0],previous=new Map([[0,-1]])
@@ -81,7 +80,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
  function clean(){
   for(const n of actors){
    const i=crowd.all.indexOf(n);if(i>=0)crowd.all.splice(i,1)
-   n.rig.root.removeFromParent();n.rig.dispose()
+   n.outline?.dispose();n.rig.root.removeFromParent();n.rig.dispose()
   }
   for(const item of pursuitCars){
    const i=traffic.indexOf(item.car);if(i>=0)traffic.splice(i,1)
@@ -117,10 +116,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
      const actor={id:friendly?'wrong-deal-theo':setting+'-'+i,name:friendly?'Theo Mercer':'조직원',
       height:1.77,stagger:.20+i*.10,missionRole:friendly?'escort':'hostile',pos,rig,f:fighter(friendly?130:58),
       face:i===0?Math.PI:0,stepping:0,speed:0,replan:0,leg:null,delay,role,approach,waypoint:0,joined:false}
-     if(!friendly){
-      actor.pin=new Mesh(hostilePin,hostileRed)
-      actor.pin.position.y=2.10;actor.pin.visible=false;rig.root.add(actor.pin)
-     }
+     if(!friendly)actor.outline=missionEnemyOutline(rig.root)
      rig.root.name='Wrong Deal · '+actor.id
      return actor
     })
@@ -202,7 +198,7 @@ export function prologueWorld({scene,boxes,crowd,traffic,rigs,height,combat,noti
    n.speed=n.stepping=range(n.pos,{x,z})/Math.max(dt,.001)
    n.rig.root.position.copy(n.pos);n.rig.root.position.y+=lift;n.rig.root.rotation.y=n.face
    n.rig.update(dt,n.stepping,combatPose(n.f))
-   if(n.pin)n.pin.visible=!!n.f.hp&&(lineOfSight||n.waypoint===n.approach.length&&d<13)
+   n.outline?.show(!!n.f.hp&&(lineOfSight||n.waypoint===n.approach.length&&d<13))
    if(!friendly)gunfire.pose(n,target,dt,lineOfSight&&n.speed<2.7,(shooter,from,to)=>{
     if(target===player)combat(shooter,from,to,true)
     else{combat(shooter,from,to,false);injure(escort.f,8,1,'body',{weaponHit:true})}

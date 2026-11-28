@@ -1,6 +1,6 @@
 import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
-import {basinParcels,basinLand,distanceToBasin,insideBasin} from './south-basin-plan.js'
-import {streetDetails,reservedSurfaces} from './town-streets.js'
+import {basinParcels,basinLand,basinLots,distanceToBasin,insideBasin} from './south-basin-plan.js'
+import {streetDetails,reservedSurfaces,streetAprons} from './town-streets.js'
 import {within,crossings} from './street-plan.js'
 import {buildClockLane} from './clock-lane.js'
 import {terraceSigns,detailTerrace} from './terrace-fronts.js'
@@ -9,7 +9,7 @@ import {buildTerraceShell} from './terrace-interior.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {inWestBank} from './west-bank-plan.js'
-import {clockCourt,townTiles,townPavement,townRoadSurface,townRoomBarriers} from './old-town-plan.js'
+import {clockCourt,townTiles,townPavement,oldTownRoads,townRoomBarriers} from './old-town-plan.js'
 import {rowRooms} from './market-row-plan.js'
 import {buildRowShell} from './market-row-shell.js'
 import {approachStations,breakwaterApproach,breakwaterGradeAt} from './breakwater-approach.js'
@@ -99,9 +99,11 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
   mesh.setIndex(indices);mesh.computeVertexNormals()
   batch(mesh,material,town)
  }
- for(const rect of townRoadSurface)districtFloor(rect,0,surface)
- const pavementTiles=townTiles([...townPavement,...reservedSurfaces],(x,z)=>
-  townPavement.some(r=>within(r,x,z))&&!reservedSurfaces.some(r=>within(r,x,z)))
+ const roads=[...oldTownRoads,...streetAprons,...basinLots]
+ for(const rect of townTiles(roads,(x,z)=>roads.some(r=>within(r,x,z))))districtFloor(rect,0,surface)
+ const pavingCuts=[...reservedSurfaces,...basinLots]
+ const pavementTiles=townTiles([...townPavement,...pavingCuts],(x,z)=>
+  townPavement.some(r=>within(r,x,z))&&!pavingCuts.some(r=>within(r,x,z)))
  for(const rect of pavementTiles)districtFloor(rect,.082,pavement)
  const {west,east,north,south,roadNorth,roadSouth}=breakwaterApproach
  const roadCenter=(roadNorth+roadSouth)/2
@@ -138,7 +140,7 @@ export function buildOldTown(scene,addCollider,boxes,{street,architecture,storeF
  }
  for(const z of [roadNorth+.32,roadSouth-.32])approachFloor([west,east,z-.045,z+.045],.008,trafficPaint)
  streetDetails({floor,addCollider,box:(...args)=>box(...args,town),batch:(g,m)=>batch(g,m,town),
-  materials:{stone,paint:trafficPaint,asphalt:surface,paving:pavement,planted:meadow??standard(0x626b49),iron}})
+  materials:{stone,paint:trafficPaint,paving:pavement,planted:meadow??standard(0x626b49),iron}})
  for(const [x,z,angle] of [[-73.29,57,0],[-62.73,73,0],[-40.31,89,0],[-114,96.17,Math.PI/2],[-145,69.84,Math.PI/2]]){
   batch(new T.BoxGeometry(.33,.026,.66).rotateY(angle).translate(x,.016,z),iron,town)
   for(let i=-2;i<=2;i++)batch(new T.BoxGeometry(.24,.004,.028).translate(0,.033,i*.10).rotateY(angle).translate(x,0,z),roof,town)

@@ -1,9 +1,11 @@
 import {basinGreen,basinLots} from './south-basin-plan.js'
+import {bunker,skylineTowers} from './basin-skyline-plan.js'
 import {shopSite,oldShopWorkshop} from './weapon-shop-plan.js'
 import {citySpots} from './city-life-plan.js'
 import {crossings,loadingCourt,pocketGarden} from './street-plan.js'
 import {terraceRooms,terracePoint} from './terrace-plan.js'
 import {clockCourt,townRoadSurface,townPavement} from './old-town-plan.js'
+import {foundryFountain,foundryGardenPlots,foundryPicnicTerrace,foundryPlayCourt,foundryWalks} from './foundry-garden-plan.js'
 import {premises} from './market-plan.js'
 import {sights} from './navigation.js'
 import {clubPlan} from './new-blood-club-plan.js'
@@ -41,7 +43,17 @@ export function drawMap(canvas,player,yaw,overview=false,cars=null,goal=null,hos
   const [a,b,n,s]=bounds;rect(a,n,b-a,s-n,color)
  }
  for(const {bounds:[a,b,n,s]} of basinGreen)rect(a,n,b-a,s-n,'#52674e')
+ for(const [a,b,n,s] of foundryGardenPlots)rect(a,n,b-a,s-n,'#52674e')
+ for(const [[a,b,n,s],color] of [[foundryPicnicTerrace,'#7e7763'],[foundryPlayCourt,'#6f6259']])rect(a,n,b-a,s-n,color)
+ for(const {width,points} of foundryWalks){
+  c.beginPath();points.forEach(([x,z],i)=>i?c.lineTo(x,z):c.moveTo(x,z))
+  c.strokeStyle='#a69d81';c.lineWidth=width;c.stroke()
+ }
+ c.fillStyle='#a69d81';c.beginPath();c.arc(foundryFountain.x,foundryFountain.z,foundryFountain.radius,0,Math.PI*2);c.fill()
  for(const [a,b,n,s] of basinLots)rect(a,n,b-a,s-n,'#5d6158')
+ for(const tower of skylineTowers)rect(tower.x-tower.width/2,tower.z-tower.depth/2,tower.width,tower.depth,'#829397')
+ const [bw,be,bn,bs]=bunker.shelter
+ rect(bw,bn,be-bw,bs-bn,'#a39881')
  for(const crossing of crossings){
   const along=crossing.axis==='z'
   rect(crossing.x-(along?crossing.span:crossing.width)*.5,crossing.z-(along?crossing.width:crossing.span)*.5,

@@ -1,5 +1,5 @@
 import {asphaltScale,pavingScale,roadSurface,pavingSurface} from './street-materials.js'
-import {marketStreetbed,marketWalks} from './street-plan.js'
+import {marketStreetbed,marketWalks,pierStreetEast} from './street-plan.js'
 import * as T from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
@@ -101,7 +101,7 @@ export async function buildStreet(scene, addCollider, surfaceMaps) {
   // The three asphalt strips meet edge-to-edge so the intersection has one continuous surface.
   batch(floorGeometry(-6,6,-107,63,0,asphaltScale),asphalt)
   batch(floorGeometry(-40,-6,-43,-31,0,asphaltScale),asphalt)
-  batch(floorGeometry(6,26,-43,-31,0,asphaltScale),asphalt)
+  batch(floorGeometry(...pierStreetEast,0,asphaltScale),asphalt)
   batch(floorGeometry(...marketStreetbed,0,asphaltScale),asphalt)
   function sidewalk(x1,x2,z1,z2){
     batch(floorGeometry(x1,x2,z1,z2,.083,pavingScale),paving)

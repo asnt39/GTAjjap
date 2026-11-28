@@ -2,13 +2,27 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {streamDistrict} from './district-stream.js'
 import * as T from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
+import {foundryFountain,foundryGardenPlots,foundryPicnicTerrace,foundryPlayCourt,foundryWalks} from './foundry-garden-plan.js'
+import {foundryParkFixtures} from './foundry-park-fixtures.js'
 
-const trees=[[-173.8,40.8,5.3,.83],[-166.1,40.9,4.2,1.1],[-160.95,53,5.15,.84],[-173,52,4.7,1],[-164,55,3.5,.76]]
-export function foundryGarden(group,maps){
+const trees=[[-175.9,40.3,5.3,.83],[-168.65,41.5,4.2,1.1],[-159.45,54.5,5.15,.84],[-172.0,51.52,4.7,1],
+ [-164.4,56.3,3.5,.76],[-179.3,41.9,4.95,1],[-179.6,48.75,3.5,.89],[-159.8,40.18,4.2,.84],[-169.12,37.58,3.2,.72]]
 
- const turf=new T.PlaneGeometry(14.8,15.5,6,6).rotateX(-Math.PI/2).translate(-167,.112,47.2)
- const uv=turf.attributes.uv,pos=turf.attributes.position
- for(let j=0;j<pos.count;j++)uv.setXY(j,pos.getX(j)/3.8,pos.getZ(j)/3.8)
+function repeatUV(geometry,metres=3.8){
+ const {uv,position}=geometry.attributes
+ for(let i=0;i<position.count;i++)uv.setXY(i,position.getX(i)/metres,-position.getZ(i)/metres)
+ return geometry
+}
+
+function flat([a,b,n,s],height){
+ return repeatUV(new T.PlaneGeometry(b-a,s-n).rotateX(-Math.PI/2).translate((a+b)/2,height,(n+s)/2))
+}
+
+export function foundryGarden(district,maps,addCollider){
+ const group=new T.Group();group.name='Foundry Garden';district.add(group)
+ const fixtures=foundryParkFixtures(group,addCollider,maps)
+ const turfParts=foundryGardenPlots.map(rect=>flat(rect,.100))
+ const turf=mergeGeometries(turfParts);turfParts.forEach(geometry=>geometry.dispose())
  const grass=new T.MeshStandardMaterial({color:0xabb497,roughness:.93})
  new T.TextureLoader().load('/assets/estuary/lawn.webp',tex=>{
   tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;grass.map=tex;grass.needsUpdate=true
@@ -18,25 +32,42 @@ export function foundryGarden(group,maps){
   tex.wrapS=tex.wrapT=T.RepeatWrapping;grass[slot]=tex;grass.needsUpdate=true
  })
  grass.normalScale.set(.24,.24)
- const lawn=new T.Mesh(turf,grass);lawn.receiveShadow=true;group.add(lawn)
+ const lawn=new T.Mesh(turf,grass);lawn.name='Foundry Garden lawns';lawn.receiveShadow=true;group.add(lawn)
  const paths=[]
- function ribbon(points,width){
-  const curve=new T.CatmullRomCurve3(points.map(([x,z])=>new T.Vector3(x,.137,z)))
+ function ribbon({points,width},height){
   const verts=[],tex=[],idx=[]
-  for(let k=0;k<=28;k++){
-   const v=curve.getPoint(k/28),t=curve.getTangent(k/28)
+  for(const [k,[cx,cz]] of points.entries()){
+   const next=points[Math.min(k+1,points.length-1)],prev=points[Math.max(k-1,0)]
+   const dx=next[0]-prev[0],dz=next[1]-prev[1],length=Math.hypot(dx,dz)
    for(const s of [-1,1]){
-    const x=v.x+s*t.z*width/2,z=v.z-s*t.x*width/2
-    verts.push(x,v.y,z);tex.push(x/3.8,z/3.8)
+    const x=cx+s*dz/length*width/2,z=cz-s*dx/length*width/2
+    verts.push(x,height,z);tex.push(x/3.8,-z/3.8)
    }
    if(k){const a=k*2-2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}
   }
   const g=new T.BufferGeometry();g.setIndex(idx);g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(tex,2));g.computeVertexNormals();paths.push(g)
  }
- ribbon([[-174.5,46.1],[-171,45.95],[-168.6,46.05],[-165.9,47],[-163.3,49.3],[-159.4,49.7]],1.5)
- ribbon([[-169.8,39.4],[-170.1,42.7],[-170.0,45.4],[-170.6,48.2],[-170.4,50.3],[-167.8,53.1],[-167.1,55.1]],1.22)
- const pathMat=new T.MeshStandardMaterial({color:0xc7bca6,map:maps.street[2],normalMap:maps.street[3],normalScale:new T.Vector2(.42,.42),roughness:.82,polygonOffset:true,polygonOffsetFactor:-1})
- const pathMesh=new T.Mesh(mergeGeometries(paths),pathMat);pathMesh.receiveShadow=true;group.add(pathMesh);paths.forEach(g=>g.dispose())
+ foundryWalks.forEach((walk,i)=>ribbon(walk,.117+i*.00065))
+ paths.push(flat(foundryPicnicTerrace,.125))
+ const {x:fx,z:fz,radius}=foundryFountain
+ paths.push(repeatUV(new T.CircleGeometry(radius,56).rotateX(-Math.PI/2).translate(fx,.127,fz)))
+ const pathMat=new T.MeshStandardMaterial({color:0xd6c4a9,map:maps.street[2],normalMap:maps.street[3],normalScale:new T.Vector2(.42,.42),roughness:.82})
+ const pathMesh=new T.Mesh(mergeGeometries(paths),pathMat);pathMesh.name='Foundry Garden paths and plazas';pathMesh.receiveShadow=true;group.add(pathMesh);paths.forEach(g=>g.dispose())
+ const border=new T.Mesh(new T.RingGeometry(radius-.11,radius,56).rotateX(-Math.PI/2).translate(fx,.129,fz),new T.MeshStandardMaterial({color:0x988a76,roughness:.86}))
+ border.receiveShadow=true;group.add(border)
+ const playMat=new T.MeshStandardMaterial({color:0xa37259,normalMap:maps.street[3],normalScale:new T.Vector2(.16,.16),roughness:.96})
+ const court=new T.Mesh(flat(foundryPlayCourt,.123),playMat);court.name='Foundry playground surface';court.receiveShadow=true;group.add(court)
+
+ const bedStamp=new T.Object3D(),unit=new T.BoxGeometry()
+ const beds=new T.InstancedMesh(unit,new T.MeshStandardMaterial({color:0xa99c88,roughness:.92}),trees.length)
+ const mulch=new T.InstancedMesh(unit,new T.MeshStandardMaterial({color:0x514b38,roughness:.98}),trees.length)
+ for(const [i,[x,z]] of trees.entries()){
+  bedStamp.position.set(x,.252,z);bedStamp.scale.set(2.18,.296,1.40);bedStamp.updateMatrix();beds.setMatrixAt(i,bedStamp.matrix)
+  bedStamp.position.y=.409;bedStamp.scale.set(1.93,.029,1.15);bedStamp.updateMatrix();mulch.setMatrixAt(i,bedStamp.matrix)
+  addCollider(x-1.09,x+1.09,z-.70,z+.70,.40,true)
+  addCollider(x-.17,x+.17,z-.17,z+.17,trees[i][2]*.43)
+ }
+ beds.receiveShadow=mulch.receiveShadow=true;group.add(beds,mulch)
  const crowns=[],outerLeaves=[],wood=[],up=new T.Vector3(0,1,0)
  function branch(a,b,r){
   const delta=b.clone().sub(a),g=new T.CylinderGeometry(r*.56,r,delta.length(),7)
@@ -58,6 +89,7 @@ export function foundryGarden(group,maps){
   }
  })
  const bark=new T.Mesh(mergeGeometries(wood),new T.MeshStandardMaterial({color:0x605145,roughness:.92}))
+ bark.castShadow=true
  group.add(bark);wood.forEach(g=>g.dispose())
  const trunks=streamDistrict({enterDistance:42,leaveDistance:55,
   async load(){
@@ -73,6 +105,7 @@ export function foundryGarden(group,maps){
     stamp.position.set(x,.24,z);stamp.rotation.y=i*.67;stamp.scale.set(h*spread/size.y,h/size.y,h*spread/size.y)
     stamp.updateMatrix();mesh.setMatrixAt(i,stamp.matrix)
    })
+   mesh.castShadow=true
    return {mesh,dispose(){mesh.dispose();geo.dispose();source.material.dispose()}}
   },
   attach({mesh}){group.add(mesh);bark.visible=false},
@@ -99,9 +132,14 @@ export function foundryGarden(group,maps){
   }
  })
  group.add(blossoms)
- return (t,range,low)=>{
-  wind.value=t;blossoms.visible=range<(low?24:46)
-  canopy.geometry.setDrawRange(0,range<(low?18:38)?Infinity:coreIndices)
-  return trunks(range)
+ return {
+  operate:fixtures.operate,
+  update(dt,time,pos,low){
+   const range=Math.hypot(pos.x+167,(pos.z??43)-43)
+   wind.value=time;blossoms.visible=range<(low?30:51)
+   canopy.geometry.setDrawRange(0,range<(low?23:42)?Infinity:coreIndices)
+   const treesChanged=trunks(range),fixturesChanged=fixtures.update(dt,time,range)
+   return treesChanged||fixturesChanged
+  }
  }
 }

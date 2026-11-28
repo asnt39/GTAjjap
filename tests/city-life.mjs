@@ -97,13 +97,19 @@ class FakeAudioContext {
  currentTime=0
  sampleRate=100
  destination=new FakeNode()
+ startedBuffers=[]
  constructor(){FakeAudioContext.latest=this}
  createGain(){return new FakeNode()}
  createDynamicsCompressor(){return new FakeNode()}
  createBiquadFilter(){return new FakeNode()}
  createDelay(){return new FakeNode()}
  createOscillator(){return new FakeNode()}
- createBufferSource(){return new FakeNode()}
+ createBufferSource(){
+  const source=new FakeNode()
+  source.start=()=>this.startedBuffers.push(source.buffer)
+  return source
+ }
+ async decodeAudioData(data){return new TextDecoder().decode(data)}
  createStereoPanner(){return new FakeNode()}
  createMediaElementSource(){return new FakeNode()}
  createBuffer(_,size){return {getChannelData:()=>new Float32Array(size)}}
@@ -145,4 +151,37 @@ test('mixer loads only after enabling and releases tracks on backgrounding',asyn
  assert.equal(FakeAudioContext.latest.state,'suspended')
  assert.equal(musicCue({wanted:2,driving:true}), 'danger')
  assert.equal(musicCue({wanted:2,radio:true,driving:true}), 'radio')
+})
+
+test('the brake recording plays once for each firm stop and stays silent when parked or muted',async()=>{
+ const mixer=cityAudio({AudioContext:FakeAudioContext,Audio:FakeAudio,fetch:async path=>({
+  ok:true,arrayBuffer:async()=>new TextEncoder().encode(path).buffer
+ })})
+ assert(await mixer.toggle())
+ mixer.set('music',0)
+ mixer.prepareDrive()
+ await new Promise(resolve=>setImmediate(resolve))
+ const ctx=FakeAudioContext.latest
+ const car={speed:17,accel:-7,setup:{top:18}}
+ const frame={x:0,z:0,yaw:0,t:0,car,driving:true}
+ const brakes=()=>ctx.startedBuffers.filter(buffer=>typeof buffer==='string'&&buffer.endsWith('/brake.wav')).length
+ const update=()=>{ctx.currentTime+=.3;mixer.update(frame)}
+
+ update()
+ assert.equal(brakes(),0)
+ car.braking=true
+ update();update()
+ assert.equal(brakes(),1)
+ mixer.pause(true);update()
+ mixer.pause(false);update()
+ assert.equal(brakes(),1)
+ car.braking=false;update()
+ car.braking=true;car.speed=0;update()
+ assert.equal(brakes(),1)
+ car.speed=-7;car.accel=7;update()
+ assert.equal(brakes(),2)
+ car.braking=false;update()
+ mixer.set('effects',0)
+ car.braking=true;update()
+ assert.equal(brakes(),2)
 })
