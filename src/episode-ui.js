@@ -8,8 +8,17 @@ function nearbyDirections(pos){
 // Choices live in the existing conversation. Leaving its range closes the shop too.
 export function episodeUI(game,voice,sound=()=>{}) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
+ const subtitle=document.querySelector('#story-subtitle')
  const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
- let previous='', shopping=false, speaker=null, reply=''
+ let previous='', shopping=false, speaker=null, reply='',announcement=null
+ function announce(message){
+  const split=message?.indexOf(' · ')??-1
+  if(split<1||split>17)return false
+  const speaker=message.slice(0,split),text=message.slice(split+3)
+  announcement={speaker,text,until:performance.now()+Math.max(4300,Math.min(8800,text.length*84))}
+  if(subtitle){subtitle.textContent=message;subtitle.hidden=false}
+  return true
+ }
  function option(id,label,action,description='') {
   const button=document.createElement('button')
   button.type='button';button.dataset.choice=id;button.textContent=label
@@ -28,18 +37,24 @@ export function episodeUI(game,voice,sound=()=>{}) {
  function dialogue(defaultLine) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
-  if(!npc){voice.stop();return}
+  if(!npc){
+   if(announcement&&performance.now()<announcement.until)voice.say(announcement.speaker,announcement.text)
+   else{announcement=null;if(subtitle)subtitle.hidden=true;voice.stop()}
+   return
+  }
+  if(subtitle)subtitle.hidden=true
+  announcement=null
   const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact(),comment=episode.storyComment(npc)
   let text=defaultLine
   if(reply)text=reply
-  else if(offer?.residentId===npc.id&&offer.brief)text=offer.brief
+  else if(offer?.residentId===npc.id&&offer.brief)text=offer.briefSpeaker&&offer.briefSpeaker!==npc.name?offer.briefSpeaker+' · '+offer.brief:offer.brief
   else if(comment)text=comment
   else if(npc.opening&&state.missionId==='delivery'&&state.stage===1&&state.status==='available')text=npc.opening
   else if(state.status==='complete'&&npc.epilogue)text=npc.epilogue
   const key=[npc.name,state.stage,state.status,state.money,shopping,...options.map(o=>o.id)].join('/')
   if(shopping)text=(reply?reply+'  ':'')+'잔액 ₩'+state.money.toLocaleString('ko-KR')
   if(line.textContent!==text)line.textContent=text
-  if(shopping)voice.stop();else voice.say(npc.id,text)
+  if(shopping)voice.stop();else voice.say(offer?.residentId===npc.id&&!reply?offer.briefSpeaker??npc.id:npc.id,text)
   if(key===previous)return
   const focused=choices.contains(document.activeElement)?document.activeElement.dataset.choice:null
   previous=key;choices.replaceChildren()
@@ -72,13 +87,13 @@ export function episodeUI(game,voice,sound=()=>{}) {
   const offer=!state&&episode.openingContact()
   if(!state&&!offer)return null
   const reboard=state?.firstWork&&!driving&&!state.goal.vehicle
-  const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
+  const goal=reboard?{...state.goal,vehicle:true}:game.storyFocus?.(state)??state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
   const label=offer?(offer.label??offer.resident)+'에게 가기':reboard?'Touring에 다시 탑승해':state.objective
   return {...goal,title:offer?.jobTitle??state?.title,step:state?.step,missionId:state?.missionId,
    remaining:state?.remaining,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
-   y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}
+   y:goal.residentId?point?.y:goal.y,x:point?.x??goal.x,z:point?.z??goal.z,label}
  }
- return {dialogue,goal}
+ return {dialogue,goal,announce}
 }

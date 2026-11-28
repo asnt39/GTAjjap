@@ -173,3 +173,11 @@ body.speaking #mission-event,body.speaking #toast{visibility:hidden}
 @media(pointer:coarse) and (max-width:500px) and (orientation:portrait){
  #game #interact{bottom:max(172px,calc(env(safe-area-inset-bottom) + 166px))}
 }
+
+#story-subtitle{position:absolute;z-index:4;bottom:max(42px,8vh);left:50%;transform:translateX(-50%);
+ width:max-content;max-width:min(520px,62vw);padding:.55em .8em;border-radius:5px;
+ background:#10191bee;color:#fff4df;text-align:center;pointer-events:none;
+ font:600 clamp(12px,2vw,17px)/1.45 var(--game-font);word-break:keep-all}
+body.speaking #story-subtitle,body.dead #story-subtitle{visibility:hidden}
+@media(pointer:coarse){#story-subtitle{bottom:max(64px,14vh);max-width:52vw}}
+@media(pointer:coarse) and (orientation:landscape){#story-subtitle{bottom:max(110px,26vh)}}

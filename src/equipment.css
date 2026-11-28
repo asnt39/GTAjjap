@@ -22,9 +22,12 @@
  #equipment-hud button {min-height:44px;min-width:44px;touch-action:manipulation}
  .shortcuts {bottom:146px}
 }
-@media(pointer:coarse) and (max-width:600px) {
+@media (pointer:coarse) and (max-width:600px), (pointer:coarse) and (orientation:landscape) and (max-width:900px) {
  #equipment-hud {flex-wrap:wrap;justify-content:flex-end;max-width:158px}
  #gear-status {width:100%;text-align:right}
+}
+@media (pointer:coarse) and (orientation:landscape) and (max-width:500px) {
+ #equipment-hud {max-width:126px}
 }
 #sniper-scope {
  position:absolute; inset:0; z-index:2; pointer-events:none;

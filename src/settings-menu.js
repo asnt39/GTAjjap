@@ -23,6 +23,8 @@ export function missionMenu(journal, tracking, row, button, archive, progress){
   (Number.isFinite(remaining)?row('남은 시간',Math.ceil(remaining)+'초'):'')+
   (progress?row('상태',progress):'')+
   '<h3>목표</h3><p>'+escapeText(journal.objective)+'</p></div>'+
+  (journal.journal?.length?'<details class="mission-summary"><summary>이전 대사</summary>'+journal.journal.map(([speaker,line])=>
+   '<p><strong>'+escapeText(speaker)+'</strong> · '+escapeText(line)+'</p>').join('')+'</details>':'')+
   (journal.status==='failed'||journal.status==='available'&&journal.stage>1&&!journal.chapter?button('retry','의뢰 재시도'):
    journal.status==='active'?button('abandon','의뢰 중단'):'')+
   (archive?button('story-archive',archive):'')

@@ -4,6 +4,7 @@ import {drivePavementHeight,pavedDriveBounds,townCurbBlocks,townDriveBounds,unpa
 import {touringSetup} from './vehicles.js'
 import {dentVehicle} from './vehicle-damage.js'
 import {breakwaterApproach,breakwaterGradeAt} from './breakwater-approach.js'
+import {parkingLevel} from './chapter-sites.js'
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 const approach=(a,b,step)=>a+clamp(b-a,-step,step)
 const step=1/120
@@ -32,7 +33,11 @@ export function clearPose(car,boxes,allowOldTown=true,allowSidewalk=false,contac
   const a=(x2-x1)/2,b=(z2-z1)/2,dx=(x1+x2)/2-car.x,dz=(z1+z2)/2-car.z
   return Math.abs(dx*cs+dz*sn)<w+a*c+b*s && Math.abs(-dx*sn+dz*cs)<l+a*s+b*c
  }
- const block=(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).find(overlaps)??boxes.find(bounds=>(bounds[6]??0)<car.height+.16&&overlaps(bounds))
+ const deck=parkingLevel(car.x,car.z,car.lift??0),feet=deck??0
+ const block=(allowSidewalk?unpavedDriveBlocks:inTown?townCurbBlocks:curbBlocks).find(overlaps)??boxes.find(bounds=>
+  (bounds[6]??0)<feet+(car.height??1.7)+.16&&
+  !(deck!==null&&bounds[5]&&bounds[4]<=feet+.38)&&
+  (feet<.2||bounds[4]>feet+.04)&&overlaps(bounds))
  if(contact&&block){
   contact.x=clamp(car.x,block[0],block[1])
   contact.z=clamp(car.z,block[2],block[3])
@@ -63,6 +68,13 @@ function updateRoadGrade(car){
   pitch=Math.atan2((frontLeft+frontRight-rearLeft-rearRight)*.5,axle*2)
   roll=Math.atan2((frontRight+rearRight-frontLeft-rearLeft)*.5,across*2)
  }
+ const parking=parkingLevel(car.x,car.z,car.lift??0)
+ if(parking!==null){
+  const axle=car.length*.36,dx=Math.sin(car.heading)*axle,dz=Math.cos(car.heading)*axle
+  const front=parkingLevel(car.x+dx,car.z-dz,parking,.55)??parking
+  const rear=parkingLevel(car.x-dx,car.z+dz,parking,.55)??parking
+  lift=parking-car.curbLift;pitch=Math.atan2(front-rear,axle*2)
+ }
  car.roadLift=lift
  car.roadPitch=pitch
  car.roadRoll=roll
@@ -75,6 +87,7 @@ export function resetVehicleGround(car){
 }
 // Separation along the four axes of two oriented rectangles.
 export function overlapsCar(a,b){
+ if(Math.abs((a.lift??0)-(b.lift??0))>=Math.max(a.height??1.7,b.height??1.7)+.2)return false
  const reach=(a.width+a.length+b.width+b.length)*.5
  if(Math.abs(a.x-b.x)>=reach||Math.abs(a.z-b.z)>=reach)return false
  const relative=localPoint(a,b.x,b.z),back=localPoint(b,a.x,a.z)
@@ -201,9 +214,9 @@ export function doorPoint(car,side,extra=.47){return worldPoint(car,side*(car.wi
 export function cabinPoint(car,side,extra){
  return worldPoint(car,side*(car.width/2+extra),car.setup?.cabinZ??car.setup?.doorZ??-.16)
 }
-export function clearPath(a,b,boxes,r=.32,blocked){
+export function clearPath(a,b,boxes,r=.32,blocked,feet=a.y??0){
  const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.14))
- for(let i=0;i<=n;i++){const t=i/n;const x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(!canWalk(x,z,boxes,r)||blocked?.(x,z))return false}
+ for(let i=0;i<=n;i++){const t=i/n;const x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(!canWalk(x,z,boxes,r,feet)||blocked?.(x,z))return false}
  return true
 }
 export function availableDoor(car,p,boxes,blocked){
@@ -216,7 +229,7 @@ export function availableDoor(car,p,boxes,blocked){
 export function safeExit(car,boxes,preferred=-1,blocked){
  for(const side of [preferred,-preferred]){
   const start=doorPoint(car,side,.05),target=doorPoint(car,side,.61)
-  if(clearPath(start,target,boxes,.32,blocked)&&(!car.setup?.cabinZ||clearPath(cabinPoint(car,side,.26),target,boxes,.32,blocked))&&!nearBody(car,target.x,target.z))return {side,door:target}
+  if(clearPath(start,target,boxes,.32,blocked,car.lift)&&(!car.setup?.cabinZ||clearPath(cabinPoint(car,side,.26),target,boxes,.32,blocked,car.lift))&&!nearBody(car,target.x,target.z))return {side,door:target}
  }
  return null
 }

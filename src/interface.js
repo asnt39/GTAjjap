@@ -534,5 +534,5 @@ export function createUI(game){
   if(audio.active!==($('#sound').getAttribute('aria-pressed')==='true'))reflectSound()
  }
  appUpdates.subscribe(refreshUpdate)
- return {update,updateAudio,prepareDriveAudio:audio.prepareDrive,updateRoom,show,close,toast,impact,clearImpact:()=>{healthHUD.clear();updateHealth()},deathAudio:audio.death,deathTitle:audio.deathTitle,sound:audio.sound,shot:(id,point)=>audio.sound(id,point),missionGoal,isOpen:()=>!!panel}
+ return {update,updateAudio,prepareDriveAudio:audio.prepareDrive,updateRoom,show,close,toast,announceStory:story.announce,impact,clearImpact:()=>{healthHUD.clear();updateHealth()},deathAudio:audio.death,deathTitle:audio.deathTitle,sound:audio.sound,shot:(id,point)=>audio.sound(id,point),missionGoal,isOpen:()=>!!panel}
 }

@@ -38,3 +38,6 @@
 @media (prefers-reduced-motion:reduce) {
  #interaction-options button,#interaction-options button.leaving {animation-duration:.01s}
 }
+@media (pointer:coarse) and (orientation:landscape) and (max-width:900px) {
+ #game #interact {width:min(235px,max(135px,calc(100vw - 325px)))}
+}

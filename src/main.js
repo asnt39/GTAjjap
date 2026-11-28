@@ -3,7 +3,7 @@ import {insideBasin,basinGreen,basinLots} from './south-basin-plan.js'
 import {buildSouthBasin} from './south-basin.js'
 import {buildBasinSkyline} from './basin-skyline.js'
 import {bunker,bunkerAccess,bunkerWalls,inBunker} from './basin-skyline-plan.js'
-import {beachGround,coastFloor,inCoast,inPier,seaLevel,swimLadder} from './coast-plan.js'
+import {beachGround,coastFloor,inCoast,inPier,seaLevel,coastLadders} from './coast-plan.js'
 import {buildCoast} from './coast-scene.js'
 import {boatArt} from './boat-art.js'
 import {boatExit,canStartSwimming,createBoats,driveBoat,boardableBoats,steerTo,swimmer} from './coastal-motion.js'
@@ -50,6 +50,12 @@ import {insidePremises} from './market-plan.js'
 import {archiveVisibility} from './archive-visibility.js'
 import {archive,archiveAccess} from './chart-room.js'
 import {createEpisode} from './episode.js'
+import {chapterMissions} from './chapter-missions.js'
+import {freeCrew} from './chapter-eight.js'
+import {cargoLaunch,quaySkiff} from './chapter-sea.js'
+import {chapterWorld as continuationWorld} from './chapter-world.js'
+import {buildChapterBuildings} from './chapter-buildings.js'
+import {facilityFloor,hideout,parkingLevel,workshop} from './chapter-sites.js'
 import {buildTransferYard} from './transfer-yard.js'
 import {buildNewBloodClub} from './new-blood-club.js'
 import {clubPlan,clubDoors,insideClub,clubFloorAt,clubCeilingAt} from './new-blood-club-plan.js'
@@ -63,7 +69,7 @@ import {createRoomClient,blendPose} from './room-client.js'
 import {roomPresence} from './room-presence.js'
 import {packPlayer,packVehicle,wrapAngle} from './room-protocol.js'
 import {recoveryPosition,clearStuckMotion} from './play-recovery.js'
-import {parkedPoses,restoreParkedPoses,restoreTrafficVehicle} from './vehicle-checkpoint.js'
+import {parkedPoses,restoreParkedPoses,restoreTrafficVehicle,vehicleCheckpointPose} from './vehicle-checkpoint.js'
 import {createCheckpoint,resolveCheckpoint} from './play-checkpoint.js'
 import {createSaveData} from './save-data.js'
 import {createMissionCheckpoint,missionVehicleSnapshot,restoreMissionVehicle} from './mission-checkpoint.js'
@@ -162,6 +168,7 @@ export async function start(onContextLost){
  const westBank=buildWestBank(scene,addCollider,surfaceMaps,boxes)
  buildTransferYard(scene,addCollider,surfaceMaps)
  const updateClub=buildNewBloodClub(scene,addCollider,surfaceMaps)
+ const chapterBuildings=buildChapterBuildings(scene,addCollider,surfaceMaps)
  const updateStation=buildPoliceStation(scene,addCollider)
  const custodyView=custodyPresentation(scene,char,boxes)
  const updateGuide=missionGuide(scene,camera,groundHeight)
@@ -182,7 +189,7 @@ export async function start(onContextLost){
  const parkedSpawns=new Map(fleet.map(vehicle=>[vehicle.id,{...vehicle}]))
  let car=cars.touring,offline=null,pendingSeat=null,localSeat=null,walkSpeed=0,vehiclePose=null,remoteShadow=false
  let mode='walk',transition=null,lastSide=-1,cameraBlend=0,lookHold=0,recentFrameMs=0
- const swimming=swimmer(),boats=createBoats(),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
+ const swimming=swimmer(),boats=createBoats([cargoLaunch,quaySkiff]),boatRigs=boatArt(scene,boats),pilotPoint=new THREE.Vector3(),pilotRotation=new THREE.Quaternion()
  let boat=null,seaTransition=null,wetView=0,splashAt=0
  const foot=createFootwork();foot.reset(groundHeight(pos.x,pos.z));pos.y=actor.position.y=foot.height
  const crowd=await createResidents(scene,boxes,cars.touring,traffic,p=>groundHeight(p.x,p.z),effects.characterImpact)
@@ -248,7 +255,7 @@ export async function start(onContextLost){
  const deathScreen=createDeathScreen(canvas,document.querySelector('#death-screen'))
  const missionCheckpoint=createMissionCheckpoint()
  let deathTime=0
- const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
+ const episode=createEpisode({storage,onSave:data.recordSave,mainStory:true,chapterOne:clubPlan,chapterMissions,canStartOpening:()=>room.phase==='offline'&&!custody.active&&!mission.active})
  let storyStatus=''
  function storyShot(n,from,to,hit,weapon='pistol',damage=9){
   effects.trace(from,to);effects.muzzle(from,2);ui.shot(weapon,from)
@@ -257,8 +264,45 @@ export async function start(onContextLost){
  const storyWorld=prologueWorld({scene,boxes,crowd,traffic,rigs,height:groundHeight,inView:trafficInView,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)},
   combat:storyShot})
- const chapterWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
+ const clubWorld=newBloodWorld({scene,boxes,crowd,traffic,height:groundHeight,combat:storyShot,
   notify(message,failed){if(failed)episode.fail(message);ui.toast(message)}})
+ const chapterHomeUnlocked=()=>room.phase==='offline'&&episode.chapter?.complete===true
+ const chapterCurrent=()=>episode.chapter?.stage??(chapterHomeUnlocked()?freeCrew:null)
+ const arcWorld=continuationWorld({scene,boxes,crowd,traffic,rigs,boats,floorAt,combat:storyShot,
+  notify(message,failed){if(failed)episode.fail(message);if(!ui.announceStory(message))ui.toast(message)},
+  registerVehicle(vehicle,rig){
+   fleet.push(vehicle);traffic.push(vehicle)
+   cars[vehicle.id]=vehicle;rigs[vehicle.id]=rig;soloTunings.set(vehicle.id,soloRoadTuning(vehicle.setup))
+  },
+  unregisterVehicle(vehicle){
+   if(car===vehicle){
+    if(mode!=='walk'){releaseSeat();resetWalk(pos.x,pos.z,face,floorAt(pos.x,pos.z,pos.y))}
+    car=cars.touring
+   }
+   for(const list of [fleet,traffic]){
+    const index=list.indexOf(vehicle)
+    if(index>=0)list.splice(index,1)
+   }
+   delete cars[vehicle.id];delete rigs[vehicle.id];soloTunings.delete(vehicle.id);unattended.delete(vehicle);playerParked.delete(vehicle)
+  }})
+ const isArcStage=stage=>stage?.set?.startsWith('chapter-')??false
+ const worldFor=stage=>isArcStage(stage)?arcWorld:clubWorld
+ const chapterWorld={
+  prepare(stage){
+   clubWorld.prepare(isArcStage(stage)?null:stage)
+   arcWorld.prepare(isArcStage(stage)?stage:null)
+  },
+  enter(stage){this.prepare(null);worldFor(stage).enter(stage)},
+  step(stage,...args){return worldFor(stage).step(stage,...args)},
+  interactions(stage,pos){return worldFor(stage).interactions(stage,pos)},
+  markers(){return worldFor(episode.chapter?.stage).markers()},
+  snapshot(){
+   const stage=episode.chapter?.stage
+   return worldFor(stage).snapshot()
+  },
+  planRestore(snapshot){return worldFor(episode.chapter?.stage).planRestore(snapshot)}
+ }
+ const storyFocus=()=>arcWorld.focus()
  const storyMarkers=()=>episode.chapter?.active?chapterWorld.markers():storyWorld.markers()
  const setFirstWorkRoadblock=firstWorkRoadblock(scene,boxes)
  setFirstWorkRoadblock(episode.roadClosed)
@@ -392,7 +436,7 @@ export async function start(onContextLost){
  const belowGround=()=>inBunker(pos.x,pos.z,pos.y)
  const canRestore=(x,z,y)=>inBunker(x,z,y)?canWalk(x,z,bunkerWalls,.32,y):
   canWalk(x,z,boxes,.32,y)&&y+player.height<=ceilingHeight(x,z,y)+.002&&(y>2.4||!occupied(x,z))
- const occupied=(x,z)=>traffic.some(vehicle=>nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
+ const occupied=(x,z,y=0)=>traffic.some(vehicle=>Math.abs((vehicle.lift??0)-y)<1.5&&nearBody(vehicle,x,z))||crowd.blockedBy(null,x,z)
  function closestTarget(){
   let nearest=null,score=2.05
   for(const n of crowd.all){
@@ -510,7 +554,7 @@ export async function start(onContextLost){
  const boating=()=>mode==='boat'
  const inWater=()=>mode==='swim'
  const operating=()=>driving()||boating()
- const pierLadder=()=>inWater()&&Math.hypot(pos.x-swimLadder.x,pos.z-swimLadder.z)<1.45&&!swimming.diving
+ const pierLadder=()=>inWater()&&!swimming.diving&&coastLadders.find(ladder=>Math.hypot(pos.x-ladder.x,pos.z-ladder.z)<1.45)
  const boatsNearby=()=>room.phase==='offline'&&(inWater()&&!swimming.diving||canAct())?boardableBoats(pos,boats,inWater()):[]
  function enterWater(){
   mode='swim';swimming.start(pos);foot.reset(pos.y)
@@ -522,7 +566,7 @@ export async function start(onContextLost){
  }
  function waterInteraction(selectedBoat){
   if(seaTransition)return true
-  const next=selectedBoat??boatsNearby()[0]
+  const next=selectedBoat??boatsNearby()[0],ladder=pierLadder()
   if(next){
    saveCheckpoint();boat=next
    seaTransition={to:'boat',time:0,from:actor.position.clone(),turn:face}
@@ -530,8 +574,8 @@ export async function start(onContextLost){
    const exit=boatExit(boat,(x,z)=>inPier(x,z)&&canWalk(x,z,boxes,.32,beachGround(x,z)),boats)
    if(!exit){ui.toast('하선 공간 부족. 다른 위치에 정차하십시오.');return true}
    seaTransition={to:exit.dry?'walk':'swim',time:0,from:actor.position.clone(),exit,turn:face,drift:true,pace:Math.abs(boat.speed)}
-  }else if(pierLadder()){
-   seaTransition={to:'walk',time:0,from:actor.position.clone(),exit:{x:swimLadder.x,z:swimLadder.deckZ},turn:face}
+  }else if(ladder){
+   seaTransition={to:'walk',time:0,from:actor.position.clone(),exit:{x:ladder.x,z:ladder.deckZ},turn:face}
   }else return inWater()
   clearControls();mode='transfer';return true
  }
@@ -572,10 +616,13 @@ export async function start(onContextLost){
   if(lift)add('bunker-'+lift,lift==='enter'?'승강기로 지하 벙커 들어가기':'승강기로 지상 돌아가기',()=>useBunkerLift(lift),pos,4)
   if(belowGround())return list
   if(operating()){
+   if(driving()&&arcWorld.canAssignDriver(car))
+    add('chapter-maya-drive',arcWorld.autoDriver?'운전대 되찾기':'Maya에게 운전 맡기기',()=>arcWorld.changeDriver(car),pos,3)
    add('exit',boating()?'보트에서 내리기':Math.abs(car.speed)<=.45?'하차':room.phase==='offline'?'주행 중 하차':'정차 후 하차',interactCar,pos,2)
   }else{
    for(const boarding of boatsNearby())add('boat-'+boarding.id,boarding.name+' 탑승',()=>waterInteraction(boarding),boarding,2)
-   if(pierLadder())add('ladder','사다리로 올라가기',()=>waterInteraction(false),swimLadder,3)
+   const ladder=pierLadder()
+   if(ladder)add('ladder','사다리로 올라가기',()=>waterInteraction(false),ladder,3)
    if(canAct()){
     if(episode.prologue?.stage?.kind==='free'&&Math.hypot(pos.x-detention.x,pos.z-detention.z)<detention.radius&&pos.y<1.2&&
      cameraFraction({...pos,y:pos.y+1.22},{...detention,y:1.22},boxes)>.92){
@@ -589,10 +636,19 @@ export async function start(onContextLost){
      const result=storyAction.activate()
      if(result?.message)ui.toast(result.message)
     },storyAction,4)
-    for(const action of chapterWorld.interactions(episode.chapter?.stage,pos))add(action.id,action.label,()=>{
+    for(const action of chapterWorld.interactions(chapterCurrent(),pos))add(action.id,action.label,()=>{
      const result=action.activate()
      if(result?.message)ui.toast(result.message)
     },action,4)
+    if(chapterHomeUnlocked()){
+     if(Math.hypot(pos.x-hideout.armory.x,pos.z-hideout.armory.z)<1.7)
+      add('chapter-armory','장비 관리대 열기',()=>ui.show('equipment'),hideout.armory,3)
+     if(Math.hypot(pos.x-hideout.desk.x,pos.z-hideout.desk.z)<1.7)
+      add('chapter-briefing-table','배차 기록과 다음 단서 확인',()=>{
+       const lead=episode.snapshot().lead
+       ui.toast(lead==='intercepted'?'Rivet 운행장부 확보 · Adrian의 임시 배차 명단': '마지막 합류 좌표 확보 · 다음 항만 배차 기록 대기')
+      },hideout.desk,3)
+    }
     for(const dest of doorCandidates())add('car-'+dest.car.id,dest.car.setup.name+(dest.occupied?' · 운전자에게서 차량 가져오기':' 탑승'),()=>interactCar(dest),dest.door,2)
     for(const d of doors.candidates(pos))add('door-'+d.first,d.r.title+' · '+(d.target?'문 닫기':'문 열기'),()=>doors.toggle(pos,d),d.at,2)
     for(const n of crowd.candidates(pos))add('resident-'+n.id,residentDisplayName(n)+' · 대화',()=>converse(n),n.pos,1)
@@ -607,9 +663,9 @@ export async function start(onContextLost){
  function cityCandidates(){
   if(!canAct()&&!driving())return []
   if(driving()&&(room.phase!=='offline'||Math.abs(car.speed)>.45||!car.dents))return []
-  return nearbyActions(driving()?repairSpots:walkSpots,pos,yaw,spot=>
+  return nearbyActions(driving()?repairSpots:walkSpots,pos,yaw,spot=>(!spot.chapterHome||chapterHomeUnlocked())&&(
    driving()||(spot.type!=='discovery'||room.phase==='offline'&&!episode.discovered(spot.id))&&
-   cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84)
+   cameraFraction({x:pos.x,y:pos.y+1.36,z:pos.z},{x:spot.x,y:spot.targetY??1.38,z:spot.z},boxes)>.84))
  }
  function useCity(spot){
   if(spot.type==='discovery'){
@@ -619,9 +675,9 @@ export async function start(onContextLost){
    return
   }
   if(spot.type==='repair'){
-   const result=episode.spend(spot.price)
+   const result=spot.price?episode.spend(spot.price):{ok:true}
    if(result.ok){car.dents=undefined;car.collision=null;ui.sound('repair',pos)}
-   ui.toast(result.ok?'정비 완료 · ₩'+spot.price:result.message);return
+   ui.toast(result.ok?(spot.price?'정비 완료 · ₩'+spot.price:'정비 완료'):result.message);return
   }
   if(spot.type==='light'){
    ui.toast(fixtures.toggleLamp()?'조명을 켰어':'조명을 껐어');ui.sound('click',pos);return
@@ -647,15 +703,17 @@ export async function start(onContextLost){
    })
   }
  }
- const repairSpots=citySpots.filter(s=>s.type==='repair'),walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
-  {id:'lantern-room-water',...clubPlan.bar,title:'Lantern Room',label:'바에서 생수 주문',price:120,heal:8,pose:'drink',range:1.35}]
- const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&nearBody(other,x,z))
+ const repairSpots=[...citySpots.filter(s=>s.type==='repair'),{id:'keel-works',type:'repair',...workshop.bay,price:350,title:'Keel Motor Works',label:'차량 수리',range:2.5},
+  {id:'yard-repair',type:'repair',...hideout.parking,title:'Breakwater Yard',label:'보관 차량 무료 정비',price:0,range:2.6,chapterHome:true}],walkSpots=[...citySpots.filter(s=>s.type!=='repair'),
+  {id:'lantern-room-water',...clubPlan.bar,title:'Lantern Room',label:'바에서 생수 주문',price:120,heal:8,pose:'drink',range:1.35},
+  {id:'yard-rest',...hideout.rest,title:'Breakwater Yard',label:'휴게실에서 체력 회복',heal:100,pose:'rest',range:1.65,chapterHome:true}]
+ const blockedByCar=(vehicle,x,z)=>traffic.some(other=>vehicle!==other&&Math.abs((vehicle.lift??0)-(other.lift??0))<1.5&&nearBody(other,x,z))
  const blockedAtDoor=(vehicle,x,z)=>blockedByCar(vehicle,x,z)||crowd.blockedBy(null,x,z)
  function doorCandidates(qualifies){
-  if(pos.y-groundHeight(pos.x,pos.z)>.16)return []
   const nearby=[]
   for(const vehicle of traffic){
-   if(vehicle.localOnly&&room.phase!=='offline'||vehicle.owner!=null)continue
+   if(vehicle.storyLocked||vehicle.localOnly&&room.phase!=='offline'||vehicle.owner!=null)continue
+   if(Math.abs(pos.y-(vehicle.lift??groundHeight(vehicle.x,vehicle.z)))>.65)continue
    if(Math.abs(vehicle.x-pos.x)>5||Math.abs(vehicle.z-pos.z)>5)continue
    const driver=room.phase==='offline'?trafficDriver(vehicle):null
    if((!driver&&!cars[vehicle.id])||Math.abs(vehicle.speed)>(driver?2.25:.45))continue
@@ -680,7 +738,7 @@ export async function start(onContextLost){
   if(!exit)car.speed=car.travel=car.accel=car.slip=0
   car.throttle=car.shiftDelay=car.remainder=0;car.braking=false
   lastSide=destination.side
-  transition={time:0,from:{x:pos.x,z:pos.z},door:destination.door,side:lastSide,
+  transition={time:0,from:{x:pos.x,y:pos.y,z:pos.z},door:destination.door,side:lastSide,
    x:car.x,z:car.z,heading:car.heading,face,exit}
   renderer.shadowMap.needsUpdate=true
   ui.sound('doorOpen',pos)
@@ -749,8 +807,8 @@ export async function start(onContextLost){
   if(prior.npc)finishDriverDeparture(prior.npc,car)
   car.door=0;transition=vehiclePose=null;clearControls()
   mode=joining?'walk':'drive'
-  if(joining){face=prior.face;plantFeet(prior.from.x,prior.from.z)}
-  else pos.set(car.x,0,car.z)
+  if(joining){face=prior.face;plantFeet(prior.from.x,prior.from.z,prior.from.y)}
+  else pos.set(car.x,parkingLevel(car.x,car.z,car.lift)??0,car.z)
   actor.visible=joining
   if(joining)releaseSeat()
   renderer.shadowMap.needsUpdate=true
@@ -767,14 +825,15 @@ export async function start(onContextLost){
   }
   const changed=!exit&&(Math.hypot(car.x-transition.x,car.z-transition.z)>.09||Math.abs(car.heading-transition.heading)>.09)
   const origin=joining?transition.from:doorPoint(car,lastSide,.05)
-  if(changed||player.f.action||!clearPath(origin,transition.door,boxes,.32,(x,z)=>blockedAtDoor(car,x,z))){
+  if(changed||player.f.action||!clearPath(origin,transition.door,boxes,.32,(x,z)=>blockedAtDoor(car,x,z),car.lift)){
    cancelTransition();ui.toast('차량 주변이 막혀 승하차가 중단됐어');return
   }
   transition.time+=dt
   const pose=exit?movingExitPose(car,lastSide,transition.door,transition.time,exit):entryPose(car,transition,joining)
   car.door=rigs[car.id].hinged?pose.opening:0
   vehiclePose=pose;walkSpeed=pose.speed
-  pos.set(pose.x,0,pose.z);actor.position.set(pose.x,pose.y,pose.z)
+  const deck=parkingLevel(car.x,car.z,car.lift??0)??0
+  pos.set(pose.x,deck,pose.z);actor.position.set(pose.x,pose.y+deck,pose.z)
   face=pose.face;actor.rotation.set(0,face,pose.bank??0);actor.visible=pose.visible;char.root.position.y=0
   if(!car.setup.bike||!pose.ride)char.update(dt,pose.speed,car.setup.bike?{}:{vehicle:{side:lastSide,crouch:pose.crouch,reach:pose.reach}})
   renderer.shadowMap.needsUpdate=true
@@ -783,11 +842,11 @@ export async function start(onContextLost){
   ui.sound('doorClose',pos)
   if(joining){
    ui.sound(car.setup.bike?'bikeStart':'engineStart',pos)
-   mode='drive';pos.set(car.x,0,car.z);actor.visible=!!car.setup.bike
+   mode='drive';pos.set(car.x,deck,car.z);actor.visible=!!car.setup.bike
    if(!offline&&car===cars.touring)mission.board()
    if(room.phase==='offline')playerParked.add(car)
   }else{
-   mode='walk';actor.visible=true;plantFeet(pos.x,pos.z)
+   mode='walk';actor.visible=true;plantFeet(pos.x,pos.z,floorAt(pos.x,pos.z,deck))
    if(exit)unattended.set(car,1.4)
    releaseSeat()
    if(!offline&&car===cars.touring&&mission.exit())ui.toast('FIRST DRIVE 완료 · 주행 기록 저장')
@@ -955,7 +1014,7 @@ export async function start(onContextLost){
   effects.setLowDetail(settings.lowEffects)
   if(isPaused&&!contextLost){effects.update(0,canvas.height);renderer.render(scene,camera)}
  }
- const ui=createUI({options,data,saveNow,restoreData,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
+ const ui=createUI({options,data,saveNow,restoreData,interactions,recover,restartPrologue,storyStatus:()=>storyStatus,storyMarkers,storyFocus,useCity,activity,vehicleAction,loadout,selectEquipment,reloadEquipment,aiming:()=>aiming,scoped:()=>scopeVisible,inCell:()=>custody.canPunch,canAttack,useWestBank,testSignal:market.testSignal,episode,useItem,foot,canAct,canJump,converse,crowd,player,feedback:()=>feedbackTime>0?focus:null,get car(){return boating()?boat:driving()?car:cars.touring},get cars(){return room.phase==='offline'&&claimedTraffic.length?fleet.concat(claimedTraffic):fleet},room,startRoom,mission,driving,boating,swimming:()=>inWater()?swimming:null,mode:()=>mode,stats:()=>({ms:recentFrameMs,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,width:canvas.width,height:canvas.height}),pos,yaw:()=>yaw,setPaused:value=>{isPaused=value;if(value)activity.stop();clearControls()}})
  const pressed=code=>keys.has(code)?1:0
  window.addEventListener('keydown',e=>{if(crowd.talking||custody.locked||isPaused||player.f.hp<=0||document.querySelector('#game').inert)return;
   const cabinKey={KeyH:'horn',KeyL:'lights',KeyB:'radio'}[e.code]
@@ -1142,9 +1201,13 @@ export async function start(onContextLost){
  const storyCheckpoint=(episode.chapter??episode.prologue)?.checkpoint
  if(storyCheckpoint){
   const {x,z}=storyCheckpoint
-  if(canWalk(x,z,boxes,.32,groundHeight(x,z))&&!occupied(x,z))plantFeet(x,z)
+  const y=storyCheckpoint.y??groundHeight(x,z)
+  if(canWalk(x,z,boxes,.32,y)&&!occupied(x,z,y)){
+   if(Number.isFinite(storyCheckpoint.yaw)){yaw=storyCheckpoint.yaw;face=Math.PI-yaw}
+   plantFeet(x,z,y)
+  }
  }
- updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
+ chapterBuildings.updateDetails(pos);updateFittings(pos);updateBasin(pos);coastUpdate(pos);boatRigs.update(0,0,pos,null);updateTown(true,pos,settings.lowEffects);updateRow(pos,0);market.update(pos);westBank.update(0,0,pos,settings.lowEffects);updateClub(pos,0,settings.lowEffects)
  trackedX=pos.x;trackedZ=pos.z
  sunlight.position.x=trackedX+34;sunlight.target.position.x=trackedX
  sunlight.position.z=trackedZ-49;sunlight.target.position.z=trackedZ-9
@@ -1185,6 +1248,8 @@ export async function start(onContextLost){
  }
  function floorAt(x,z,feet,airborne=false){
   if(inBunker(x,z,feet))return bunker.floor
+  const chapterFloor=facilityFloor(x,z,feet,airborne?0:.24)
+  if(chapterFloor!==null)return chapterFloor
   const localRoom=rowRoomAt(x,z),terrace=terraceRoomAt(x,z)
   const base=localRoom?rowFloor(localRoom,x,z,feet,airborne):
    terrace?.loft?terraceFloorAt(terrace,x,z,feet,airborne):insideWorks(x,z)?worksUpper(x,z,feet,airborne):groundHeight(x,z)
@@ -1203,9 +1268,11 @@ export async function start(onContextLost){
   encounter.enter(story.stage)
   loadout.missionLoan(false)
   const point=story.checkpoint
-  if(point&&canWalk(point.x,point.z,boxes,.32,groundHeight(point.x,point.z))&&!occupied(point.x,point.z)){
+  const y=point&&(point.y??groundHeight(point.x,point.z))
+  if(point&&canWalk(point.x,point.z,boxes,.32,y)&&!occupied(point.x,point.z,y)){
    releaseSeat();restorePlayerHealth()
-   resetWalk(point.x,point.z,face)
+   if(Number.isFinite(point.yaw))yaw=point.yaw
+   resetWalk(point.x,point.z,Number.isFinite(point.yaw)?Math.PI-yaw:face,y)
   }else if(!point&&fallback&&room.phase==='offline'){
    const safe=resolveCheckpoint(fallback,[],floorAt,(x,z,y)=>canRestore(x,z,y)&&!canStartSwimming(x,z))
    if(!safe)return
@@ -1266,8 +1333,8 @@ export async function start(onContextLost){
   if(savesSuspended)return false
   rememberCheckpoint()
   if(checkpointEnabled&&room.phase==='offline'&&!offline){
-   const poses=parkedPoses(fleet.filter(vehicle=>!trafficDriver(vehicle)),parkedSpawns)
-   for(const {id,x,z,heading} of playerParked)poses[id]={x,z,heading:wrapAngle(heading)}
+   const poses=parkedPoses(fleet.filter(vehicle=>!vehicle.storyVehicle&&!trafficDriver(vehicle)),parkedSpawns)
+   for(const vehicle of playerParked)if(!vehicle.storyVehicle)poses[vehicle.id]=vehicleCheckpointPose(vehicle)
    checkpoint.sampleVehicles(poses,true)
   }
   return checkpoint.flush()
@@ -1400,7 +1467,7 @@ export async function start(onContextLost){
     const length=Math.max(1,Math.hypot(ax,az)),sn=Math.sin(yaw),cs=Math.cos(yaw)
     const matchLand=(x,z)=>canWalk(x,z,boxes,.32,beachGround(x,z))
     const wet=swimming.step(pos,dt,(ax*cs+az*sn)/length,(ax*sn-az*cs)/length,elapsed,matchLand,
-     (x,z)=>boats.some(b=>Math.hypot(x-b.x,z-b.z)<.67&&pos.y>seaLevel-1.7))
+     (x,z)=>boats.some(b=>!b.disabled&&Math.hypot(x-b.x,z-b.z)<.67&&pos.y>seaLevel-1.7))
     speed=wet.speed
     if(wet.land){
      mode='walk';plantFeet(pos.x,pos.z);shadow.visible=true
@@ -1425,7 +1492,7 @@ export async function start(onContextLost){
     const input={forward:Math.max(pressed('KeyW'),pressed('ArrowUp'),Number(pedals.has('gas'))),back:Math.max(pressed('KeyS'),pressed('ArrowDown'),Number(pedals.has('brake'))),steer:clamp(pressed('KeyD')-pressed('KeyA')+joystick.x,-1,1),handbrake:pressed('Space')||pedals.has('hold')}
     Object.assign(previousCar,{x:car.x,z:car.z,heading:car.heading,speed:car.speed,width:car.width,length:car.length})
     const solo=room.phase==='offline'
-    stepDrive(car,input,boxes,dt,traffic,solo,undefined,solo?soloTunings.get(car.id):null)
+    stepDrive(car,solo?arcWorld.driveInput(car,input):input,boxes,dt,traffic,solo,undefined,solo?soloTunings.get(car.id):null)
     handleCrash(car,crashes(car,elapsed))
     const strikes=pedestrianImpacts(dt,previousCar,car,crowd.all,(resident,damage,impact)=>{
      if(!crowd.vehicleHit(resident,car,damage,impact))return false
@@ -1435,7 +1502,7 @@ export async function start(onContextLost){
     })
     if(strikes)car.speed*=Math.pow(.85,strikes)
     speed=Math.abs(car.speed)
-    if(driving()){pos.x=car.x;pos.z=car.z;actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)}
+    if(driving()){pos.set(car.x,parkingLevel(car.x,car.z,car.lift)??0,car.z);actor.visible=!!car.setup.bike;mission.tick(!offline&&car===cars.touring)}
     lookHold=Math.max(0,lookHold-dt)
     if(!drag&&!lookHold){const error=car.heading-yaw;yaw+=Math.atan2(Math.sin(error),Math.cos(error))*(1-Math.exp(-(speed>.6?3.4:1.5)*dt))}
    }else{
@@ -1544,14 +1611,14 @@ export async function start(onContextLost){
    player.exposed=!below&&!custody.active&&player.f.hp>0&&(mode==='walk'||driving())
    if(!deathScreen.active){
     const prologue=room.phase==='offline'?episode.prologue:null,stage=prologue?.stage
-    const chapter=room.phase==='offline'?episode.chapter:null,chapterStage=chapter?.stage
+    const chapter=room.phase==='offline'?episode.chapter:null,chapterStage=chapter?chapterCurrent():null
     const missionWeapon=chapterStage?.armed===true||!!(stage?.set||stage?.carry)&&stage?.set!=='pursuit'
     if(loadout.missionLoan(missionWeapon)){cancelAim();equipment.interrupt()}
     storyWorld.prepare(stage);chapterWorld.prepare(chapterStage)
     rememberMission(episode.tracking())
     const roadDriving=!!player.inVehicle
     const beats=storyWorld.step(stage,dt,player,player.available,roadDriving)
-    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving)
+    const chapterBeats=chapterWorld.step(chapterStage,dt,player,player.available,roadDriving,boating()?boat:null,elapsed)
     remoteShadow ||= !!chapterBeats.moving
     storyStatus=chapterBeats.status||beats.objectiveStatus||(stage?.kind==='escort'&&Number.isFinite(beats.escortHealth)?'Theo '+beats.escortHealth+'/130':
      stage?.kind==='evade'&&beats.threats?'추격 차량 '+beats.threats+'대':
@@ -1560,7 +1627,9 @@ export async function start(onContextLost){
      const chapterUpdate=chapterStage&&(chapterBeats.failed?chapter.fail(chapterBeats.failed):chapter.update(chapterBeats))
      const update=chapterUpdate||(beats.failed?prologue?.fail('Theo를 구출하지 못했습니다.'):
       prologue?.update({x:pos.x,z:pos.z,speed,onFoot:player.available,driving:roadDriving,...beats}))
-     if(update?.message)ui.toast(update.message)
+     if(update?.message){
+      if(!chapterUpdate||!isArcStage(chapterStage)||!ui.announceStory(update.message))ui.toast(update.message)
+     }
     }
    }
    player.legacyArrest=room.phase!=='offline'
@@ -1607,7 +1676,8 @@ export async function start(onContextLost){
    const basinChanged=updateBasin(pos,driving()?car.speed:walkSpeed,driving()?car.heading:yaw),coastChanged=coastUpdate(pos,elapsed,camera.position.y)
    const doorsChanged=doors.update(dt,pos,crowd.all),fittingsChanged=updateFittings(pos)
    const roadChanged=setFirstWorkRoadblock(episode.roadClosed)
-   const clubChanged=updateClub(pos,elapsed,settings.lowEffects)
+   const chapterDetailChanged=chapterBuildings.updateDetails(pos)
+   const clubChanged=updateClub(pos,elapsed,settings.lowEffects)||chapterDetailChanged
    if(updateVisibility()||shopChanged||districtChanged||stationChanged||westChanged||rowChanged||roadChanged||basinChanged||coastChanged||doorsChanged||fittingsChanged||clubChanged)renderer.shadowMap.needsUpdate=true
    scopeVisible=hideScopeBody=false
    camera.updateMatrixWorld()

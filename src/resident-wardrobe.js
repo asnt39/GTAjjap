@@ -10,6 +10,13 @@ const residents = [
   { jacket:0x62768b, shirt:0xb58f56, denim:0x393e43, scale:[1.13,.986,1.08], hat:'knit' },
   { jacket:0xb1a17e, shirt:0x854f51, denim:0x697a87, scale:[.93,.975,.98] },uniform,uniform
 ]
+Object.assign(residents,{
+  20:{jacket:0x485447,shirt:0x54453b,denim:0x3b4245,scale:[1.09,1.005,1.08]},
+  21:{jacket:0x30343d,shirt:0xcdc4ac,denim:0x33323a,scale:[.97,1.04,.97]},
+  22:{jacket:0x654a43,shirt:0x9b9277,denim:0x555555,scale:[1,.98,1],hat:'knit'},
+  23:{jacket:0x373d42,shirt:0x685b4e,denim:0x484957,scale:[1.01,1.01,1],hat:'cap'},
+  24:{jacket:0x61594d,shirt:0x8b7870,denim:0x343a39,scale:[1.04,.975,1.03]}
+})
 const dyedMaterials = new WeakMap()
 const hatGeometries = new Map()
 const hatMaterial = new MeshStandardMaterial({vertexColors:true,roughness:.77,metalness:.035})
