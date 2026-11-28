@@ -9,7 +9,11 @@ function nearbyDirections(pos){
 export function episodeUI(game,voice,sound=()=>{}) {
  const episode=game.episode, conversation=document.querySelector('#conversation')
  const choices=conversation.querySelector('.episode-choices'),line=conversation.querySelector('.spoken')
- let previous='', shopping=false, speaker=null, reply=''
+ let previous='', shopping=false, speaker=null, reply='',announcement=null
+ function announce(message){
+  const split=message?.indexOf(' · ')??-1
+  if(split>0&&split<18)announcement={speaker:message.slice(0,split),text:message.slice(split+3),until:performance.now()+6500}
+ }
  function option(id,label,action,description='') {
   const button=document.createElement('button')
   button.type='button';button.dataset.choice=id;button.textContent=label
@@ -28,7 +32,12 @@ export function episodeUI(game,voice,sound=()=>{}) {
  function dialogue(defaultLine) {
   const npc=game.crowd.talking
   if(npc!==speaker){speaker=npc;shopping=false;reply='';previous=''}
-  if(!npc){voice.stop();return}
+  if(!npc){
+   if(announcement&&performance.now()<announcement.until)voice.say(announcement.speaker,announcement.text)
+   else{announcement=null;voice.stop()}
+   return
+  }
+  announcement=null
   const state=episode.snapshot(),options=episode.choices(npc),offer=episode.openingContact(),comment=episode.storyComment(npc)
   let text=defaultLine
   if(reply)text=reply
@@ -72,13 +81,13 @@ export function episodeUI(game,voice,sound=()=>{}) {
   const offer=!state&&episode.openingContact()
   if(!state&&!offer)return null
   const reboard=state?.firstWork&&!driving&&!state.goal.vehicle
-  const goal=reboard?{...state.goal,vehicle:true}:state?.goal??offer
+  const goal=reboard?{...state.goal,vehicle:true}:game.storyFocus?.(state)??state?.goal??offer
   const npc=goal.residentId&&game.crowd.all.find(n=>n.id===goal.residentId)
   const point=goal.vehicle?game.cars.find(vehicle=>vehicle.id==='touring'):npc?.pos
   const label=offer?(offer.label??offer.resident)+'에게 가기':reboard?'Touring에 다시 탑승해':state.objective
   return {...goal,title:offer?.jobTitle??state?.title,step:state?.step,missionId:state?.missionId,
    remaining:state?.remaining,markerHeight:npc?npc.height+.31:goal.vehicle?1.85:goal.sight?1.95:.8,
-   y:goal.residentId?point?.y:undefined,x:point?.x??goal.x,z:point?.z??goal.z,label}
+   y:goal.residentId?point?.y:goal.y,x:point?.x??goal.x,z:point?.z??goal.z,label}
  }
- return {dialogue,goal}
+ return {dialogue,goal,announce}
 }

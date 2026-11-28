@@ -1,4 +1,5 @@
-// Use only voices the device explicitly marks local.
+const roles={maya:[.93,1.09],leon:[.94,.78],adrian:[.82,.70],victor:[.87,.84],jack:[1.01,1.02],theo:[.95,.96]}
+// Optional local speech when a pre-recorded line is unavailable.
 export function dialogueVoice(browser=globalThis,volume=()=>.9){
  const engine=browser.speechSynthesis
  let enabled=false,last='',current=false
@@ -19,12 +20,13 @@ export function dialogueVoice(browser=globalThis,volume=()=>.9){
    if(!enabled||!text||key===last)return
    const choices=voices()
    if(!choices.length)return
-   const index=Array.from(speaker).reduce((acc,c)=>acc+c.charCodeAt(0),0)
+   const name=({'courier':'jack','west-courier':'theo'})[speaker]??speaker.toLowerCase().split('-').at(-1)
+   const index=Array.from(name).reduce((acc,c)=>acc+c.charCodeAt(0),0)
    stop();last=key
    const utterance=new browser.SpeechSynthesisUtterance(text.replace(/^.{1,22} · /,''))
    utterance.volume=volume()
    utterance.voice=choices[index%choices.length];utterance.lang=utterance.voice.lang
-   utterance.rate=.89+(index%5)*.032;utterance.pitch=.91+(index%4)*.053
+   ;[utterance.rate,utterance.pitch]=roles[name]??[.89+(index%5)*.032,.91+(index%4)*.053]
    current=true;engine.speak(utterance)
   },
   stop
